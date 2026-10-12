@@ -1,6 +1,82 @@
 # Metrics gap analysis — Local Bridge vs FWHAI vs Modbus Bridge
 
-**Filed:** 2026-09-14 · Counts taken from the code, not the docs.
+**Filed:** 2026-09-14 · **Re-validated 2026-10-12** against the running bridge and live
+device reads. Counts taken from the code, not the docs.
+
+> ## Re-validation, 2026-10-12
+>
+> **Step 1 of §F is already done.** Energy 5 and Power 4 are published today — the
+> recommended "cheapest win" was banked at some point after this was written and the
+> document was never updated. Anyone following §F from the top would have rebuilt
+> finished work.
+>
+> | | 2026-09-14 | 2026-10-12 |
+> | --- | ---: | ---: |
+> | Entities in `publish/entities.py` | 8 | **17** |
+> | Actually published to MQTT (live count) | 8 | **21** |
+>
+> The live figure exceeds the registry because per-aPower and per-device entities are
+> expanded at publish time.
+>
+> **Published now:** `soc` `grid_w` `solar_w` `battery_w` `load_w` `generator_w` `mode`
+> `latency_ms` `solar_today_kwh` `grid_import_today_kwh` `grid_export_today_kwh`
+> `battery_charge_today_kwh` `battery_discharge_today_kwh` `load_today_kwh`
+> `ambient_temp_c` `run_status` `battery_status`.
+>
+> That covers **§A Energy (5/5)**, **§A Power (4/4)** and part of §A Status. `load_today_kwh`
+> was not on the original list at all.
+>
+> ### Two source errors in this document, corrected by live reads
+>
+> **Relays are not 7, and not in `1707`.** §A claimed seven relay flags from
+> `1707 ibg_run_status`. A live read returns:
+>
+> * `relay_status` (catalogue id **1709**) → `gridRelayAdhesion`, `gridRelayOpen`,
+>   `genRelayAdhesion`, `genRelayOpen` — **four** flags, grid and generator only.
+> * `ibg_run_status` (**1707**) → `ibgRunStatus`, `name`, `electricity_type`,
+>   `dspRunstatus`, `gridVol1`, `gridVol2`, `gridCurr1`…
+>
+> There is no `relay_solar`, `relay_pv2`, `relay_black_start` or `relay_apbox` on this
+> channel. §A.Relays should read **4, from 1709**, and the §F step-2 estimate shrinks.
+>
+> **Grid voltage lives in `1707`, unscaled.** `gridVol1` / `gridVol2` are plain floats
+> (122.1 + 122.1 just now), not a ÷10 integer, and not from `211` — `211` is a
+> cloud-compatibility field mapping in `fieldschema.py`, not a local cmdType. A code comment
+> in `app.py` saying "1708" is also wrong. The unit distinction matters: a Volt-Watt curve
+> quoted in *service* volts (e.g. 253 V) must be compared against the **sum**, not one half.
+>
+> **Do not call the two halves "legs".** This site is AU single-phase 240 V (aGate X-01-AU,
+> 63 A supply). The firmware reports the service as two halves because the product's native
+> layout is US split-phase — but on a single-phase service there are no legs, and the bridge
+> currently says there are: `app.py:3219` comments `# per-leg (split-phase)`, `grid.html`
+> renders `legs 122.4 V`, and `battery.html` labels them `L1` / `L2`. The summed value is
+> correct; the vocabulary is not. See `DEF-GRID-VOLTAGE-LEGS-AU`.
+>
+> ### Still readable, still unpublished — verified live today
+>
+> | Metric | Live value seen | Where |
+> | --- | --- | --- |
+> | `grid_voltage_v` | 244.9 V | `/api/grid` → `grid_connection` |
+> | `leg_voltage_v` (misnamed — see below) | 122.4 V | same |
+> | `live_freq_hz` | 50.03 Hz | same |
+> | relay flags (4) | all 0 | `relay_status` (1709) |
+> | smart circuits | 3 circuits w/ `on`, `pro_load`, `soc_cutoff`, schedule | `/api/circuits` |
+> | battery detail | `inverterVolt1/2`, `positiveBusVolt`, cell volts, SoH | `/api/battery` |
+>
+> **Not re-checked in this pass:** §A Device 4, §A Integration 7, §A Solar 3, §B, §C, §D, §E.
+> Treat those as 2026-09-14 claims until someone verifies them the same way.
+>
+> ### Revised next step
+>
+> §F step 1 is done, so the next cheapest win is **§F step 2 — relays (4, not 7) + the
+> status set**, which is where `grid_voltage_v` and `live_freq_hz` live. Publishing those
+> also closes `FEAT-GRID-VOLTAGE-HISTORY` more completely than a metrics column would:
+> an MQTT sensor gets recorded by Home Assistant's recorder, which is a real time-series
+> store, where our `metrics` table is a 30-second sample.
+>
+> **Lesson for this document:** it asserted sources from code comments rather than from
+> reads, and the two that were wrong (1707/1708, seven relays) both survived a month
+> unchallenged. Verify against a live read before trusting a cmdType here.
 
 | surface | published entities | notes |
 | :--- | ---: | :--- |
