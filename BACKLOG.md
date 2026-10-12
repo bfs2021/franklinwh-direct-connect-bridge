@@ -4166,8 +4166,29 @@ AS/NZS 4777.2 Volt-Watt starts at 253 V. A reader who takes "leg 122.4 V" at fac
 is the half-value and its label that mislead, and they are displayed more prominently than
 the sum in at least one place.
 
-**Shape of the fix.** The region is already known — `gwModelCountry` resolves `AU` from
-`SyHdVersion`, and the dashboard already renders `aGate X-01-AU · AU`. So:
+**Shape of the fix — prefer the measurement over the inference.** Two possible sources,
+and the obvious one is the weaker:
+
+* **`gwModelCountry`** (`SyHdVersion` → `AU`, already rendered as `aGate X-01-AU · AU`) is a
+  *model SKU region*. It infers the service type from the hardware ordered, which is not the
+  same thing: an AU-model unit on an unusual install, or a US model in a single-phase
+  service, would be labelled wrongly.
+* **SunSpec `M701 ACType`** states the service type as measured. The Modbus Bridge session
+  confirmed it is using exactly this, after finding the **mirror-image bug** on its own side:
+  `read_grid_status` was guessing AC type from the *voltage level*, so a US 240 V
+  split-phase site would have been labelled single-phase. Both bridges had the same class of
+  defect in opposite directions, each from inferring rather than reading.
+
+Recommend **`M701 ACType` first, `gwModelCountry` as fallback** when Modbus is unavailable
+(mock gateways, Modbus disabled, port 502 closed). Note the fallback must be *labelled* as
+an inference where it is used, not presented with the same confidence as a reading.
+
+**Unverified:** `battery_control` already holds a Modbus connection and calls
+`discover_ratings()` (a SunSpec model walk for M702), so M701 is very likely reachable on
+the same connection — but whether the library surfaces `ACType` has **not** been checked.
+Confirm before planning around it.
+
+Then, whichever source is used:
 
 * Lead with the **service voltage** everywhere a single figure is shown.
 * On a single-phase region, present the halves (if at all) as *"as reported by the gateway"*
