@@ -4183,10 +4183,37 @@ Recommend **`M701 ACType` first, `gwModelCountry` as fallback** when Modbus is u
 (mock gateways, Modbus disabled, port 502 closed). Note the fallback must be *labelled* as
 an inference where it is used, not presented with the same confidence as a reading.
 
-**Unverified:** `battery_control` already holds a Modbus connection and calls
-`discover_ratings()` (a SunSpec model walk for M702), so M701 is very likely reachable on
-the same connection — but whether the library surfaces `ACType` has **not** been checked.
-Confirm before planning around it.
+**Verified on the real aGate, 2026-10-12** (read-only Modbus, 192.168.0.110):
+
+* The SunSpec map starts at **offset 0** on this device (the `SunS` marker is at register 0),
+  **not** 40000. Address arithmetic quoted in 4xxxx notation must be converted first.
+* Model chain walked: `1, 701, 702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713,
+  714, 715, 502`. **M701 header at offset 70, data from offset 72, length 153.**
+* **`ACType` (first M701 point) reads `0`** — `0 = SINGLE_PHASE` per the SunSpec model_701
+  definition. Correct for this site, and now confirmed against hardware rather than a scan.
+* M701 also exposes the **service voltage directly**: `voltage_v` 243.5 V, `frequency_hz`
+  49.96. That is a better source than summing `gridVol1 + gridVol2` — one reading of the
+  thing itself, instead of two halves that are not halves of anything.
+
+**`franklinwh_modbus` enum helpers are off by one — confirmed here, do not use them.** We
+depend on this library (`battery_control.py:250`). Measured on the installed version:
+
+```
+get_enum_desc(701, 'ACType', 0) -> 'UNKNOWN (0)'      # should be SINGLE_PHASE
+get_enum_desc(701, 'ACType', 1) -> 'SINGLE_PHASE'     # should be SPLIT_PHASE
+```
+
+So the helper would report this single-phase site as *unknown*, and would report a genuine
+split-phase site as *single-phase* — the exact defect this item exists to fix, reintroduced
+one layer down. Read the raw point and map it with the spec enum.
+
+**`read_grid_status()` is not a safe source either.** It returns
+`ac_type: 'Single-Phase (230V Nominal)'` here, which is right — but it is derived from the
+**voltage level**, not from `ACType`, and the "230V Nominal" suffix is the tell. It is
+correct on this site by coincidence. The Modbus Bridge has queued a fix to read `ACType`
+instead; until that ships, use the raw register.
+
+**Still unverified:** that a genuine US split-phase aGate reports `1`. Nobody has read one.
 
 Then, whichever source is used:
 
