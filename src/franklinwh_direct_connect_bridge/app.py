@@ -3229,15 +3229,56 @@ def create_app() -> FastAPI:
             pass
         return {
             "grid_connection": {
+                # isThreePhaseInstall is a SOLAR field, not a grid one. It sits beside
+                # solarInstallState / solarInvManu / solarInvRatePower, and the AU/NZ
+                # Commissioning Guide puts "Three Phase" under Solar Setting ->
+                # "standalone three-phase SOLAR system". The grid service phase is a
+                # separate System Parameters setting, "Grid phase system".
+                "solar_three_phase": bool(g("isThreePhaseInstall")),
+                # Kept under the old key so existing callers do not break, but it has
+                # never meant the grid service and must not be read as such.
                 "three_phase": bool(g("isThreePhaseInstall")),
+                # "Grid phase system" (System Parameters). The enum is NOT established —
+                # 0 on this single-phase site, which is consistent with 0 = single but
+                # also with 0 = unset. Not used to derive ac_type until it is confirmed.
                 "phase_con": g("gridPhaseConSet"), "phase_seq": g("gridPhaseSeqSet"),
                 "service_amps": g("airSwitchCur"),
                 "electric_supply_raw": g("electricSupply"),
-                # Real freq/voltage from 1708 (not the 1701 enum codes):
+                # Real freq/voltage from ibg_run_status (catalogue 1707), not the 1701
+                # enum codes.
                 "nominal_freq_hz": _num(rg("dspSettingFreq")),   # configured nominal, e.g. 50
                 "live_freq_hz": _num(rg("gridFreq")),            # live grid frequency
-                "grid_voltage_v": (round(line_v / 10, 1) if line_v else None),  # line V (÷10)
-                "leg_voltage_v": _num(rg("gridVol1")),           # per-leg (split-phase)
+                # THE service voltage — one reading of the thing itself (gridLineVol,
+                # tenths). This is what grid-compliance curves are quoted against:
+                # AS/NZS 4777.2 Volt-Watt starts at 253 V of SERVICE voltage.
+                "grid_voltage_v": (round(line_v / 10, 1) if line_v else None),
+                # The gateway also reports per-line voltages. TODAY this hardware is
+                # US-centric and reports two, because its native layout is split-phase —
+                # but FranklinWH have stated an international platform is coming with
+                # NATIVE single- and three-phase support (for the European market,
+                # Germany especially). So this is a LIST, not a pair: a consumer must
+                # not assume two. On a single-phase service the two entries are halves
+                # of one service, not separate conductors — which is why nothing here
+                # says "legs" or "L1/L2" unless ac_type is genuinely split.
+                # DEF-GRID-VOLTAGE-LEGS-AU.
+                "line_voltages_v": [v for v in (_num(rg("gridVol1")),
+                                                _num(rg("gridVol2")))
+                                    if v is not None],
+                # Kept so existing callers do not break; prefer line_voltages_v. Both
+                # bake in "exactly two" and will be wrong on three-phase hardware.
+                "half_voltage_v": _num(rg("gridVol1")),
+                "half_voltage_2_v": _num(rg("gridVol2")),
+                "leg_voltage_v": _num(rg("gridVol1")),
+                # Phase topology of the GRID SERVICE. The only source used is the
+                # ac_type the owner declared on this gateway's meter, because nothing
+                # on the local channel establishes it:
+                #   * isThreePhaseInstall is about the SOLAR system (above);
+                #   * gridPhaseConSet is the right field but its enum is unconfirmed;
+                #   * SunSpec M701 ACType would be authoritative and needs Modbus,
+                #     which may be switched off.
+                # None means not established. Nothing here guesses from voltage.
+                "ac_type": _ac_type_for(gateway),
+                "ac_type_source": _ac_type_source(gateway),
                 "rated_hz_code": g("ratedGridHz"),               # 1701 enum, NOT a Hz value
             },
             "grid_limits": {
@@ -3866,6 +3907,38 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail=str(e))
 
     # -- extra gated writes ---------------------------------------------------
+    def _ac_type_for(gateway: str | None) -> str | None:
+        """single | split | three, or None when nobody has established it.
+
+        Never guessed from the voltage level: that is the mirror-image bug the Modbus
+        Bridge found on its own side, where a US 240 V split-phase site read as
+        single-phase. Unknown is reported as unknown.
+        """
+        try:
+            gw = (get_gateway(gateway) if gateway else None) or get_state()
+            if gw is None:
+                return None
+            # NB: deliberately does NOT consult three_phase/isThreePhaseInstall — that
+            # is a solar field, and reading it as the grid service was the bug this
+            # function was written to avoid.
+            # Reuse the scheduler's resolver rather than a second copy of the rule.
+            m = scheduler._meter_for_gateway(_ha_store(), gw.id)
+            t = (m or {}).get("ac_type")
+            return t or None
+        except Exception:  # noqa: BLE001 — a label must never break the payload
+            return None
+
+    def _ac_type_source(gateway: str | None) -> str | None:
+        """Where the ac_type came from, so a reader can weigh it."""
+        try:
+            gw = (get_gateway(gateway) if gateway else None) or get_state()
+            if gw is None:
+                return None
+            m = scheduler._meter_for_gateway(_ha_store(), gw.id)
+            return "declared on the meter" if (m or {}).get("ac_type") else None
+        except Exception:  # noqa: BLE001
+            return None
+
     @app.post("/api/der-comms")
     def api_set_der_comms(req: DerCommsReq, gateway: str | None = Query(None)):
         """Write DER comms toggles (SunSpec Modbus / IEEE 2030.5). Delayed-apply — the
