@@ -110,6 +110,34 @@ instinct, worth making a rule.
 
 ---
 
+## 1.5 · The local session belongs in the LIBRARY, not here
+
+**Owner's direction, 2026-10-13.** A held session for TCP 9000 is to be designed and
+implemented in the **`franklinwh-direct-connect-api` library**. The bridge changes
+afterwards, consuming it. A bridge-side wrapper around the library's client was started
+and **deliberately abandoned** — it is the wrong layer, and it would have left the
+library still shipping connect-per-call to every other consumer.
+
+**What was established before stopping, which the library work can start from:**
+
+* `DirectConnectTransport.connect()` is **already idempotent** — it returns immediately
+  if `_sock is not None`. Holding a session needs no transport change to begin with.
+* The transport already carries `_logged_in`, whose own comment reads *"re-login after
+  a transient reconnect"*. The re-login path was anticipated and never exercised,
+  because nothing ever kept a connection long enough to need it.
+* The bridge has **31** `with _client(...) as c: c.login()` sites. 30 of them call
+  `login()` immediately. So the pattern is uniform, and migrating is mechanical once
+  the library offers a session.
+* Cost today: the poller alone opens a fresh TCP connection **and a fresh login** per
+  gateway every `poll_interval` (30 s). On this site that is ~2 sessions/minute for the
+  real gateway plus the mocks, each with a full login round-trip.
+
+**Why the library is the right layer:** the session, its lock, reconnect, idle close and
+the re-login-after-reconnect path are all properties of *the connection*, which the
+library owns. Put them in the bridge and every other consumer — the CLI, the emulator,
+any third party — keeps paying connect-per-call, and the bridge grows a second
+connection model alongside the one it already needs for Modbus.
+
 ## 2. What we do not know, and must not guess
 
 Taken from the Modbus Bridge's unknowns, because they apply identically to us and
