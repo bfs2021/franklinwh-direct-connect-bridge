@@ -12,14 +12,24 @@ from typing import Any
 
 import logging
 
-from franklinwh_local import catalog, discover
-from franklinwh_local.client import LocalClient
-from franklinwh_local.transport import TransportError
+from franklinwh_direct_connect_api import catalog, discover
+from franklinwh_direct_connect_api.client import LocalClient
+from franklinwh_direct_connect_api.transport import TransportError
 
 from .config import Settings
 from .state import get_state
 
 log = logging.getLogger("franklinwh_direct_connect_bridge.client")
+
+#: The programme id the aGate reports while under external control. The vendor
+#: reference is explicit that ANY remote client taking direct control — Modbus
+#: TCP or the cloud API — puts the gateway in "VPP Mode", so this covers a
+#: utility dispatch, the app, the Modbus bridge and our own force alike.
+VPP_PROGRAMME_ID = 9
+
+#: RUN_STATUS 8 — a FranklinWH remote-support session. Worth surfacing: it means
+#: a third party is connected to the gateway.
+DEBUG_RUN_STATUS = 8
 
 
 def active_host(s: Settings) -> str:
@@ -387,7 +397,7 @@ def set_circuit_schedule(s: Settings, circuit: int, windows: list[dict],
     """Attempt a smart-circuit schedule write — delegates to the library.
 
     The protocol recipe and its hardware findings live in
-    ``franklinwh_local.client.set_circuit_schedule``; this only turns the bridge's
+    ``franklinwh_direct_connect_api.client.set_circuit_schedule``; this only turns the bridge's
     two-window editor shape into the firmware's four slots.
 
     **The aGate discards these on FW V12R02B30D06** (live-tested 2026-09-14, five
@@ -473,7 +483,7 @@ def raw_command(s: Settings, cmd: int, data: dict | None = None,
     Read-only by default: anything other than ``opt:0`` is a write and is gated by the
     caller. See :data:`DANGEROUS_WRITES` for the codes worth a second look.
     """
-    from franklinwh_local import catalog
+    from franklinwh_direct_connect_api import catalog
     import time as _time
 
     # `data or default` is WRONG here: {} is falsy, so an explicitly empty dataArea
@@ -512,7 +522,7 @@ def firmware_all(s: Settings, host: str | None = None) -> dict[str, Any]:
     battery each entry belongs to, and it omits ``ibg_iot`` / ``ibg_local`` / ``pe_ver``
     entirely. 1833 fills both gaps, keyed by device id.
     """
-    from franklinwh_local import catalog
+    from franklinwh_direct_connect_api import catalog
     out: dict[str, Any] = {"gateway": {}, "devices": []}
     with _client(s, host) as c:
         manifest = c.login()
@@ -705,7 +715,7 @@ def battery(s: Settings, host: str | None = None, dev_id: int = 1) -> dict[str, 
             if st:
                 # Decode the state codes rather than showing bare integers — the
                 # enums match franklinwh_cloud.const.states exactly.
-                from franklinwh_local import catalog as _cat
+                from franklinwh_direct_connect_api import catalog as _cat
                 st["bmsState_desc"] = _cat.bms_state_desc(st.get("bmsState"))
                 st["peState_desc"] = _cat.pcs_state_desc(st.get("peState"))
             # DCDCStatus (from 1703 electrical) is the charge-state field. Live-verified
@@ -715,7 +725,7 @@ def battery(s: Settings, host: str | None = None, dev_id: int = 1) -> dict[str, 
             # discharge, so they are NOT charge states and their domain is unproven.
             el = blocks.get("electrical") or {}
             if el and el.get("DCDCStatus") is not None:
-                from franklinwh_local import catalog as _cat2
+                from franklinwh_direct_connect_api import catalog as _cat2
                 el["DCDCStatus_desc"] = _cat2.DCDC_STATE.get(el.get("DCDCStatus"))
         out["ok"] = blocks.get("cells") is not None
     except (TransportError, OSError, TimeoutError, ValueError) as e:
@@ -821,9 +831,16 @@ def summary(s: Settings, host: str | None = None) -> dict[str, Any]:
                 "run_status": pf.get("run_status"),
                 "run_status_desc": (catalog.run_status_desc(pf.get("run_status"))
                                     if pf.get("run_status") is not None else None),
-                # Islanded (5/6/7) and VPP/force (9) — surfaced prominently in the top nav.
+                # Islanded (5/6/7) — surfaced prominently in the top nav.
                 "off_grid": pf.get("run_status") in (5, 6, 7),
-                "vpp": pf.get("run_status") == 9,
+                # 8 = a FranklinWH remote-support session is active on this gateway.
+                # Someone outside the household can see and change things, so it is
+                # surfaced rather than left as an unexplained number.
+                "debug": pf.get("run_status") == DEBUG_RUN_STATUS,
+                # NB: `vpp` is NOT derived from run_status. That was a long-standing
+                # defect — 1301 run_status never carries 9, it reports the battery's
+                # direction and keeps doing so under VPP. The real source is the 1707
+                # programme id, set further down. See docs/RUN_STATUS_AND_MODE.md.
             }
             # Richer, dashboard-parity blocks from the SAME power_flow read (no extra
             # device round-trip). power stays unchanged for back-compat.
@@ -857,6 +874,35 @@ def summary(s: Settings, host: str | None = None) -> dict[str, Any]:
                 out["der_comms"] = {"sunsMdEn": d.get("sunsMdEn"), "sep2": d.get("enable")}
             except (OSError, TransportError, TimeoutError):
                 pass
+            # Grid voltage + frequency, inside the SAME session — one extra read, no
+            # extra login. `gridLineVol` is the SERVICE voltage in tenths (2409 ->
+            # 240.9 V): one reading of the thing itself, not gridVol1 + gridVol2,
+            # which on a single-phase service are halves of nothing
+            # (DEF-GRID-VOLTAGE-LEGS-AU). Optional: a gateway that cannot answer
+            # records nothing rather than a guess.
+            # NB: the client exposes each frame as a METHOD (c.ibg_run_status()),
+            # there is no generic c.read(). Catching AttributeError here would hide
+            # that kind of mistake entirely — which it did, silently, on the first
+            # attempt: the column stayed NULL and nothing said why.
+            try:
+                run = c.ibg_run_status() or {}
+                # ibgRunStatus is the LOCAL equivalent of the cloud's tou_mode: a
+                # programme id, where 9 means VPP. It is NOT a RUN_STATUS key — normal
+                # programmes use large arbitrary ids (85232 here; the cloud cookbook's
+                # example is 29287). Test == 9 and nothing else; != 9 does not mean
+                # "no programme". See docs/RUN_STATUS_AND_MODE.md.
+                prog = run.get("ibgRunStatus")
+                if prog is not None:
+                    out["power"]["programme_id"] = prog
+                    out["power"]["vpp"] = (int(prog) == VPP_PROGRAMME_ID)
+                lv = run.get("gridLineVol")
+                if lv not in (None, ""):
+                    out["power"]["grid_voltage_v"] = round(float(lv) / 10.0, 1)
+                fz = run.get("gridFreq")
+                if fz not in (None, ""):
+                    out["power"]["grid_freq_hz"] = round(float(fz), 2)
+            except (OSError, TransportError, TimeoutError, ValueError) as e:
+                log.debug("grid voltage not read this cycle: %s", e)
             out["firmware"] = {k: manifest.get(k)
                                for k in ("IBG_VER", "APP_VER", "protocolVer", "IBG_SN")
                                if k in manifest}

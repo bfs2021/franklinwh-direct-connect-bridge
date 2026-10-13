@@ -20,7 +20,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
-from franklinwh_local.transport import TransportError
+from franklinwh_direct_connect_api.transport import TransportError
 
 from . import __version__, client, db
 from . import environment
@@ -156,7 +156,7 @@ def _run_status_desc(rs: int | None) -> str | None:
     if rs is None:
         return None
     try:
-        from franklinwh_local import catalog as _cat
+        from franklinwh_direct_connect_api import catalog as _cat
         return _cat.run_status_desc(rs)
     except Exception:  # pragma: no cover — never break a roster row on a lookup
         return None
@@ -241,6 +241,9 @@ class CallReq(BaseModel):
 
 class DerCommsReq(BaseModel):
     sunspec_modbus: bool | None = None  # toggle SunSpec Modbus (sunsMdEn); None = leave
+    #: Required to DISABLE sunsMdEn, because that silences the gateway for every client
+    #: rather than for this bridge. See the endpoint docstring.
+    confirm: bool = False
     ieee2030_5: bool | None = None      # toggle IEEE 2030.5 / SEP2 enable; None = leave
 
 
@@ -251,6 +254,10 @@ class RebootReq(BaseModel):
 class DispatchReq(BaseModel):
     # HYBRID-CAPABILITIES Phase 2 — battery dispatch via the resolved Modbus provider.
     action: str                         # charge | discharge | standby | release
+    # WHICH battery (BR-34). Absent, every dispatch went to the resolved default
+    # provider, so on a multi-gateway site a force-charge aimed at one aGate could
+    # land on another — and the response could not say which one it hit.
+    gateway_id: str | None = None
     power_w: int | None = None
     power_pct: int | None = None
     duration_s: int | None = None       # watchdog seconds (0 = no limit)
@@ -847,9 +854,13 @@ def create_app() -> FastAPI:
             while True:
                 try:
                     h, st = _host(), _store()
-                    if h and st and battery_control.available()[0]:
+                    # VPP detection is LOCAL now (cmdType 1707 programme id), so this
+                    # loop no longer requires Modbus to run. Modbus is still needed to
+                    # RECONCILE an interrupted dispatch, because that releases — a
+                    # write — so that step stays gated on availability.
+                    if h and st:
                         reconciled = []
-                        if boot:
+                        if boot and battery_control.available()[0]:
                             # Reconcile scheduled dispatches a restart left in-flight,
                             # per the user's policy, BEFORE the generic orphan check —
                             # so our own dispatch is not also flagged as an orphan.
@@ -872,10 +883,20 @@ def create_app() -> FastAPI:
                                 log.error("dispatch reconcile failed: %s", e)
                         # Skip the generic boot-orphan alert if we already handled a
                         # scheduled dispatch this boot (avoids double-notifying).
-                        _res = vpp_monitor.check(h, st, boot=(boot and not reconciled))
-                        # Record the VPP/force truth (Modbus M704 — the aGate 1301
-                        # run_status never shows VPP) on the matching gateway, for the
-                        # top-nav + dashboard badge.
+                        # Feed the poller's cached power block: it already carries
+                        # `vpp` and `programme_id` from 1707, so no device call here.
+                        _snap = {}
+                        try:
+                            for _g in state.gateways():
+                                if _g.active_host == h:
+                                    _snap = (_g.last_summary or {}).get("power", {}) or {}
+                                    break
+                        except Exception:  # noqa: BLE001
+                            pass
+                        _res = vpp_monitor.check(h, st, boot=(boot and not reconciled),
+                                                 snapshot=_snap)
+                        # Record the VPP truth (local 1707 programme id == 9) on the
+                        # matching gateway, for the top-nav + dashboard badge.
                         try:
                             for _gw in state.gateways():
                                 if _gw.active_host == h:
@@ -1735,7 +1756,7 @@ def create_app() -> FastAPI:
     def _default_scan_subnet() -> str:
         """A /24 to sweep — derived from a configured (non-mock) gateway host, else the
         library's local-subnet guess, else a common default."""
-        from franklinwh_local import discover as _disc
+        from franklinwh_direct_connect_api import discover as _disc
         st = _gw_store()
         hosts = [r.get("host") for r in (st.gateways() if st else [])
                  if r.get("host") and not r.get("is_mock")]
@@ -1750,7 +1771,7 @@ def create_app() -> FastAPI:
     async def api_gateway_scan(req: GatewayScanReq):
         """Sweep a subnet for aGates on TCP 9000 and confirm each with a real Local-API
         login (1101/1102). Returns candidates; the UI adds the confirmed ones."""
-        from franklinwh_local import discover as _disc
+        from franklinwh_direct_connect_api import discover as _disc
         subnet = (req.subnet or _default_scan_subnet()).strip()
         try:
             targets = _disc.expand_targets(subnet)
@@ -1933,7 +1954,7 @@ def create_app() -> FastAPI:
         Writes need ALLOW_WRITES **and** an explicit ``confirm`` — a raw console is
         exactly where a mistyped ``opt`` becomes a reboot.
         """
-        from franklinwh_local import catalog as _cat
+        from franklinwh_direct_connect_api import catalog as _cat
         host = _gw_host(gateway)
         # "Not opt:0" is NOT the same as "write": 1725 READS with opt:1, and treating
         # that as a write blocked a legitimate read. Compare against the command's
@@ -1960,7 +1981,7 @@ def create_app() -> FastAPI:
     @app.get("/api/raw/catalog")
     def api_raw_catalog():
         """Known cmdTypes for the console's autocomplete: code, name, description."""
-        from franklinwh_local import catalog
+        from franklinwh_direct_connect_api import catalog
         return {
             "commands": [
                 {"cmd": code, "name": i.name, "description": i.description,
@@ -3789,10 +3810,10 @@ def create_app() -> FastAPI:
     @app.get("/api/catalog")
     def api_catalog():
         """What each /api/cmd/<name> endpoint IS: ``name -> {description, cmd, write}``
-        from ``franklinwh_local.catalog``. ``write`` marks cmdTypes with a known write
+        from ``franklinwh_direct_connect_api.catalog``. ``write`` marks cmdTypes with a known write
         recipe (catalog.WRITES). Never raises — degrades to {} on any import/attr error."""
         try:
-            from franklinwh_local import catalog as _cat
+            from franklinwh_direct_connect_api import catalog as _cat
             write_cmds = {w.get("cmd") for w in getattr(_cat, "WRITES", {}).values()}
             out: dict[str, dict] = {}
             for info in _cat.CATALOG.values():
@@ -3848,8 +3869,28 @@ def create_app() -> FastAPI:
     @app.post("/api/der-comms")
     def api_set_der_comms(req: DerCommsReq, gateway: str | None = Query(None)):
         """Write DER comms toggles (SunSpec Modbus / IEEE 2030.5). Delayed-apply — the
-        device reply is not proof; verify at the interface level (:502 / status2030_5)."""
+        device reply is not proof; verify at the interface level (:502 / status2030_5).
+
+        **This is a GATEWAY setting, not a bridge setting.** Disabling `sunsMdEn` stops
+        the aGate listening for SunSpec Modbus from *every* client — the Modbus Bridge,
+        Energipay, the installer's tools — not just this bridge. It is a cross-system
+        outage from one API call, and nothing downstream would say why: those clients
+        would simply start timing out.
+
+        To stop **this bridge** using Modbus, use `PUT /api/modbus` instead; that is a
+        local flag and touches no device. Disabling here therefore requires an explicit
+        `confirm=true`, so it cannot be done by accident or by a client that assumed the
+        two switches were the same thing.
+        """
         _guard_writes()
+        if req.sunspec_modbus is False and not req.confirm:
+            raise HTTPException(
+                status_code=409,
+                detail="Disabling sunsMdEn stops the GATEWAY accepting SunSpec Modbus "
+                       "from every client, not just this bridge — the Modbus Bridge and "
+                       "any other integration would start timing out with no explanation. "
+                       "To silence only this bridge use PUT /api/modbus. If you really "
+                       "mean the gateway, repeat with confirm=true.")
         host = _gw_host(gateway)   # SAFETY: the write must hit the SELECTED gateway
         try:
             return client.set_der_comms(get_settings(),
@@ -3886,10 +3927,15 @@ def create_app() -> FastAPI:
         safe). Gated by allow_writes. 503 = no provider, 501 = library path not wired,
         422 = bad action, 502 = provider unreachable."""
         _guard_writes()
+        gw = req.gateway_id or ""
+        if gw and get_gateway(gw) is None:
+            raise HTTPException(404, f"unknown gateway {gw!r} — refusing to dispatch to "
+                                     "the default instead of the one you named")
         try:
             return providers.dispatch(
                 get_settings(), req.action, power_w=req.power_w, power_pct=req.power_pct,
-                duration_s=req.duration_s, target_soc=req.target_soc)
+                duration_s=req.duration_s, target_soc=req.target_soc,
+                gateway_id=gw or None)
         except providers.DispatchUnavailable as e:
             raise HTTPException(status_code=503, detail=str(e))
         except ValueError as e:
