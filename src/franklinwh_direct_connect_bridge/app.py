@@ -278,6 +278,14 @@ class SetupTimezoneReq(BaseModel):
     timezone: str
 
 
+class SetupCloudReq(BaseModel):
+    """FranklinWH app credentials. ``save`` only happens if the login actually works."""
+    email: str
+    password: str
+    gateway: str | None = None
+    save: bool = True
+
+
 class SetupStateReq(BaseModel):
     """``done`` when the user finishes, ``skipped`` when they decline."""
     state: str
@@ -386,7 +394,14 @@ class GatewayCreate(BaseModel):
     is_mock: bool = False
     mock_seed: int | None = None
     mock_units: int = 1
-    publish_ha: bool = True          # mocks default OFF via the UI, honoured in Phase 2
+    # None = decide from is_mock. A MOCK must not publish to Home Assistant unless the
+    # caller says so explicitly: a mock that publishes creates a fake FranklinWH device in
+    # the user's HA, with energy sensors that accrue long-term statistics, and removing it
+    # afterwards is the orphaned-entity problem documented in docs/HA_HISTORY.md. The
+    # Settings UI already sent False for mocks; the setup wizard did not, which put three
+    # fake devices on a live install (2026-10-15). Defaulting it server-side fixes every
+    # caller rather than the one that was caught.
+    publish_ha: bool | None = None
     description: str = ""
 
 
@@ -1614,11 +1629,12 @@ def create_app() -> FastAPI:
         import uuid
         gid = uuid.uuid4().hex[:12]
         seed = mockgw.seed_for(gid, req.mock_seed) if req.is_mock else None
+        publish_ha = (not req.is_mock) if req.publish_ha is None else bool(req.publish_ha)
         row = st.create_gateway(
             gw_id=gid, label=req.label, host=("127.0.0.1" if req.is_mock else req.host),
             port=req.port, is_default=req.is_default, enabled=req.enabled,
             is_mock=req.is_mock, mock_seed=seed, mock_units=req.mock_units,
-            publish_ha=req.publish_ha, description=req.description)
+            publish_ha=publish_ha, description=req.description)
         await _reconcile_gateway(row)
         return _gw_merged(row)
 
@@ -2610,6 +2626,31 @@ def create_app() -> FastAPI:
                 n += 1
         return n
 
+    @app.post("/api/setup/cloud")
+    def api_setup_cloud(req: SetupCloudReq):
+        """Check FranklinWH app credentials by SIGNING IN, and store them only if that works.
+
+        Optional throughout: everything the bridge reads from the aGate works without an
+        account. What an account adds is the writes the local channel physically cannot do
+        — the reserve SoC among them — and the cloud's view of a VPP dispatch.
+        """
+        _guard_writes()
+        from . import cloud_status
+        res = cloud_status.verify_credentials(req.email, req.password, req.gateway)
+        if res.get("ok") and req.save:
+            save_override("fwh_cloud_email", req.email)
+            save_override("fwh_cloud_password", req.password)
+            if req.gateway:
+                save_override("fwh_cloud_gateway", req.gateway)
+            from . import config as _config
+            _config._settings = None      # re-read on the next call, so it takes effect now
+        # Never echo the credentials back, and never log them.
+        _audit("setup_cloud", detail="credential check", result=("ok" if res.get("ok") else "failed"),
+               ok=bool(res.get("ok")))
+        return {"ok": bool(res.get("ok")), "detail": res.get("detail", ""),
+                "saved": bool(res.get("ok") and req.save),
+                "gateways": res.get("gateways") or []}
+
     @app.get("/api/setup/capabilities")
     def api_setup_capabilities(gateway: str | None = Query(None)):
         """Which capability-gated tabs apply to this SITE. Not a permissions answer."""
@@ -3116,7 +3157,9 @@ def create_app() -> FastAPI:
         from . import battery_control
         host = _modbus_host()
         if not host:
-            return {"available": False, "reason": "no gateway host to reach over Modbus"}
+            return {"available": False, "reason": "no gateway host to reach over Modbus",
+                    "state": "not_configured",
+                    "hint": battery_control.CAPABILITY_HINTS["not_configured"]}
         return battery_control.status(host)
 
     @app.get("/api/battery/command")
@@ -3132,6 +3175,10 @@ def create_app() -> FastAPI:
         return {**_batt_cmd, "remaining_s": cur.get("remaining_s"),
                 "active_target_soc": cur.get("target_soc"),
                 "available": st.get("available", False), "reason": st.get("reason", ""),
+                # Four states, because the remedy differs: not_configured / unreachable /
+                # no_sunspec / ready. `available` is kept for existing callers and is
+                # exactly `state == "ready"`.
+                "state": st.get("state", "not_configured"), "hint": st.get("hint", ""),
                 "max_charge_w": st.get("max_charge_w", 5000),
                 "max_discharge_w": st.get("max_discharge_w", 5000)}
 

@@ -11,6 +11,52 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Fixed
+
+- **The setup wizard no longer opens on a bridge that is already working.** Adding the
+  site-timezone step as required made "something required is missing" true on every
+  existing install, and that was what decided whether to prompt — so installs that had been
+  running for weeks were offered first-run setup. The rule is now what the wizard always
+  meant: it prompts only when **no real gateway is configured**. Completeness is still
+  reported on Settings → Setup, where the user went looking for it.
+
+### Added
+
+- **Battery dispatch is gated on a CONFIRMED Modbus path, in four states.** `not_configured`
+  / `unreachable` / `no_sunspec` / `ready`, because the remedy differs in each case and a
+  single "unavailable" sends people to the network when the gateway's own SunSpec setting
+  is what is off. Confirmation is a SunSpec read that returns — a socket that opens is not a
+  dispatch path. The **API refuses** a force unless the state is `ready` (the UI disabling
+  the buttons is not the gate), while **Release is never blocked**: refusing to stop a
+  dispatch because the path looks unhealthy is the wrong way round. The Control tab now
+  names the state and the fix instead of greying out.
+
+- **The setup wizard offers the FranklinWH app account, optionally, and says why.** It is
+  checked by SIGNING IN and stored only if that works — an unverified password means
+  discovering months later that a reserve-SoC write has been failing. The step states what
+  an account actually adds (the reserve SoC, which has no proven local write; naming a VPP
+  dispatch the local channel reports as plain charging; cross-checking a grid-limit write),
+  that credentials are stored in plain text in the bridge's settings file, and that
+  skipping is fine.
+
+- **A mock gateway no longer publishes to Home Assistant by default.** The Settings UI
+  already sent `publish_ha: false` for mocks; the setup wizard did not, and the API
+  defaulted to true — so three mock gateways created on a live install published three fake
+  FranklinWH devices (63 entities, energy sensors included) to the owner's Home Assistant.
+  The default is now decided server-side from `is_mock`, which fixes every caller. Passing
+  `publish_ha: true` explicitly still works.
+
+- **The gateway switcher shows each gateway's operating mode and battery direction.**
+  SELF / TOU / EMGY, and an up or down arrow for charging or discharging, read from the
+  same run-status enum as the top-bar pill. On a multi-gateway site the switcher is where
+  you choose between gateways, so it is where the difference has to be visible. Unknown
+  shows nothing — no reading is not "idle".
+
+- **The wizard's last step reports every gateway, not one.** Solar, generator and backup
+  wiring are per-gateway facts — one aGate can have 6.6 kWp of PV and another none — and a
+  single profile at the end of setup silently claimed they were alike. Each gateway now gets
+  its own card, with its solar stated plainly (including "No solar reported").
+
 ### Changed
 
 - **The sidebar says "Direct Connect", not "Local Bridge".** The project was renamed; the

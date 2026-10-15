@@ -336,7 +336,7 @@ def test_timezone_is_required_for_completion():
 
 def test_mock_creation_loops_over_the_declared_agate_count():
     js = _wizard_js()
-    body = js[js.index("async createMock()"):js.index("async loadProfile()")]
+    body = js[js.index("async createMock()"):js.index("async loadProfiles()")]
     assert "counts.agates" in body
     assert "for (" in body                       # N gateways, not one
     assert "mock_units" in body and "counts.apowers" in body
@@ -345,7 +345,7 @@ def test_mock_creation_loops_over_the_declared_agate_count():
 def test_multiple_mocks_are_numbered():
     """Several gateways all called "Mock aGate" cannot be told apart in the switcher."""
     body = _wizard_js()
-    body = body[body.index("async createMock()"):body.index("async loadProfile()")]
+    body = body[body.index("async createMock()"):body.index("async loadProfiles()")]
     assert "${base} ${i}" in body
 
 
@@ -376,3 +376,86 @@ def test_mocks_are_named_but_never_counted_as_agates():
     assert step["found"]["agates"] == 0 and step["found"]["mocks"] == 2
     assert "2 mock gateway(s)" in step["detail"]
     assert step["satisfied"] is False
+
+
+# --- the confirm step is PER GATEWAY ---------------------------------------------------------
+# Owner, 2026-10-15: "need to ask which Gateway has solar - each gateway can be different".
+# The confirm step showed ONE profile for a three-gateway site, which silently claims they
+# are all alike.
+
+def test_confirm_step_reads_a_profile_for_every_gateway():
+    js = _wizard_js()
+    body = js[js.index("async loadProfiles()"):js.index("async finish(")]
+    assert "api/gateways" in body                       # enumerate them
+    assert "api/setup?gateway=" in body                  # scoped read per gateway
+    assert "for (const g of" in body
+    # one unreadable gateway must not take the others down with it
+    assert body.count("catch") >= 2
+
+
+def test_confirm_step_states_solar_per_gateway():
+    js = _wizard_js()
+    body = js[js.index("async loadProfiles()"):js.index("async finish(")]
+    assert "solar_kwp" in body and "solar_type" in body
+    html = (__import__("pathlib").Path(__file__).resolve().parents[1]
+            / "src/franklinwh_direct_connect_bridge/templates/partials/setup_wizard.html").read_text()
+    confirm = html[html.index("step === 'confirm'"):html.index("step === 'done'")]
+    assert "x-for=\"p in profiles\"" in confirm          # a card each, not one merged view
+    assert "No solar reported" in confirm                # absence is stated, not left blank
+
+
+# --- never prompt a working bridge -----------------------------------------------------------
+# 2026-10-15: adding the site-timezone step as REQUIRED re-opened the wizard on the owner's
+# live bridge — a real aGate, polling, weeks old — because "required_satisfied" was false.
+# Three mock gateways were added to a production install before it was noticed.
+
+def test_a_bridge_with_a_real_gateway_is_never_prompted():
+    s = w.summary(_Store(), **_kw(gateways=[_GW(gw_id="real")]))
+    assert s["should_prompt"] is False
+    # and it is still honestly reported as incomplete, where the user went looking for it
+    assert s["required_satisfied"] is False
+
+
+def test_adding_a_new_required_step_cannot_reopen_the_wizard():
+    """The regression itself: every required step unsatisfied, but a gateway exists."""
+    s = w.summary(_Store(), **_kw(gateways=[_GW(gw_id="real")], profile_values={}))
+    assert any(not x["satisfied"] for x in s["steps"] if x["required"])
+    assert s["should_prompt"] is False
+
+
+def test_a_mock_does_not_count_as_configured():
+    """Exploring with a mock is not "set up" — a first run still gets the wizard."""
+    assert w.summary(_Store(), **_kw(gateways=[_GW(mock=True, gw_id="m")]))["should_prompt"] is True
+
+
+def test_a_truly_empty_bridge_is_prompted():
+    assert w.summary(_Store(), **_kw())["should_prompt"] is True
+
+
+# --- the optional cloud step -----------------------------------------------------------------
+
+def test_cloud_step_sits_between_finding_hardware_and_confirming():
+    js = _wizard_js()
+    assert "this.go('cloud')" in js
+    # BOTH paths reach it — the mock path used to jump straight to confirm
+    nxt = js[js.index("async next()"):js.index("async saveCounts()")]
+    assert "step === 'cloud'" in nxt
+
+
+def test_cloud_credentials_are_tested_before_they_are_trusted():
+    js = _wizard_js()
+    body = js[js.index("async testCloud()"):js.index("async loadProfiles()")]
+    assert "api/setup/cloud" in body
+    # the password is dropped from the page once the server has it
+    assert "this.cloud.password = ''" in body
+
+
+def test_the_cloud_step_says_why_and_that_it_is_optional():
+    html = (__import__("pathlib").Path(__file__).resolve().parents[1]
+            / "src/franklinwh_direct_connect_bridge/templates/partials/setup_wizard.html").read_text()
+    step = html[html.index("step === 'cloud'"):html.index("step === 'confirm'")]
+    assert "optional" in step.lower()
+    assert "reserve SoC" in step                 # the concrete reason, not "more features"
+    assert "VPP" in step
+    assert "plain text" in step                   # how it is stored, said plainly
+    assert "Skipping is fine" in step
