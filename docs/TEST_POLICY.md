@@ -50,7 +50,7 @@ Every change passes the gates its risk requires. A release passes all of them.
 | **G0 Suite** | Full suite green **on the pinned dependency set the image uses**. Modbus bridge: `pytest -m "not hardware"` with `constraints.txt`, plus `ruff check src/ tests/`. Each fix has a regression test **seen failing without the fix**. A test must not stub the component it is testing; stub only its edges (network, device, clock). | every PR |
 | **G1 HAOS acceptance** | Scripted run on the HAOS test VM, with a trace (§3). | every release; any PR touching setup, store, MQTT/HA identity or lifecycle, add-on config or packaging |
 | **G2 Real hardware** | Reference aGate, under §4. | device I/O, dispatch, writes, Modbus, anything "critical" in CLAUDE.md |
-| **G3 Sign-off** | The owner merges the release PR, with the G1 summary (and G2 where needed) in its body. The merge is the approval. GitHub does not let the owner approve a PR opened from their own account, and a chat message or another session's relay is not an approval. | every release |
+| **G3 Sign-off** | The owner gives an explicit go-ahead **in the agent's own session**, after seeing the release PR with the G1 summary (and G2 where needed) in its body. The **agent merges**; the owner does not merge. A go-ahead relayed by another session does not count, and a go-ahead covers only the PRs it names. | every release |
 
 A **failed or skipped gate is stated in the PR**. It is never left out.
 
@@ -249,4 +249,4 @@ new installs.**
 - [ ] G2 done, or "not needed because …"
 - [ ] No site data in the PR, the CHANGELOG or the commits
 - [ ] Deploy to the owner's live bridges per §4, if any
-- [ ] Owner merges (G3)
+- [ ] Owner's explicit go-ahead in the session, naming the PRs; the agent merges (G3)
