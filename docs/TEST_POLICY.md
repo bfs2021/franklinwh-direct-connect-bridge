@@ -96,6 +96,14 @@ running code is the branch.** If you can't, the run tested something else and do
 2. **Update in place** from the previous release with a configured gateway: devices, entities and
    history survive with no orphans and no duplicates (see install-lifecycle.md).
 3. **Reinstall keeping data** and **uninstall + purge**: the outcomes install-lifecycle.md specifies.
+   Measured by the Modbus bridge session on HAOS 18.3 / Supervisor 2026.10.2, not yet verified for the
+   Direct Connect bridge:
+   - the Supervisor deletes `/data` on **every** uninstall, "keep data" included;
+   - only the mapped `addon_config` folder survives a keep-data uninstall;
+   - the slug, and so the data folder, includes a hash of the repository URL, so installing from
+     another URL or branch is a new install.
+
+   A store in `/data` therefore has no "reinstall keeping data" path. Test what the bridge actually does.
 4. **Coexistence**: both bridges installed in one HA, with no clash of devices, entities or topics.
 
 ### The trace (every run, kept per run)
