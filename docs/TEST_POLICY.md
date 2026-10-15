@@ -86,6 +86,11 @@ run tested something else and does not count.
 - The setup checks are all true.
 - **No ERROR or Traceback** in the add-on log, **no console errors**, **no failed UI calls**.
 
+**Every check must be shown to fail on a known-bad build before it is trusted.** Run the new check
+against the previous broken release, or against the fix reverted. A check that has never failed can
+pass falsely. The first G1 script's "no error banner" check reported PASS on 0.4.0 while the banner
+was on screen: its selector missed the element.
+
 A failure that already exists in the previous release may be **accepted only if it is listed in the PR
 with its open issue number**. Running the same matrix on the previous release gives the baseline. A
 failure that is **new** compared with the baseline blocks the release.
