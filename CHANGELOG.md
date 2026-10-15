@@ -11,7 +11,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **A fresh add-on install can add a gateway again.** Since 0.3.3 the add-on publishes over MQTT by default,
+  and with MQTT on the bridge turned its local database off. That database also holds the gateway list,
+  so adding a gateway, real or mock, failed with *"metrics store is disabled; gateway roster needs it"*
+  and setup could not finish. The database now always opens. `metrics_enabled` decides only whether
+  power history is recorded, so an add-on that publishes to Home Assistant still leaves history to HA's
+  recorder. If you set `metrics_enabled: true` as a workaround, you can leave it or remove it. (#81)
 
 ## [0.4.0] — 2026-10-15
 
