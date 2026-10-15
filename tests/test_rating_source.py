@@ -115,3 +115,14 @@ def test_watts_still_work_without_a_rating(monkeypatch):
     out = bc.execute("Force Charge", host="192.0.2.110", power_mode="w", power_w=7000)
     assert out["ok"] is True and sent
     bc._clear_active()
+
+
+def test_the_unverified_asymmetry_is_marked_as_such():
+    """aPower S charge 8 kW has no citation; every source we have says 10 kW. It stays,
+    because replacing it with another uncited number is no better — but the file must say
+    so, since another project is about to copy this table."""
+    import pathlib
+    src = (pathlib.Path(devicedb.__file__)).read_text()
+    head = src[:src.index("APOWER_SPECS")]
+    assert "UNVERIFIED" in head and "aPower S" in head
+    assert "device_catalog.json" in head          # where the mapping IS verified

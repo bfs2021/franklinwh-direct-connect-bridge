@@ -145,9 +145,22 @@ def describe(manifest: dict | None) -> dict[str, Any]:
     }
 
 
-#: aPower model specs (usable/rated kWh + continuous kW), from datasheets — the local API
-#: cannot read the aPower model/SKU, so the user picks it; capacity = usable_kwh × count.
-#: See FEAT-DEVICE-CAPABILITIES. Values are per UNIT. Owner-provided where noted.
+#: aPower model specs (usable/rated kWh + continuous kW). The local API cannot read the
+#: aPower model or SKU, so the user picks it; capacity = usable_kwh × count. Per UNIT.
+#:
+#: PROVENANCE, since these numbers now size a dispatch:
+#:
+#: * The model→power MAPPING is verified in ``franklinwh-cloud``'s
+#:   ``const/device_catalog.json`` + ``discovery.compile_capabilities``, where the SKU
+#:   encodes the rating: ``APR-05K…`` = aPower X, ``APR-10K…`` = aPower 2,
+#:   ``APRS-10K/11K…`` = aPower S (stackable, MPPT). Checked 2026-10-16.
+#: * The owner's statement (FEAT-DEVICE-CAPABILITIES): "5 kW fixed per aPower, except
+#:   aPower S which is 10 kW variable."
+#: * **UNVERIFIED: aPower S charge_kw = 8.** Every source above gives aPower S as 10 kW
+#:   without splitting charge from discharge; where the 8 came from is not recorded. It is
+#:   left as-is rather than quietly changed — a different number with no citation is no
+#:   better — but it must not be quoted to anyone as confirmed, and it is the one value to
+#:   settle against a datasheet before another project copies this table.
 APOWER_SPECS: dict[str, dict[str, Any]] = {
     "aPower X":  {"usable_kwh": 13.6, "rated_kwh": 15.0, "charge_kw": 5.0,  "discharge_kw": 5.0,  "has_mppt": False},
     "aPower 2":  {"usable_kwh": 16.0, "rated_kwh": 16.0, "charge_kw": 10.0, "discharge_kw": 10.0, "has_mppt": False},
