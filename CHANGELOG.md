@@ -13,6 +13,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ### Fixed
 
+- **A simulated island and a real outage are no longer the same badge.** The top bar now
+  reads **OFF-GRID · SIMULATED** when the island was requested (`1723 offgridSet = 1`) and
+  **OFF-GRID · OUTAGE** when it was not — the same electrical state, completely different
+  news. Unknown stays plain **OFF-GRID** rather than guessing. (#45)
+- **Off-grid is detected again.** The bridge reported on-grid throughout a real island on
+  2026-10-15: it decided from `1301 run_status in (5,6,7)` alone, and on this firmware that
+  field never carries the off-grid codes. It now uses every signal — `1723 offgridState`
+  (primary), `dspRunstatus`, `main_sw[0]` and the `1707` main relays — and reports **which**
+  fired, plus whether they disagree. `1709 gridRelayOpen` is no longer consulted: it read 0
+  for the whole island. (#45)
+
 - **Schedules and tariff windows are evaluated on the site's clock, not the container's.**
   `docs/TIMEZONES.md` has always said a schedule rule is authored in gateway wall-clock; the
   scheduler used naive container-local time. Standalone Docker hid it by mounting
