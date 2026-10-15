@@ -11,6 +11,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.1] — 2026-10-16
+
+Hotfix: a fresh Home Assistant add-on install could not add any gateway, so setup could not finish.
+It affected any add-on with MQTT publishing on and `metrics_enabled` unset, which has been the
+default for new installs since 0.3.3. Docker and standalone installs were not affected.
+
 ### Fixed
 
 - **A fresh add-on install can add a gateway again.** Since 0.3.3 the add-on publishes over MQTT by default,
