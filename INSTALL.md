@@ -20,6 +20,10 @@ library installs from PyPI like any other dependency.
 
 ## 1. Home Assistant add-on
 
+
+[![Add repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdavid2069%2Ffranklinwh-direct-connect-bridge)
+
+Click the button above, or add the repository by hand:
 1. In Home Assistant: **Settings → Add-ons → Add-on Store**.
 2. **⋮** (top right) → **Repositories**, add
    `https://github.com/david2069/franklinwh-direct-connect-bridge`, then close.
