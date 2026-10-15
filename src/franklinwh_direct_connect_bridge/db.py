@@ -16,7 +16,7 @@ import threading
 import time
 from pathlib import Path
 
-from .config import Settings, metrics_active
+from .config import Settings
 
 # Numeric columns written per sample (mode is stored separately as TEXT).
 #: `grid_voltage_v` is the SERVICE voltage — one reading of the thing itself, not
@@ -2556,10 +2556,13 @@ _stores_lock = threading.Lock()
 
 
 def get_store(settings: Settings) -> MetricsStore | None:
-    """Return the shared store, or None when metrics are disabled. Lazily created and
-    keyed by ``metrics_db`` so the app and poller share a single instance/connection."""
-    if not metrics_active(settings):
-        return None
+    """Return the shared store. Lazily created and keyed by ``metrics_db`` so the app and
+    poller share a single instance/connection.
+
+    Always open, whatever ``metrics_active`` says: the same database holds the gateway
+    roster, setup state and settings, not only metric history. Returning None when metrics
+    were off made a fresh add-on install unable to add any gateway (#81). Whether history
+    samples are *recorded* is the poller's decision (``metrics_active``), not this one's."""
     key = settings.metrics_db
     with _stores_lock:
         store = _stores.get(key)

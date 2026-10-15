@@ -14,7 +14,7 @@ import time
 
 from . import client
 from . import providers
-from .config import Settings
+from .config import Settings, metrics_active
 from .db import get_store
 from .notify import Notifier, transitions
 from . import notify_engine
@@ -117,7 +117,10 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
             pub = None
         last_mqtt_try = time.time()
 
-    store = get_store(settings)
+    # The handle this loop RECORDS history through. The store itself is always open (it
+    # holds the roster and settings, #81); metrics_active only decides whether samples and
+    # link probes are written here.
+    store = get_store(settings) if metrics_active(settings) else None
     if store is not None:
         log.info("[%s] metrics store active (%s)", gw.id, settings.metrics_db)
 
