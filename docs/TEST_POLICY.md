@@ -14,7 +14,7 @@ unable to add a gateway on a fresh install (#81). What went wrong:
 
 The install and update lifecycle (fresh install, update, reinstall, uninstall, Docker, coexistence)
 and its effect on HA devices, entities and retained MQTT topics is defined in
-franklinwh-modbus-bridge `docs/install-lifecycle.md`. This policy says **what must be tested and
+franklinwh-modbus-bridge `docs/install-lifecycle.md` (draft: david2069/franklinwh-modbus-bridge#141). This policy says **what must be tested and
 recorded**. That document says **which lifecycle paths exist and what each must do**. The G1 matrix
 below runs that document's paths.
 
