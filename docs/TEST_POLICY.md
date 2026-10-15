@@ -128,7 +128,10 @@ HA 2026.10 does not use the published `object_id`: entity IDs are derived from t
 (`sensor.franklinwh_direct_<serial8>_…`). **Renaming a device therefore changes the entity IDs of
 new installs.**
 
-- **Open question for both repos:** `franklinwh_<serial>` is a generic prefix. If the Modbus bridge also
+- **Decided for the Direct Connect bridge (owner, 2026-10-16):** move to the `fwh_dc` prefix for MQTT
+  topics, device identifiers and `unique_id`s, as a release of its own with a migration (#92).
+  Device names and entity_ids stay. `fwh_dc` and `franklinwh-local` stay reserved for this bridge.
+- **Background:** `franklinwh_<serial>` is a generic prefix. If the Modbus bridge also
   derives identifiers from `franklinwh_` + serial, the two would merge into one HA device. Each bridge
   should carry a bridge-specific prefix. Changing one is an identity change (§1): released alone, with a
   migration that leaves no orphans.
