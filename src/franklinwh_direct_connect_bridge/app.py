@@ -59,6 +59,7 @@ from .poller import run_gateway
 from . import supervisor
 from . import site_time
 from . import ha_dashboard, ha_instances
+from . import setup_wizard
 from .publish import entities
 from . import mockgw
 from .publish import entities
@@ -264,6 +265,17 @@ class IntegrationMappingsReq(BaseModel):
     """The Integration Mapping page's saved rows. Free-form per protocol, validated
     only on the protocol id — the shape of a mapping differs by transport."""
     mappings: list[dict] = Field(default_factory=list)
+
+
+class SetupExpectedReq(BaseModel):
+    """Declared hardware counts. Omit a field to leave it unchanged."""
+    agates: int | None = None
+    apowers: int | None = None
+
+
+class SetupStateReq(BaseModel):
+    """``done`` when the user finishes, ``skipped`` when they decline."""
+    state: str
 
 
 class ProbeReq(BaseModel):
@@ -2454,6 +2466,80 @@ def create_app() -> FastAPI:
         return {"ok": True, "sent": sent}
 
     # ── scheduler ────────────────────────────────────────────────────────────
+    # -- first-run setup wizard ----------------------------------------------
+    def _wizard_inputs(gateway: str | None):
+        from . import system_setup
+        s = get_settings()
+        st = db.get_store(s)
+        try:
+            values = system_setup.values(st, s, gateway, _gw_host(gateway))
+        except Exception:  # noqa: BLE001 — an unreadable gateway must not break the wizard
+            values = {}
+        return {
+            "gateways": list(get_gateways() or []),
+            "profile_values": values,
+            "ha_configured": bool(st and st.ha_instances()),
+            "notifications_configured": bool(st and st.notify_devices()),
+            "tariff_configured": bool(st and st.tariffs()),
+            # How many aPowers are actually reporting, so the declared count can be
+            # compared with reality rather than taken on trust.
+            "apowers_found": _apowers_reporting(gateway),
+        }
+
+    def _apowers_reporting(gateway: str | None) -> int | None:
+        """aPower units the gateway reports, or None when it could not be asked."""
+        try:
+            gw = _gw_or_404(gateway) if gateway else get_state()
+            n = getattr(gw, "apower_count", None)
+            return int(n) if n is not None else None
+        except Exception:  # noqa: BLE001 — unknown is a valid answer here
+            return None
+
+    @app.get("/api/setup")
+    def api_setup(gateway: str | None = Query(None)):
+        """Where setup stands — every step, whether it is already satisfied, and whether to
+        prompt. Safe to call repeatedly; re-running the wizard is always allowed."""
+        st = db.get_store(get_settings())
+        return setup_wizard.summary(st, **_wizard_inputs(gateway))
+
+    @app.post("/api/setup/state")
+    def api_setup_state(req: SetupStateReq):
+        """Record that the wizard was completed or declined. Never blocks anything —
+        'skipped' only stops the prompt, it does not disable a feature."""
+        st = db.get_store(get_settings())
+        try:
+            value = setup_wizard.set_state(st, req.state)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        _audit("setup_wizard", detail=f"state={value}", result=value, ok=True)
+        return {"state": value}
+
+    @app.post("/api/setup/expected")
+    def api_setup_expected(req: SetupExpectedReq):
+        """Record how many aGates and aPowers the owner says they have. Both default to 1."""
+        st = db.get_store(get_settings())
+        try:
+            vals = setup_wizard.set_expected(st, agates=req.agates, apowers=req.apowers)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        _audit("setup_expected", detail=f"agates={vals['agates']} apowers={vals['apowers']}",
+               result=vals, ok=True)
+        return vals
+
+    @app.get("/api/setup/capabilities")
+    def api_setup_capabilities(gateway: str | None = Query(None)):
+        """Which capability-gated tabs apply to this SITE. Not a permissions answer."""
+        from . import system_setup
+        s = get_settings()
+        st = db.get_store(s)
+        try:
+            values = system_setup.values(st, s, gateway, _gw_host(gateway))
+        except Exception:  # noqa: BLE001
+            values = {}
+        gw = _gw_or_404(gateway) if gateway else None
+        gen = bool(getattr(gw, "generator_installed", False)) if gw else False
+        return {"tabs": setup_wizard.capability_tabs(values, generator_installed=gen)}
+
     @app.get("/api/system-setup")
     def api_system_setup(gateway: str | None = Query(None)):
         """Per-gateway System Setup: resolved values (default → derived → override) + spec."""

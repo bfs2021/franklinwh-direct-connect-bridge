@@ -133,6 +133,59 @@ document.addEventListener('alpine:init', () => {
     ],
     //: Whether this gateway has a generator (1901 genEn OR configured). Device-metric
     //  tabs/columns for absent hardware are hidden rather than showing a permanent 0 W.
+    //: First-run setup. `prompt` only controls whether we OFFER it — the wizard is
+    //  always reachable from Settings, and skipping never disables anything.
+    setup: { state: 'pending', should_prompt: false, steps: [], required_satisfied: false },
+    setupDismissed: false,
+
+    //: Bound to the inputs; seeded from the wizard so the fields show the stored value.
+    setupExpected: { agates: 1, apowers: 1 },
+    setupExpectedError: '',
+
+    async saveSetupExpected() {
+      this.setupExpectedError = '';
+      try {
+        const r = await fetch('api/setup/expected', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.setupExpected),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) { this.setupExpectedError = d.detail || `HTTP ${r.status}`; return; }
+        await this.loadSetup();
+      } catch (e) { this.setupExpectedError = String(e); }
+    },
+
+    async loadSetup() {
+      try {
+        const r = await fetch('api/setup' + this.gwQuery('?'));
+        if (r.ok) {
+          this.setup = await r.json();
+          const step = (this.setup.steps || []).find(s => s.id === 'expected');
+          if (step && step.values) this.setupExpected = { ...step.values };
+        }
+      } catch (e) { /* never block the UI on the wizard */ }
+    },
+
+    //: The modal is open on first run and owns that moment. The banner is the quieter
+    //  reminder for afterwards — showing both at once says the same thing twice, with one
+    //  of them hidden behind the other.
+    setupModalOpen: false,
+
+    get setupPrompt() {
+      return !!(this.setup.should_prompt && !this.setupDismissed && !this.setupModalOpen);
+    },
+
+    async setSetupState(value) {
+      try {
+        await fetch('api/setup/state', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: value }),
+        });
+      } catch (e) { /* the banner still dismisses locally */ }
+      this.setupDismissed = true;
+      await this.loadSetup();
+    },
+
     generatorInstalled: false,
     //: The registry filtered to what this gateway actually has — feeds barMax/barTabs/
     //  overflowTabs and the bottom nav. Generator drops out when no genset is present.
@@ -713,6 +766,7 @@ document.addEventListener('alpine:init', () => {
       this._interval = setInterval(() => this._dashTick(), 10000);
       // History is heavier than the 5s poll — load once, then refresh slowly.
       this.loadSiteTz();
+      this.loadSetup();
       this.loadHostTz();
       this.loadHistory(this.histRange);
       // Only refresh the Power History chart while the dashboard is visible — recreating it
