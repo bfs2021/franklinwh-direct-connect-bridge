@@ -25,6 +25,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   That one DOES re-create entities under new ids — the old ones keep your history — so it
   is an explicit choice, never automatic, and the API states the cost before you take it.
 
+### Added
+
+- **Browse the broker, read-only** (MQTT tab). Watch a topic filter for a few seconds and
+  see what arrives, retained messages marked as such — the question "is anything actually
+  on that topic" was otherwise unanswerable from inside the add-on without installing a
+  separate MQTT client. It never publishes; `#` on its own is refused, because on a shared
+  broker that is every message from every integration; and the window, result count and
+  payload size are all capped.
+
 ### Fixed
 
 - **Removing or disabling a gateway now takes its Home Assistant entities with it.** The
