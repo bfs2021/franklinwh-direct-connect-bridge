@@ -3462,8 +3462,28 @@ def create_app() -> FastAPI:
                 # no_sunspec / ready. `available` is kept for existing callers and is
                 # exactly `state == "ready"`.
                 "state": st.get("state", "not_configured"), "hint": st.get("hint", ""),
-                "max_charge_w": st.get("max_charge_w", 5000),
-                "max_discharge_w": st.get("max_discharge_w", 5000)}
+                # The rating, and WHERE it came from. A hardcoded 5000 used to appear here
+                # as though it were read from the inverter; an aPower 2 is 10 kW and a
+                # percentage of the wrong rating is wrong by half (owner, 2026-10-16).
+                **_battery_rating_block(),
+                }
+
+    def _battery_rating_block() -> dict:
+        """Max charge/discharge with provenance: Modbus → aPower model → user constant →
+        an assumption, labelled as one."""
+        from . import battery_control
+        s = get_settings()
+        try:
+            gw = state.default_gateway()
+            count = int(getattr(gw, "apower_count", None) or 1) if gw else 1
+        except Exception:  # noqa: BLE001
+            gw, count = None, 1
+        r = battery_control.ratings_with_source(
+            _modbus_host(), settings=s, store=db.get_store(s),
+            gateway_id=(gw.id if gw else None), apower_count=count)
+        return {"max_charge_w": r["charge_w"], "max_discharge_w": r["discharge_w"],
+                "rating_source": r["source"], "rating_assumed": r["assumed"],
+                "rating_detail": r["detail"]}
 
     @app.post("/api/battery/command")
     def api_battery_command(req: BatteryCmdReq, dry: bool = Query(False)):

@@ -155,6 +155,20 @@ APOWER_SPECS: dict[str, dict[str, Any]] = {
 }
 
 
+def apower_power_w(model: str | None, count: int = 1) -> tuple[int, int] | None:
+    """``(charge_w, discharge_w)`` for ``count`` aPowers of ``model``, or None if unknown.
+
+    The datasheet rating is PER UNIT, so a two-aPower site is twice one unit. None rather
+    than a default: "we do not know this model" and "this model is 5 kW" are different
+    answers, and only one of them should ever size a dispatch.
+    """
+    spec = APOWER_SPECS.get((model or "").strip())
+    if not spec:
+        return None
+    n = max(1, int(count or 1))
+    return (int(spec["charge_kw"] * 1000 * n), int(spec["discharge_kw"] * 1000 * n))
+
+
 def apower_specs() -> list[dict[str, Any]]:
     """The aPower model spec table as a list (for the Settings picker)."""
     return [{"model": k, **v} for k, v in APOWER_SPECS.items()]
