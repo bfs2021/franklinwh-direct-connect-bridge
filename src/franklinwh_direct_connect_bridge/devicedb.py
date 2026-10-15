@@ -156,15 +156,24 @@ def describe(manifest: dict | None) -> dict[str, Any]:
 #:   ``APRS-10K/11K…`` = aPower S (stackable, MPPT). Checked 2026-10-16.
 #: * The owner's statement (FEAT-DEVICE-CAPABILITIES): "5 kW fixed per aPower, except
 #:   aPower S which is 10 kW variable."
-#: * **UNVERIFIED: aPower S charge_kw = 8.** Every source above gives aPower S as 10 kW
-#:   without splitting charge from discharge; where the 8 came from is not recorded. It is
-#:   left as-is rather than quietly changed — a different number with no citation is no
-#:   better — but it must not be quoted to anyone as confirmed, and it is the one value to
-#:   settle against a datasheet before another project copies this table.
+#: * **aPower S 8 kW charge / 10 kW discharge: CONFIRMED by the vendor datasheet.**
+#:   *FranklinWH aPower S datasheet, document version V1.9* (SKUs APRS-10K15V1-US,
+#:   APRS-10K15V1.1-US, APRS-10K15V1.1DCP-US; nameplate "aPower S-10"), retrieved
+#:   2026-10-16 from https://www.franklinwh.com/document/apower-s-datasheet — owner-supplied
+#:   link. Verbatim: "Max Real Power (Charge) 8 kW continuous"; "Max Real Power (Discharge)
+#:   – With PV Input 11.5 kW continuous / – Battery Only 10 kW continuous".
+#:
+#:   So the asymmetry is real and this table was right, though for a reason nobody had
+#:   written down. ``discharge_kw`` holds the **battery-only** 10 kW, which is the correct
+#:   number for sizing a battery dispatch: the 11.5 kW figure includes PV flowing through
+#:   the hybrid inverter, which is not what a force command controls. The extra headroom is
+#:   recorded as ``discharge_with_pv_kw`` rather than being dropped.
 APOWER_SPECS: dict[str, dict[str, Any]] = {
     "aPower X":  {"usable_kwh": 13.6, "rated_kwh": 15.0, "charge_kw": 5.0,  "discharge_kw": 5.0,  "has_mppt": False},
     "aPower 2":  {"usable_kwh": 16.0, "rated_kwh": 16.0, "charge_kw": 10.0, "discharge_kw": 10.0, "has_mppt": False},
-    "aPower S":  {"usable_kwh": 15.0, "rated_kwh": 15.0, "charge_kw": 8.0,  "discharge_kw": 10.0, "has_mppt": True},
+    # Datasheet V1.9: charge 8 kW, discharge 10 kW battery-only / 11.5 kW with PV input.
+    "aPower S":  {"usable_kwh": 15.0, "rated_kwh": 15.0, "charge_kw": 8.0,  "discharge_kw": 10.0,
+                  "discharge_with_pv_kw": 11.5, "has_mppt": True},
 }
 
 

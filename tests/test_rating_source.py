@@ -117,12 +117,22 @@ def test_watts_still_work_without_a_rating(monkeypatch):
     bc._clear_active()
 
 
-def test_the_unverified_asymmetry_is_marked_as_such():
-    """aPower S charge 8 kW has no citation; every source we have says 10 kW. It stays,
-    because replacing it with another uncited number is no better — but the file must say
-    so, since another project is about to copy this table."""
+def test_the_apower_s_asymmetry_is_cited_to_the_datasheet():
+    """It was flagged as uncited; the owner supplied the datasheet and it turned out to be
+    right. The citation has to live in the file, because another project is copying this
+    table and "the Direct Connect Bridge says 8/10" is not a source."""
     import pathlib
     src = (pathlib.Path(devicedb.__file__)).read_text()
     head = src[:src.index("APOWER_SPECS")]
-    assert "UNVERIFIED" in head and "aPower S" in head
-    assert "device_catalog.json" in head          # where the mapping IS verified
+    assert "V1.9" in head and "franklinwh.com/document/apower-s-datasheet" in head
+    assert "8 kW continuous" in head and "10 kW continuous" in head
+    assert "device_catalog.json" in head          # the model→SKU mapping
+
+
+def test_the_with_pv_discharge_figure_is_kept_but_not_used_for_dispatch():
+    """11.5 kW includes PV flowing through the hybrid inverter — not what a force command
+    controls. Sizing a battery dispatch against it would overshoot by 15%."""
+    spec = devicedb.APOWER_SPECS["aPower S"]
+    assert spec["discharge_kw"] == 10.0              # battery only
+    assert spec["discharge_with_pv_kw"] == 11.5      # recorded, not used
+    assert devicedb.apower_power_w("aPower S", 1) == (8000, 10000)
