@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -1200,15 +1201,42 @@ def create_app() -> FastAPI:
     # The franklinwh-local library docs (mkdocs site), if bundled into the image by
     # tools/build_image.sh. Served at /guide (FastAPI owns /docs for Swagger). Skipped
     # cleanly in dev / when the site was not built.
+    # FWH_DOCS_DIR is AUTHORITATIVE when set: pointing at a docs directory and silently
+    # being served a different one is worse than being told there is none.
     _docs_env = os.environ.get("FWH_DOCS_DIR")
-    _docs_candidates = ([Path(_docs_env)] if _docs_env else []) + [
+    _docs_candidates = [Path(_docs_env)] if _docs_env else [
         Path(__file__).resolve().parents[2] / "docs_site",   # /app/docs_site in the image
         Path(__file__).resolve().parents[3] / "docs_site",
     ]
+    _guide_bundled = False
     for _d in _docs_candidates:
         if _d.is_dir() and (_d / "index.html").exists():
             app.mount("/guide", StaticFiles(directory=str(_d), html=True), name="guide")
+            _guide_bundled = True
             break
+
+    #: Where the guide actually is. The mkdocs site is built by tools/build_image.sh from
+    #: the sibling library checkout and lands in docs_site/ — which is GITIGNORED, so the
+    #: Home Assistant add-on (built from the git repository) has no site at all. The Guide
+    #: tab then loaded /guide, got FastAPI's 404, and rendered {"detail":"Not Found"} as
+    #: the page. Measured on the live add-on, 2026-10-15.
+    #:
+    #: Published docs are the honest fallback: the same content, online, rather than a
+    #: broken panel. Reported so the UI can send people to a working page instead of an
+    #: iframe that cannot load.
+    GUIDE_PUBLISHED_URL = "https://david2069.github.io/franklinwh-direct-connect-api/"
+
+    @app.get("/api/guide")
+    def api_guide():
+        """Whether the guide is bundled in this build, and where to read it if not."""
+        return {"bundled": _guide_bundled,
+                "url": "guide/" if _guide_bundled else GUIDE_PUBLISHED_URL,
+                "published_url": GUIDE_PUBLISHED_URL,
+                "user_guide_url": ("https://github.com/david2069/"
+                                   "franklinwh-direct-connect-bridge/blob/main/"
+                                   "docs/guide/README.md"),
+                "reason": ("" if _guide_bundled else
+                           "This build does not bundle the documentation site.")}
 
     # -- gateway resolvers (multi-gateway, Phase 2) --------------------------
     # No ``gateway`` param ⇒ the default (first-registered) gateway ⇒ exactly the
@@ -2453,21 +2481,53 @@ def create_app() -> FastAPI:
                 "exposed": req.exposed}
 
     @app.get("/api/ha/notify-targets")
-    def api_ha_notify_targets():
-        """``notify.*`` services per instance — these are services, not entities,
-        so they never appear in an entity list."""
+    def api_ha_notify_targets(instance: str | None = Query(None)):
+        """``notify.*`` services, optionally for ONE instance — these are services, not
+        entities, so they never appear in an entity list.
+
+        Each target carries what is needed to tell NEAR-DUPLICATES apart. Home Assistant
+        re-registers a companion app as ``notify.pixel_tablet_2`` beside the original and
+        gives no hint which one is live; the only evidence is the matching entity's
+        ``last_updated``, so it is fetched and reported rather than left for the user to
+        find in a 3800-entity browser. ``duplicate_of`` names the target it shadows.
+        """
         st = _ha_store()
         out, errors = [], {}
         for inst in st.ha_instances():
             if not inst.get("enabled"):
                 continue
+            if instance and inst["id"] != instance:
+                continue
             try:
-                for target in ha_instances.notify_targets(inst["base_url"],
-                                                          inst.get("token")):
-                    out.append({"instance_id": inst["id"], "instance": inst["name"],
-                                "service": target})
+                services = ha_instances.notify_targets(inst["base_url"], inst.get("token"))
             except Exception as e:                               # noqa: BLE001
                 errors[inst["id"]] = f"{type(e).__name__}: {e}"
+                continue
+            # The entity side, when there is one. Best-effort: a target with no matching
+            # entity is still a usable target, it just has no last-seen to show.
+            meta: dict[str, dict] = {}
+            try:
+                for s in ha_instances.states(inst["base_url"], inst.get("token")):
+                    eid = s.get("entity_id", "")
+                    if eid.startswith("notify."):
+                        meta[eid] = {
+                            "name": (s.get("attributes") or {}).get("friendly_name") or "",
+                            "last_updated": s.get("last_updated") or s.get("last_changed"),
+                            "state": s.get("state"),
+                        }
+            except Exception:                                    # noqa: BLE001 — metadata only
+                meta = {}
+            bases: dict[str, str] = {}
+            for target in services:
+                m = meta.get(target, {})
+                # "pixel_tablet_2" shadows "pixel_tablet" — only when the original exists.
+                base = re.sub(r"_\d+$", "", target)
+                dup = base if (base != target and base in services) else None
+                bases.setdefault(base, target)
+                out.append({"instance_id": inst["id"], "instance": inst["name"],
+                            "service": target, "name": m.get("name") or "",
+                            "last_updated": m.get("last_updated"),
+                            "duplicate_of": dup})
         return {"targets": out, "errors": errors}
 
     @app.get("/api/ha/notify-devices")
@@ -2478,12 +2538,18 @@ def create_app() -> FastAPI:
         while notifications as a whole are off, so both are reported.
         """
         st = _ha_store()
-        by_id = {i["id"]: i["name"] for i in st.ha_instances()}
+        by_id = {i["id"]: i for i in st.ha_instances()}
         return {
             "master_enabled": bool(get_settings().ha_notify),
+            # A device can be ON while the instance carrying it is OFF, which delivers
+            # nothing — so the two are reported separately rather than merged into one
+            # "enabled" that cannot explain the silence.
             "devices": [{**d, "enabled": bool(d["enabled"]),
-                         "instance": by_id.get(d["instance_id"], "(missing instance)"),
-                         "instance_missing": d["instance_id"] not in by_id}
+                         "instance": (by_id.get(d["instance_id"]) or {}).get(
+                             "name", "(missing instance)"),
+                         "instance_missing": d["instance_id"] not in by_id,
+                         "instance_disabled": not (by_id.get(d["instance_id"]) or {}).get(
+                             "enabled", 1)}
                         for d in st.notify_devices()],
         }
 
@@ -4859,18 +4925,22 @@ def create_app() -> FastAPI:
         found = discover_mqtt()
         if not found.get("found"):
             raise HTTPException(409, found.get("error") or "no MQTT service registered")
+        live = get_settings()
         for key, val in (("mqtt_host", found["host"]), ("mqtt_port", int(found["port"])),
                          ("mqtt_username", found.get("username", "")),
                          ("mqtt_password", found.get("password", "")),
                          ("mqtt_enabled", True)):
             save_override(key, val)
-        from . import config as _config
-        _config._settings = None
+            # Mutate the LIVE settings object as well as persisting it. Replacing the
+            # singleton would leave every running poller holding the old one, which is
+            # why this used to need a restart: the poller re-checks `settings.mqtt_enabled`
+            # on its own retry tick and connects by itself once it turns true.
+            setattr(live, key, val)
         _audit("mqtt_supervisor_enable", detail=f"{found['host']}:{found['port']}",
                result="enabled", ok=True)
         return {"ok": True, "host": found["host"], "port": found["port"],
-                "restart_required": True,
-                "note": "Publishing is on. Restart the add-on to start the publisher."}
+                "restart_required": False,
+                "note": "Publishing is on — the poller connects within a minute."}
 
     @app.get("/api/mqtt/orphans")
     def api_mqtt_orphans():
