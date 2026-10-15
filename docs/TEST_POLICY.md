@@ -110,14 +110,23 @@ runs stay local; quote masked output inline. No serials, LAN IPs or site data, p
 
 Each bridge owns its own namespace. No identifier may be produced by both.
 
-| | Direct Connect bridge (current) | Modbus bridge |
+| | Direct Connect bridge (current) | Modbus bridge (v0.2.6, as reported by that repo's session, 2026-10-16) |
 |---|---|---|
-| Add-on slug | `franklinwh_local_bridge` (never rename) | *to fill in* |
-| Ports | 8101 | 8100 |
-| MQTT state prefix | `franklinwh-local/<node>/…` | *to fill in* |
-| HA device `identifiers` | `franklinwh_<node>` (node = lower-case serial) | *to fill in* |
-| `unique_id` | `franklinwh_<node>_<key>` | *to fill in* |
-| Device name | `FranklinWH Direct <last 8 of serial>` | *to fill in* |
+| Add-on slug | `franklinwh_local_bridge` (never rename) | `franklinwh_modbus_bridge` |
+| Ports | 8101 | ingress 8099; direct port off by default |
+| MQTT state prefix | `franklinwh-local/<node>/…` | `fwh_mb/<short_id>/…` (legacy installs: `franklinwh/…`); reserves `fwhai`, `fwh_ai`, `fwh_lb`, `franklinwh-local` |
+| HA device `identifiers` | `franklinwh_<node>` (node = **full** serial, lower case) | `<prefix>_modbus_<SERIAL>`; before 0.2.4: `franklinwh_<SERIAL>` (upper case) |
+| `unique_id` | `franklinwh_<node>_<key>` | `<prefix>_<short_id>_<slug>` (short_id = last 8 of the serial); legacy `franklinwh_<serial8>_<slug>` |
+| Device name | `FranklinWH Direct <last 8 of serial>` | `FranklinWH Modbus <last 8 of serial>`; mocks `… (mock)` |
+
+Known near-collision: the Direct Connect device identifier `franklinwh_<serial>` and the Modbus
+bridge's pre-0.2.4 `franklinwh_<SERIAL>` differ **only by case**. If either side ever normalises case,
+the two bridges' devices merge. The `unique_id`s do not collide today: ours uses the full serial and
+theirs the last 8 characters.
+
+HA 2026.10 does not use the published `object_id`: entity IDs are derived from the device name
+(`sensor.franklinwh_direct_<serial8>_…`). **Renaming a device therefore changes the entity IDs of
+new installs.**
 
 - **Open question for both repos:** `franklinwh_<serial>` is a generic prefix. If the Modbus bridge also
   derives identifiers from `franklinwh_` + serial, the two would merge into one HA device. Each bridge
