@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.6] — 2026-10-16
+
+Security hotfix.
+
 ### Security
 
 - **Taking the site off-grid always needs a confirmation.** One API route could switch the site off-grid
