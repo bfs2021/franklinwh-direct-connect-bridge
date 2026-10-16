@@ -5101,22 +5101,62 @@ def create_app() -> FastAPI:
                 "enabled_groups": sorted(enabled), "groups": entities.GROUPS}
 
     @app.post("/api/mqtt/republish")
-    def api_mqtt_republish(gateway: str | None = Query(None)):
+    async def api_mqtt_republish(gateway: str | None = Query(None)):
+        """Publish this gateway to Home Assistant (again). If it was unpublished, turn
+        publishing back ON for it (saved), so it stays published across restarts."""
         s = get_settings()
         gw = _gw_or_404(gateway)
         if not s.mqtt_enabled:
             return {"ok": False, "detail": "MQTT is disabled"}
+        st = _gw_store()
+        row = st.gateway(gw.id) if st is not None else None
+        if row is not None and not row.get("publish_ha"):
+            row = st.update_gateway(gw.id, publish_ha=True)
+            await _reconcile_gateway(row)
+            return {"ok": True, "detail": "Publishing turned on — entities appear within a poll."}
         gw.republish_requested = True   # the RIGHT gateway's poller re-publishes
         return {"ok": True, "detail": "Re-publishing HA discovery…"}
 
     @app.post("/api/mqtt/unpublish")
-    def api_mqtt_unpublish(gateway: str | None = Query(None)):
+    async def api_mqtt_unpublish(gateway: str | None = Query(None),
+                                 dry_run: bool = Query(False)):
+        """Remove THIS gateway from Home Assistant and keep it removed (#119).
+
+        Turns its publishing off (saved), waits for its poller to stop, then removes every
+        retained topic this bridge can publish for it — discovery configs of all groups,
+        state and availability — and reads the broker back. ``dry_run`` lists what would
+        be removed and changes nothing. Republish turns publishing back on."""
         s = get_settings()
         gw = _gw_or_404(gateway)
         if not s.mqtt_enabled:
             return {"ok": False, "detail": "MQTT is disabled"}
-        gw.unpublish_requested = True   # the RIGHT gateway's poller clears entities
-        return {"ok": True, "detail": "Clearing entities from Home Assistant…"}
+        node = (gw.node or (gw.serial or "").lower() or "").strip()
+        if not node or node == "agate":
+            return {"ok": False, "detail": "this gateway's identity is not known yet — nothing "
+                                           "has been published for it"}
+        from .publish import purge as _purge
+        if dry_run:
+            return await asyncio.to_thread(_purge.purge, s, node, dry_run=True)
+        st = _gw_store()
+        row = st.update_gateway(gw.id, publish_ha=False) if st is not None else None
+        gw.publish_ha = False
+        # Stop the publisher BEFORE removing: a running poller would re-publish state and
+        # availability on its next cycle and undo the purge.
+        old = None
+        await supervisor.stop_poller(gw.id)
+        old = supervisor._stopping.get(gw.id)
+        if old is not None and not old.done():
+            await asyncio.wait({old}, timeout=supervisor.DEFER_WAIT_S)
+        res = await asyncio.to_thread(_purge.purge, s, node)
+        if row is not None:
+            await _reconcile_gateway(row)     # keeps polling (and recording), not publishing
+        _audit("mqtt_unpublish", gateway=gw.id,
+               detail=f"node={node} removed={res.get('removed')} left={len(res.get('left') or [])}",
+               result="ok" if res.get("ok") else "incomplete", ok=bool(res.get("ok")))
+        res["detail"] = (f"Removed {res['removed']} retained topic(s); publishing is off for this "
+                         "gateway until you Republish." if res.get("ok") else
+                         f"{len(res['left'])} topic(s) could not be removed — see 'left'.")
+        return res
 
     @app.get("/api/mqtt/discover")
     def api_mqtt_discover():

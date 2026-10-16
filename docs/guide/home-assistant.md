@@ -134,22 +134,19 @@ read live, and all five are on by default:
 
 Turning a group off reduces both MQTT traffic and the number of HA entities.
 
-### Republish and Clear HA: what they do (0.4.8)
+### Republish and Unpublish
 
 Both buttons are on the **MQTT** tab and act on the **gateway selected at the top**, not on
 every gateway.
 
-| Button | What it does | What it does **not** do |
-|---|---|---|
-| **Republish** | Sends this gateway's discovery configs again, using the groups that are switched on. Use it when Home Assistant has lost an entity, or after changing groups. | It does not remove anything first, so it does not clear leftovers. |
-| **Clear HA** (unpublish) | Sends an empty retained discovery config for each of this gateway's entities, so Home Assistant removes them. Their history stays in HA. | It does **not** turn publishing off. The next time the add-on restarts or reconnects to the broker, the entities come back. It leaves the state and availability messages on the broker, and it does not check that the removal worked. Entities from other gateways, or from other FranklinWH software, are untouched, whatever the confirmation dialog says. |
+| Button | What it does |
+|---|---|
+| **Republish** | Sends this gateway's discovery configs again, using the groups that are switched on. If the gateway was unpublished, it turns publishing **back on** (saved) and its entities return within a poll. |
+| **Unpublish** | Removes this gateway from Home Assistant **and keeps it removed**. It turns the gateway's publishing off (saved, so it survives restarts) and waits for its poller to stop. It then removes every retained topic this bridge can publish for it: discovery configs of all groups, state and availability. Finally it reads the broker back and reports how many topics were removed, and any it could not remove. Before you confirm, it shows how many topics it will remove. History already in Home Assistant stays. The gateway keeps polling, and recording if history is on. |
 
-To stop a gateway publishing **for good**, edit the gateway in **Settings → Gateways** and switch
-off *Publish to Home Assistant*, then use **Clear HA**.
-
-A proper **Unpublish**, one that stays off and removes everything this bridge published, with a
-check that it was removed, is planned (#119).
-The Modbus Bridge and FWHAI already have one.
+Nothing outside this bridge is touched. The topic list comes from the bridge's own entities
+for that gateway, never from a wildcard, so other gateways and other FranklinWH software
+(Modbus Bridge, FWHAI) are left alone. Every Unpublish is recorded in Control → Audit trail.
 
 ### Why Operating Mode appears twice
 

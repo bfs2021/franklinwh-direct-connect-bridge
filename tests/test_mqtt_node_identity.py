@@ -106,3 +106,24 @@ def test_poller_retries_identity_before_retrying_the_publisher():
 def test_fallback_node_is_never_a_valid_publish_target(serial):
     # Documents the invariant the poller enforces: no serial -> no device identity.
     assert not serial
+
+
+# ── #140: Device info laid out like the Modbus Bridge's ──────────────────────
+def test_device_info_matches_the_modbus_bridge_layout():
+    d = entities.device_info("sn1", "SN1", "V12R02B30D06_260304", model="aGate X-01-AU")
+    assert d["manufacturer"] == "FranklinWH Technologies Co., Ltd"
+    assert d["model"] == "aGate X-01-AU"
+    assert d["sw_version"] == f"Direct Connect Bridge v{__version__}"     # bridge only
+    assert d["hw_version"] == "aGate V12R02B30D06_260304"                  # aGate firmware
+    assert d["identifiers"] == ["franklinwh_sn1"]                           # identity unchanged
+    assert mqtt_scan._is_ours(d["sw_version"])
+
+
+def test_a_mock_never_reads_as_hardware():
+    d = entities.device_info("m1", "MOCK1", "V1", model="aGate X-01-AU", is_mock=True)
+    assert d["model"] == "aGate (mock)"
+
+
+def test_unknown_model_and_firmware_fall_back_cleanly():
+    d = entities.device_info("n", "S", None)
+    assert d["model"] == "aGate" and "hw_version" not in d

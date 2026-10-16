@@ -12,15 +12,17 @@ from . import entities
 
 class MqttPublisher:
     def __init__(self, settings: Settings, node: str, device: dict,
-                 command_handler=None, groups=None):
+                 command_handler=None, groups=None, skip=frozenset()):
         self.s = settings
+        self.skip = frozenset(skip)       # entity keys this gateway has no source for
         self.node = node
         self.device = device
         #: Called as ``handler(key, payload)`` for an inbound control message.
         #: Runs on the paho network thread, so it must not block for long.
         self.command_handler = command_handler
         self.configs, self.state_topic, self.avail_topic = entities.discovery_configs(
-            node, device, settings.mqtt_prefix, settings.ha_discovery_prefix, groups
+            node, device, settings.mqtt_prefix, settings.ha_discovery_prefix, groups,
+            skip=self.skip,
         )
         self.client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2, client_id=f"franklinwh-direct-connect-bridge-{node}"
@@ -72,7 +74,8 @@ class MqttPublisher:
         publish the new set — so a disabled group's entities disappear from HA."""
         self.clear_discovery()
         self.configs, self.state_topic, self.avail_topic = entities.discovery_configs(
-            self.node, self.device, self.s.mqtt_prefix, self.s.ha_discovery_prefix, groups)
+            self.node, self.device, self.s.mqtt_prefix, self.s.ha_discovery_prefix, groups,
+            skip=self.skip)
         self.publish_discovery()
 
     def clear_discovery(self) -> None:

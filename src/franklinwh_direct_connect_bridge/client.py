@@ -246,6 +246,25 @@ def network_bundle(s: Settings, host: str | None = None) -> dict[str, Any]:
     return out
 
 
+def network_light(s: Settings, host: str | None = None) -> dict[str, Any]:
+    """The network reads for Home Assistant (#134) in ONE session — connectivity (1113),
+    interfaces (1118), switches (1119), cloud endpoint (1121). Unlike network_bundle: no
+    ping and NO :502 probe (this runs in the background, every few minutes)."""
+    out: dict[str, Any] = {"connectivity": None, "interfaces_raw": None,
+                           "switches": None, "cloud": None}
+    with _client(s, host or active_host(s)) as c:
+        c.login()
+        for key, fn in (("connectivity", c.connectivity),
+                        ("interfaces_raw", c.network_interfaces),
+                        ("switches", c.network_switches),
+                        ("cloud", c.cloud_config)):
+            try:
+                out[key] = fn()
+            except (OSError, TransportError, TimeoutError):
+                pass
+    return out
+
+
 def power(s: Settings, host: str | None = None) -> dict[str, Any]:
     with _client(s, host) as c:
         c.login()

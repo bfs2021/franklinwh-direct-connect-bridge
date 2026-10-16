@@ -31,14 +31,17 @@ def test_the_poll_succeeds(mock_summary):
 
 def test_every_sensor_template_key_is_published(mock_summary):
     st = entities.state_payload(mock_summary)
-    missing = [e["key"] for e in entities.ENTITIES if e["key"] not in st]
+    # A mock publishes no network entities (no source, #134), so none are expected here.
+    missing = [e["key"] for e in entities.ENTITIES
+               if e["key"] not in st and e["key"] not in entities.NETWORK_KEYS]
     assert not missing, f"entities whose template key is never published: {missing}"
 
 
 def test_published_values_are_real_values_not_none(mock_summary):
     """A key that is present but always None is the same defect in disguise."""
     st = entities.state_payload(mock_summary)
-    nones = [e["key"] for e in entities.ENTITIES if st.get(e["key"]) is None]
+    nones = [e["key"] for e in entities.ENTITIES
+             if st.get(e["key"]) is None and e["key"] not in entities.NETWORK_KEYS]
     assert not nones, f"published as null: {nones}"
 
 
@@ -94,3 +97,16 @@ def test_numeric_sensors_carry_a_display_precision():
     assert cfgs["ambient_temp_c"]["suggested_display_precision"] == 1
     assert "suggested_display_precision" not in cfgs["mode"]          # text
     assert "suggested_display_precision" not in cfgs["battery_status"]  # text
+
+
+def test_diagnostic_entities_land_on_the_diagnostic_card():
+    """#121: HA groups by entity_category; the Modbus Bridge puts diagnostics there."""
+    cfgs = {t.split("/")[-2]: c
+            for t, c in entities.discovery_configs("n1", entities.device_info("n1", "SN1"),
+                                                   "franklinwh-local", "homeassistant", None)[0]}
+    diag = {e["key"] for e in entities.ENTITIES if e.get("group") == "diagnostic"}
+    assert diag >= {"latency_ms", "ambient_temp_c", "run_status"}
+    for k in diag:
+        assert cfgs[k]["entity_category"] == "diagnostic", k
+    assert "entity_category" not in cfgs["soc"]              # main sensors stay sensors
+    assert "entity_category" not in cfgs["operating_mode"]   # controls stay controls

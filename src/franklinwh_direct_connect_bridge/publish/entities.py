@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-MANUFACTURER = "FranklinWH"
+# The manufacturer as the Modbus Bridge publishes it, so the two bridges' HA devices
+# read the same (#140). Display only — not part of any identifier.
+MANUFACTURER = "FranklinWH Technologies Co., Ltd"
 
 # key -> HA sensor descriptor. `key` is both the state-JSON field and the discovery id.
 ENTITIES: list[dict[str, Any]] = [
@@ -31,6 +33,19 @@ ENTITIES: list[dict[str, Any]] = [
     {"key": "ambient_temp_c", "name": "Ambient Temperature", "unit": "°C", "device_class": "temperature", "state_class": "measurement", "group": "diagnostic"},
     {"key": "run_status", "name": "Run Status", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
     {"key": "battery_status", "name": "Battery State", "unit": None, "device_class": None, "state_class": None, "group": "power"},
+    # aGate network (#134) — read every few minutes, not every poll. Diagnostic card.
+    {"key": "net_in_use", "name": "Network In Use", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_available", "name": "Networks Available", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_write_safety", "name": "Network Write Safety", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_fallback", "name": "Network Fallback", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_wifi_signal", "name": "WiFi Signal", "unit": "%", "device_class": None, "state_class": "measurement", "group": "diagnostic"},
+    {"key": "net_4g_signal", "name": "4G Signal", "unit": None, "device_class": None, "state_class": "measurement", "group": "diagnostic"},
+    {"key": "net_if_eth0", "name": "Ethernet 0", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_if_eth1", "name": "Ethernet 1", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_if_wifi", "name": "WiFi Link", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_if_4g", "name": "4G Link", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_cloud", "name": "Cloud Connection", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_cloud_endpoint", "name": "Cloud Endpoint", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
 ]
 
 #: The three operating work modes. HA shows these names; the bridge maps the
@@ -178,37 +193,45 @@ def device_name(serial: str) -> str:
     return f"FranklinWH Direct {tail}" if tail else "FranklinWH Direct Connect"
 
 
-def device_info(node: str, serial: str, firmware: str | None = None) -> dict[str, Any]:
+def device_info(node: str, serial: str, firmware: str | None = None, *,
+                model: str | None = None, is_mock: bool = False) -> dict[str, Any]:
     from .. import __version__
     # DO NOT change `identifiers`. They are Home Assistant's device IDENTITY: a new value
     # creates a SECOND device and orphans every entity already discovered. The `name`
     # beside it is only a label and is safe to change — see device_name().
     #
-    # sw_version identifies THIS integration on a broker shared with the Modbus bridge and
-    # FWHAI: mqtt_scan decides ownership from its prefix, which is why the legacy "Local
-    # Bridge" spelling is still ACCEPTED there even though new publishes say "Direct
-    # Connect Bridge". The aGate's own firmware is appended when known.
-    bridge = f"Direct Connect Bridge v{__version__}"
+    # The other fields are labels too, laid out as the Modbus Bridge does (#140): the
+    # BRIDGE's version as "Firmware" (sw_version) and the aGate's firmware as "Hardware"
+    # (hw_version). sw_version still identifies THIS integration on a broker shared with
+    # the Modbus bridge and FWHAI — mqtt_scan and the setup checks decide ownership from
+    # its "Direct Connect Bridge" prefix — so the prefix must stay.
     d = {
         "identifiers": [f"franklinwh_{node}"],
         "name": device_name(serial),
         "manufacturer": MANUFACTURER,
-        "model": "aGate",
-        "sw_version": f"{bridge} · aGate {firmware}" if firmware else bridge,
+        "model": "aGate (mock)" if is_mock else (model or "aGate"),
+        "sw_version": f"Direct Connect Bridge v{__version__}",
     }
+    if firmware:
+        d["hw_version"] = f"aGate {firmware}"
     if serial:
         d["serial_number"] = serial
     return d
 
 
-def discovery_configs(node: str, device: dict, prefix: str, discovery_prefix: str, groups=None):
+#: Keys that only a REAL gateway has a source for (the emulator models no network, #134).
+NETWORK_KEYS = frozenset(e["key"] for e in ENTITIES if e["key"].startswith("net_"))
+
+
+def discovery_configs(node: str, device: dict, prefix: str, discovery_prefix: str, groups=None,
+                      *, skip: frozenset | set = frozenset()):
     """Return (list[(config_topic, config_payload)], state_topic, availability_topic)."""
     state_topic = f"{prefix}/{node}/state"
     avail_topic = f"{prefix}/{node}/availability"
     configs = []
     enabled = _enabled(groups)
     for e in ENTITIES:
-        if e.get("group", "core") not in enabled:
+        if e.get("group", "core") not in enabled or e["key"] in skip:
             continue
         cfg = {
             "name": e["name"],
@@ -225,6 +248,10 @@ def discovery_configs(node: str, device: dict, prefix: str, discovery_prefix: st
             cfg["device_class"] = e["device_class"]
         if e["state_class"]:
             cfg["state_class"] = e["state_class"]
+        if e.get("group") == "diagnostic":
+            # HA files these under the device page's "Diagnostic" card, as the Modbus
+            # Bridge does (#121). A display category, not identity: ids are unchanged.
+            cfg["entity_category"] = "diagnostic"
         prec = display_precision(e)
         if prec is not None:
             # Display only: HA keeps the full value in history and statistics (#114).

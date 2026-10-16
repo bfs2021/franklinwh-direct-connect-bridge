@@ -38,6 +38,10 @@ def _fmt_outage(seconds: float | None) -> str:
     return f"{s // 3600}h {(s % 3600) // 60}m"
 
 
+#: How often the aGate's network state is read for Home Assistant (#134).
+NET_EVERY_S = 600
+
+
 async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event) -> None:
     """Resolve THIS gateway from its firmware manifest, (optionally) connect MQTT, then
     read state every ``poll_interval`` until ``stop`` is set — publishing to MQTT when
@@ -68,10 +72,28 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
 
     await _resolve_identity()
 
+    # Publishing OFF means nothing of ours is left in Home Assistant. Until #98 a gateway
+    # with publishing off (every mock, by default) was published anyway; once the flag is
+    # honoured those devices would sit "unavailable" for ever. Remove whatever is still
+    # retained for this node — verified, and a no-op when there is nothing.
+    if settings.mqtt_enabled and not getattr(gw, "publish_ha", True) and serial:
+        try:
+            from .publish import purge as _purge
+            res = await asyncio.to_thread(_purge.purge, settings, node)
+            if res.get("found"):
+                log.warning("[%s] publishing is off: removed %s retained topic(s) left in Home "
+                            "Assistant (%s left)", gw.id, res.get("removed"), len(res.get("left") or []))
+        except Exception as e:  # noqa: BLE001 — a broker problem must not stop polling
+            log.debug("[%s] publish-off clean-up skipped: %s", gw.id, e)
+
     def _start_mqtt():
         """Create + start an MqttPublisher (blocking connect). Raises on failure."""
         # Each gateway is a distinct serial node → distinct HA device (collision-free).
-        device = entities.device_info(node, serial, fw)
+        from . import devicedb as _ddb
+        _hw = getattr(gw, "sy_hd_version", None)
+        _model = ((_ddb.gateway(_hw) or {}).get("model") if _hw is not None else None)
+        device = entities.device_info(node, serial, fw, model=_model,
+                                      is_mock=bool(getattr(gw, "is_mock", False)))
         def _on_control(key: str, payload: str) -> None:
             """Inbound HA control. Runs on the MQTT network thread, so it is kept
             short and every outcome is logged — a control that silently fails is
@@ -88,7 +110,9 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                 log.warning("[%s] control %s failed: %s", gw.id, key, e)
 
         pub = MqttPublisher(settings, node, device, command_handler=_on_control,
-                            groups=entities.enabled_from_store(get_store(settings)))
+                            groups=entities.enabled_from_store(get_store(settings)),
+                            skip=(entities.NETWORK_KEYS if getattr(gw, "is_mock", False)
+                                  else frozenset()))
         pub.start()
         return pub
 
@@ -125,6 +149,8 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
         log.info("[%s] metrics store active (%s)", gw.id, settings.metrics_db)
 
     notifier = Notifier(settings)
+    net_state: dict = {}
+    net_last = 0.0
     prev: dict | None = None
     last_fw = fw
     inserts = 0
@@ -142,7 +168,11 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                 detail=(f"{fail_streak} consecutive failed polls" if fail_streak else ""))
             # Self-heal: if MQTT never came up (broker was down at boot), retry — throttled —
             # instead of staying dead until a bridge restart.
-            if settings.mqtt_enabled and pub is None and (time.time() - last_mqtt_try) >= _MQTT_RETRY_S:
+            # publish_ha is checked HERE too: this retry used to start MQTT for a gateway
+            # whose publishing is off, so a mock created with publish_ha=False was in
+            # Home Assistant within one poll (#98).
+            if (settings.mqtt_enabled and getattr(gw, 'publish_ha', True) and pub is None
+                    and (time.time() - last_mqtt_try) >= _MQTT_RETRY_S):
                 last_mqtt_try = time.time()
                 # Re-ask the Supervisor first. Auto-config runs once at startup, so an
                 # add-on installed before Mosquitto kept retrying the SAME unset broker
@@ -195,6 +225,23 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                 except asyncio.TimeoutError:
                     summ = {"ok": False, "error": f"poll timed out after {_poll_timeout}s"}
                 st = entities.state_payload(summ)   # the keys HA's templates read (#96)
+                # aGate network (#134): a separate light read every NET_EVERY_S, never every
+                # poll (the aGate is sensitive to load, #123), and never for a mock.
+                if not getattr(gw, "is_mock", False) and summ.get("ok") and \
+                        time.time() - net_last >= NET_EVERY_S:
+                    net_last = time.time()
+                    try:
+                        nb = await asyncio.wait_for(asyncio.to_thread(
+                            client.network_light, settings, gw.active_host), timeout=_poll_timeout)
+                        from .cloud_compat import network_from_interfaces as _nfi
+                        from .publish.network import network_state as _ns
+                        raw = nb.get("interfaces_raw")
+                        net_state = _ns(nb.get("connectivity"),
+                                        _nfi(raw) if isinstance(raw, dict) else None,
+                                        nb.get("switches"), nb.get("cloud"))
+                    except Exception as e:  # noqa: BLE001 — a network read never breaks the poll
+                        log.debug("[%s] network read failed: %s", gw.id, e)
+                st.update(net_state)
                 gw.last_state = st
                 gw.state_ts = time.time()
                 # Cache the full summary for /api/summary + /api/gateways/{id}/summary so the

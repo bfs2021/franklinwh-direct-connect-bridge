@@ -29,6 +29,9 @@ window.setupWizard = function setupWizard() {
     manual: { host: '' },
     // The four live Home Assistant checks, and whether to publish at all.
     ha: { checks: [], publishing: false, addon: false, busy: false, msg: '' },
+    // Gateways added in THIS wizard run. "Publish this gateway to Home Assistant? Yes"
+    // applies to them — and only them (#98: their publish flag is what the poller honours).
+    createdIds: [],
     demo: { label: 'Mock aGate' },
     // FranklinWH app credentials. Optional, and only stored once a real sign-in proves
     // they work — storing an untested password is how someone finds out months later that
@@ -233,6 +236,7 @@ window.setupWizard = function setupWizard() {
         });
         const d = await r.json().catch(() => ({}));
         if (!r.ok) { this.error = d.detail || `Could not add it (HTTP ${r.status}).`; return; }
+        if (d.id) this.createdIds.push(d.id);
         this.go('cloud');
       } catch (e) { this.error = String(e); } finally { this.busy = false; }
     },
@@ -263,6 +267,7 @@ window.setupWizard = function setupWizard() {
             this.error = d.detail || `Could not create mock ${i} of ${want} (HTTP ${r.status}).`;
             return;
           }
+          if (d.id) this.createdIds.push(d.id);
         }
         this.go('cloud');
       } catch (e) { this.error = String(e); } finally { this.busy = false; }
@@ -311,6 +316,16 @@ window.setupWizard = function setupWizard() {
       try {
         const r = await fetch('api/mqtt/supervisor/enable', { method: 'POST' });
         const d = await r.json().catch(() => ({}));
+        // Enabling the broker is not enough: each gateway publishes only when its own
+        // flag says so. Set it for the gateways this wizard added (the user just said Yes).
+        if (r.ok) {
+          for (const id of this.createdIds) {
+            await fetch(`api/gateways/${encodeURIComponent(id)}`, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ publish_ha: true }),
+            }).catch(() => {});
+          }
+        }
         this.ha.msg = r.ok ? (d.note || 'Publishing enabled.')
                            : (d.detail || `Could not enable it (HTTP ${r.status}).`);
       } catch (e) { this.ha.msg = String(e); }
