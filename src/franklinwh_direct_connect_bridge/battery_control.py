@@ -65,8 +65,33 @@ def _release_now(host: str, reason: str) -> None:
 def _watchdog_loop(host: str, key: float, duration_s: int, target_soc: int, watts) -> None:
     """Enforce Duration AND Target SoC (charge stops at SoC>=target, discharge at
     SoC<=target). SoC comes from the poller's cache via _soc_getter — no extra
-    Modbus read. Ends the moment a newer command supersedes this one."""
+    Modbus read. Ends the moment a newer command supersedes this one.
+
+    Beats the ``dispatch-watchdog`` worker while a force is active and parks it as
+    PAUSED when it ends, so an idle watchdog is never reported as failed (#93)."""
+    try:
+        _beat(running=True)
+        _watch(host, key, duration_s, target_soc, watts)
+    finally:
+        with _lock:
+            idle = _active.get("key") in (None, key)
+        if idle:
+            _beat(running=False)
+
+
+def _beat(*, running: bool) -> None:
+    try:
+        from .workers import registry, WorkerState
+        registry.beat("dispatch-watchdog",
+                      state=WorkerState.RUNNING if running else WorkerState.PAUSED,
+                      detail="force active" if running else "no force active")
+    except Exception:  # noqa: BLE001 — observing must never break enforcing
+        pass
+
+
+def _watch(host: str, key: float, duration_s: int, target_soc: int, watts) -> None:
     while not _stop.wait(5.0):
+        _beat(running=True)
         with _lock:
             if _active.get("key") != key:
                 return

@@ -11,7 +11,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **No more false "worker_failed" entries.** The VPP monitor, the cloud-status check and the dispatch
+  watchdog were reported as failed every few minutes, filling the audit trail and the log with errors,
+  although nothing was wrong. They now report that they are alive. When one has nothing to do, it says
+  *paused* with the reason (for example *no cloud credentials*, or *no force active*) instead of going
+  quiet. A worker that really stops is still reported. (#93)
 
 ## [0.4.8] — 2026-10-16
 
