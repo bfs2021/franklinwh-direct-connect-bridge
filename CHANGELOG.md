@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.5.7] — 2026-10-17
+
+Analytics charts read in the selected gateway's time, on a real time axis.
+
 ### Fixed
 
 - **Analytics shows the selected gateway's time, not another gateway's.** The time zone was read
