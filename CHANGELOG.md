@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.5.1] — 2026-10-16
+
+Home Assistant clean-up: a real Unpublish, network diagnostics, and a device page like the Modbus Bridge's.
+
 ### Added
 
 - **Unpublish that stays unpublished.** *Clear HA* is now **Unpublish**. It turns publishing off for the
