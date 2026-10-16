@@ -111,6 +111,42 @@ def build_state(power: dict, health: dict) -> dict[str, Any]:
     }
 
 
+#: Raw poll key -> the key the Home Assistant entity's value_template reads.
+_HA_KEYS = {
+    "kwh_sun": "solar_today_kwh",
+    "kwh_uti_in": "grid_import_today_kwh",
+    "kwh_uti_out": "grid_export_today_kwh",
+    "kwh_fhp_chg": "battery_charge_today_kwh",
+    "kwh_fhp_di": "battery_discharge_today_kwh",
+    "kwh_load": "load_today_kwh",
+}
+
+
+def state_payload(summary: dict) -> dict[str, Any]:
+    """The MQTT state JSON the poller publishes, from one poll ``summary``.
+
+    Every key an ENTITIES value_template reads must be in here. Before #96 the poller
+    published the raw ``summary["power"]`` dict, while the templates read the names
+    ``build_state`` produces, a function only the tests called. 8 of the 21 entities
+    therefore never had a value. The raw keys stay: the bridge's own UI reads them back
+    from ``gw.last_state``.
+    """
+    st = dict(summary.get("power") or {})
+    st["latency_ms"] = summary.get("latency_ms")
+    for raw, ha in _HA_KEYS.items():
+        if raw in st:
+            st[ha] = st[raw]
+    t_amb = (summary.get("battery") or {}).get("t_amb")
+    if t_amb is not None:
+        st["ambient_temp_c"] = t_amb
+    bw = st.get("battery_w")
+    if bw is not None:
+        # Same convention as build_state: negative battery power is charging.
+        st["battery_status"] = ("charging" if bw < 0 else "discharging" if bw > 0
+                                else "standby")
+    return st
+
+
 def device_name(serial: str) -> str:
     """The Home Assistant DEVICE name: ``FranklinWH Direct <last 8 of serial>``.
 

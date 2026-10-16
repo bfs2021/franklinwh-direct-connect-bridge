@@ -11,7 +11,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Eight Home Assistant sensors show values instead of "Unknown".** These are the five daily totals (solar,
+  grid import, grid export, battery charged and discharged), home load today, ambient temperature, and
+  battery state. They read field names the bridge never published, so they stayed unknown on every
+  install, real gateway or mock. Nothing about the entities changes: same names, same ids, same history.
+  The three smart-circuit switches still show unknown. Their state needs a reading the poll doesn't make
+  yet, which is tracked separately. (#96)
 
 ## [0.4.2] — 2026-10-16
 

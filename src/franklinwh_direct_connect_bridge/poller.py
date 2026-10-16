@@ -194,8 +194,7 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                         timeout=_poll_timeout)
                 except asyncio.TimeoutError:
                     summ = {"ok": False, "error": f"poll timed out after {_poll_timeout}s"}
-                st = dict(summ.get("power", {}))
-                st["latency_ms"] = summ.get("latency_ms")
+                st = entities.state_payload(summ)   # the keys HA's templates read (#96)
                 gw.last_state = st
                 gw.state_ts = time.time()
                 # Cache the full summary for /api/summary + /api/gateways/{id}/summary so the
