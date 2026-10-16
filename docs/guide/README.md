@@ -15,6 +15,7 @@ Scheduler's "Only if" box does. This guide covers the second question.
 | Know what each tab is for, and how to get around | [Tour of the UI](tour.md) |
 | Change something on the gateway, and know what gates it | [Control and write safety](control.md) |
 | Automate charge/discharge windows, modes, circuits, alerts | [Scheduler](scheduler.md) |
+| Find out why a schedule did nothing, or start from a recipe | [Scheduler: troubleshooting and examples](scheduler-troubleshooting.md) |
 | Get the aGate into Home Assistant | [Home Assistant and MQTT](home-assistant.md) |
 | Run more than one aGate, or model a site | [Multi-gateway and sites](multi-gateway.md) |
 | See history, costs and tariffs | [History, costs and tariffs](energy-and-costs.md) |
@@ -57,7 +58,7 @@ explaining itself, that is a defect worth reporting.
 If you ever need to know *where* a number on screen actually came from, the bridge has a
 tool for exactly that: **Settings → Integrations → Mapping** has a read-only **Probe**
 that takes a field name, finds the frame itself, and shows you the live value and the
-exact request it sent. See [Tour of the UI](tour.md#integration--mapping-and-the-probe).
+exact request it sent. See [Tour of the UI](tour.md#integration-mapping-and-the-probe).
 
 ---
 

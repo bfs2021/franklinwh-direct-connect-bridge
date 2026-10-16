@@ -158,8 +158,9 @@ location configured it says so (422) instead of guessing.
 - **Storage** — how much the database is using.
 - **Vacuum** — reclaim space after a retention prune.
 - **Back up** — write a backup, list them, download one, delete one.
-- **Restore** — replace the live database from a backup. This is doubly gated: it needs
-  `allow_writes` **and** an explicit confirmation, because it is destructive.
+- **Restore** — replace the live database from a backup. It needs an explicit
+  confirmation, because it is destructive. (`allow_writes` no longer blocks it; see
+  [Control](control.md#1-allow_writes-no-longer-blocks-writes).)
 - **Export metrics** — a windowed export of raw samples.
 
 One caution from this project's own history: in a container deployment the data directory

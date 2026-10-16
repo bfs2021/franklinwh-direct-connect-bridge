@@ -2,8 +2,9 @@
 
 [Back to the guide index](README.md)
 
-This page is about changing things, and about the three independent gates that stand
-between a click and your battery.
+This page is about changing things, and about the gates that stand between a click and
+your battery. In 0.5.1 only two of the three still act: `confirm` and provider
+availability.
 
 ---
 
@@ -42,14 +43,21 @@ when the action came from the scheduler rather than from you.
 These are separate mechanisms with separate failure messages. Knowing which one stopped
 you saves a lot of guessing.
 
-### 1. `allow_writes` — the global write switch
+### 1. `allow_writes` — no longer blocks writes
 
 ![The Health tab's connection panel, including whether writes are enabled](../images/control/10-read-only-default.png)
 
-Off by default. It can be flipped at runtime from Settings (`PUT /api/settings`), and the
-effect is immediate — no restart. With it off, a gated endpoint answers **403 "writes are
-disabled (set allow_writes to enable)"**, and the UI hides or disables the control with a
-note.
+**In 0.5.1, `allow_writes` does not stop anything.** The global write gate was dropped:
+the bridge always reports writes as enabled, and reversible writes (a force command, a
+smart circuit, a schedule) go through whatever the setting says. The **Allow writes**
+switch under **Settings → Automation → Control** is still there, and still saves, but
+has no effect. The physically consequential actions are guarded by `confirm` instead
+(below).
+
+So there is no read-only mode today. If you need the bridge not to write, do not give it
+a path: leave the Modbus client (this bridge) off, and do not enter cloud credentials.
+The local Direct Connect path is always available for mode, smart-circuit and off-grid
+writes, each of which asks for confirmation.
 
 ### 2. `confirm` — the consequential-action gate
 
@@ -72,25 +80,23 @@ provider is configured, **501** when a path is detected but deliberately not wir
 
 ![The audit trail of consequential actions](../images/control/06-which-gate-applies.png)
 
-Read from `app.py` on this repository's `main`. Note the second row: **operating mode and
-off-grid are gated on `confirm` but *not* on `allow_writes` at the API level.** The UI
-hides those controls when writes are off, but the endpoint itself will act on a
-`confirm=true` request. That is the code as written, and it differs from what the Control
-tab's own help text implies.
+Read from `app.py` on this repository's `main`. Since `allow_writes` no longer blocks
+anything, `confirm` is the only gate that a request can fail on, apart from provider
+availability.
 
-| Action | Endpoint | `allow_writes` | `confirm` |
-|---|---|---|---|
-| Set operating mode (local, and the cloud variant) | `POST /api/mode`, `POST /api/cloud/set-mode` | no | **yes** (428) |
-| Go off-grid / reconnect | `POST /api/offgrid` | no | **yes** (428) |
-| Set grid import/export limits | `POST /api/grid/limits` | no | **yes** (428, unless `dry_run`) |
-| Battery force / release (widget) | `POST /api/battery/command` | **yes** | UI confirms; API does not require it |
-| Battery dispatch (provider path) | `POST /api/dispatch` | **yes** | no |
-| Reserve SoC | `POST /api/cloud/reserve` | **yes** | no |
-| Smart circuit on/off | `POST /api/circuits/{n}/power` | **yes** | no |
-| Reboot the aGate | `POST /api/reboot` | **yes** | **yes** (400) |
-| Arbitrary `cmdType` write | `POST /api/raw` | **yes** | **yes** (428) |
-| Restore a database backup | `POST /api/admin/backup/{name}/restore` | **yes** | **yes** (428) |
-| Create/edit gateways, sites, meters, tariffs, schedules, HA instances | various | **yes** | no |
+| Action | Endpoint | `confirm` |
+|---|---|---|
+| Set operating mode (local, and the cloud variant) | `POST /api/mode`, `POST /api/cloud/set-mode` | **yes** (428) |
+| Go off-grid / reconnect | `POST /api/offgrid` | **yes** (428) |
+| Set grid import/export limits | `POST /api/grid/limits` | **yes** (428, unless `dry_run`) |
+| Battery force / release (widget) | `POST /api/battery/command` | UI confirms; API does not require it |
+| Battery dispatch (provider path) | `POST /api/dispatch` | no |
+| Reserve SoC | `POST /api/cloud/reserve` | no |
+| Smart circuit on/off | `POST /api/circuits/{n}/power` | no |
+| Reboot the aGate | `POST /api/reboot` | **yes** (400) |
+| Arbitrary `cmdType` write | `POST /api/raw` | **yes** (428) |
+| Restore a database backup | `POST /api/admin/backup/{name}/restore` | **yes** (428) |
+| Create/edit gateways, sites, meters, tariffs, schedules, HA instances | various | no |
 
 `POST /api/raw` deserves a note. It decides read-versus-write by comparing your payload's
 `opt` against the command's *documented read* `opt` — so `1725`, which reads with
@@ -179,11 +185,14 @@ that block can stop export or discharge.
 
 ---
 
-## Read-only mode is a good default
+## There is no read-only mode today
 
-![Settings → Automation → Control: Read only on, writes switchable live](../images/control/02-allow-writes.png)
+![Settings → Automation → Control: the Allow writes switch, which no longer blocks writes](../images/control/02-allow-writes.png)
 
-With `allow_writes` off, everything on the monitoring side — dashboard, battery detail,
-analytics, costs, logs, network, MQTT publishing of *sensors* — works unchanged. You lose
-the writes and nothing else. If you are setting the bridge up for the first time, or
-pointing it at a system you do not own, leave it off.
+The **Allow writes** switch suggests a read-only mode. In 0.5.1 there is none: the
+switch does nothing (see [the first gate](#1-allow_writes-no-longer-blocks-writes)). Anyone who
+can open the UI or reach the HTTP API can change the gateway, within the `confirm` and
+provider gates above. Keep the bridge on a trusted network.
+
+If you are setting the bridge up for the first time, or pointing it at a system you do
+not own, leave the Modbus client (this bridge) off and do not enter cloud credentials.
