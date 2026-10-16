@@ -177,6 +177,40 @@ def redact(row: dict) -> dict:
     return out
 
 
+#: Every MQTT entity whose DEVICE was published by this bridge, with that device's
+#: identifiers. Ownership comes from the device's ``sw_version`` (publish/entities.py
+#: device_info; "Local Bridge" is the legacy spelling), not from the entity_id: HA derives
+#: entity_ids from the device NAME, which changed in 0.4.0, and existing entities keep
+#: whatever id they were first given (#83).
+BRIDGE_ENTITIES_TEMPLATE = (
+    "{% set ns = namespace(o=[]) %}"
+    "{% for e in integration_entities('mqtt') %}{% set d = device_id(e) %}{% if d %}"
+    "{% set sw = device_attr(d, 'sw_version') or '' %}"
+    "{% if sw.startswith('Direct Connect Bridge') or sw.startswith('Local Bridge') %}"
+    "{% set ns.o = ns.o + [[e, (device_attr(d, 'identifiers') | list | map('list') | list)]] %}"
+    "{% endif %}{% endif %}{% endfor %}{{ ns.o | tojson }}"
+)
+
+
+def bridge_entities(base_url: str, token: str | None) -> list[tuple[str, list[str]]]:
+    """``[(entity_id, [device identifier, ...]), ...]`` for this bridge's entities in HA.
+
+    Rendered by HA's own template engine (``POST /api/template``) because the entity and
+    device registries are not on the REST API. Raises on any failure — the caller decides
+    that "could not be checked" is the answer, never a guess."""
+    if not token:
+        raise PermissionError("no token configured for this instance")
+    req = urllib.request.Request(
+        base_url.rstrip("/") + "/api/template",
+        data=json.dumps({"template": BRIDGE_ENTITIES_TEMPLATE}).encode(),
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        method="POST")
+    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
+        rows = json.loads(resp.read().decode() or "[]")
+    return [(str(e), [str(i[1]) for i in ids if isinstance(i, list) and len(i) == 2])
+            for e, ids in rows]
+
+
 def call_service(base_url: str, token: str | None, domain: str, service: str,
                  data: dict | None = None) -> dict[str, Any]:
     """Call any Home Assistant service (``domain.service``) with a data payload.

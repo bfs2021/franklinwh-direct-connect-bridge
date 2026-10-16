@@ -78,10 +78,10 @@ def test_leftover_entities_are_counted_and_explained(ctx, monkeypatch):
     gw.serial = "SNLIVE"
     monkeypatch.setattr(ha_instances, "probe", lambda u, t: {"ok": True})
     monkeypatch.setattr(ha_instances, "components", lambda u, t: ["mqtt"])
-    monkeypatch.setattr(ha_instances, "states", lambda u, t: [
-        {"entity_id": "sensor.franklinwh_snlive_soc"},
-        {"entity_id": "sensor.franklinwh_snlive_grid_w"},
-        {"entity_id": "sensor.franklinwh_oldnode_soc"},      # a gateway that is gone
+    monkeypatch.setattr(ha_instances, "bridge_entities", lambda u, t: [
+        ("sensor.franklinwh_direct_snlive_soc", ["franklinwh_snlive"]),
+        ("sensor.franklinwh_direct_snlive_grid_w", ["franklinwh_snlive"]),
+        ("sensor.franklinwh_direct_oldnode_soc", ["franklinwh_oldnode"]),   # a gateway that is gone
     ])
     c = _checks(TestClient(app_module.create_app()))
     assert c["entities"]["ok"] is True
@@ -128,3 +128,110 @@ def test_a_guess_is_labelled_as_a_guess(ctx, monkeypatch):
     monkeypatch.setattr(_disc, "default_gateway", lambda: None)
     d = TestClient(app_module.create_app()).get("/api/gateways/scan/default").json()
     assert d["source"] == "guess" and "check it" in d["label"]
+
+
+# -- #84: the broker check asks the publishers, not the default gateway ----------------------
+
+def _mqtt_on(monkeypatch):
+    s = config.get_settings()
+    monkeypatch.setattr(s, "mqtt_enabled", True)
+
+
+def test_no_publishing_gateway_is_not_a_broker_failure(ctx, monkeypatch):
+    """Fresh install: nothing has tried to connect yet. That is not "Not connected"."""
+    _mqtt_on(monkeypatch)
+    c = _checks(TestClient(app_module.create_app()))
+    assert c["mqtt_broker"]["ok"] is None
+    assert c["mqtt_broker"]["state"] == "No gateway publishing yet"
+    assert "add a gateway" in c["mqtt_broker"]["remedy"]
+
+
+def test_a_stopped_default_does_not_hide_a_connected_publisher(ctx, monkeypatch):
+    _mqtt_on(monkeypatch)
+    dead = state.register_gateway("g1", "192.0.2.10", "first", publish_ha=True)
+    dead.mqtt_connected = False                     # e.g. its poller has stopped
+    live = state.register_gateway("g2", "192.0.2.11", "second", publish_ha=True)
+    live.mqtt_connected = True
+    c = _checks(TestClient(app_module.create_app()))
+    assert c["mqtt_broker"]["ok"] is True and c["mqtt_broker"]["state"] == "Connected"
+
+
+def test_publishers_that_cannot_connect_still_fail(ctx, monkeypatch):
+    _mqtt_on(monkeypatch)
+    gw = state.register_gateway("g1", "192.0.2.10", "only", publish_ha=True)
+    gw.mqtt_connected = False
+    c = _checks(TestClient(app_module.create_app()))
+    assert c["mqtt_broker"]["ok"] is False and c["mqtt_broker"]["state"] == "Not connected"
+
+
+def test_a_gateway_that_does_not_publish_is_not_asked(ctx, monkeypatch):
+    _mqtt_on(monkeypatch)
+    state.register_gateway("m1", "127.0.0.1", "mock", is_mock=True, publish_ha=False)
+    c = _checks(TestClient(app_module.create_app()))
+    assert c["mqtt_broker"]["state"] == "No gateway publishing yet"
+
+
+# -- #83: entities are ours by DEVICE identity, not by entity_id text ------------------------
+
+def _linked(ctx, monkeypatch):
+    ctx.create_ha_instance(ha_id="self", name="HA", base_url="http://supervisor/core",
+                           token="t", is_default=True)
+    monkeypatch.setattr(ha_instances, "probe", lambda u, t: {"ok": True})
+    monkeypatch.setattr(ha_instances, "components", lambda u, t: ["mqtt"])
+
+
+def test_entities_named_after_the_last_8_of_the_serial_are_ours(ctx, monkeypatch):
+    """0.4.0 names devices after the serial's last 8 characters, so entity_ids no longer
+    contain the full serial. They were all counted as "left over" (#83)."""
+    _linked(ctx, monkeypatch)
+    gw = state.register_gateway("g1", "192.0.2.110", "aGate")
+    gw.serial = "10060006A0000000AB12CD34"
+    full = "franklinwh_10060006a0000000ab12cd34"
+    monkeypatch.setattr(ha_instances, "bridge_entities", lambda u, t: [
+        ("sensor.franklinwh_direct_ab12cd34_state_of_charge", [full]),
+        ("sensor.franklinwh_direct_ab12cd34_grid_power", [full]),
+        ("sensor.franklinwh_agate_local_bridge_soc", [full]),   # pre-0.4.0 id, same device
+    ])
+    c = _checks(TestClient(app_module.create_app()))
+    assert c["entities"]["ok"] is True
+    assert c["entities"]["state"] == "3 entities"
+    assert c["entities"]["remedy"] == ""
+
+
+def test_registry_unreadable_is_could_not_be_checked(ctx, monkeypatch):
+    _linked(ctx, monkeypatch)
+    state.register_gateway("g1", "192.0.2.110", "aGate").serial = "SN1"
+    def boom(u, t):
+        raise OSError("template endpoint unavailable")
+    monkeypatch.setattr(ha_instances, "bridge_entities", boom)
+    c = _checks(TestClient(app_module.create_app()))
+    assert c["entities"]["ok"] is None and c["entities"]["state"] == "Could not be checked"
+
+
+def test_bridge_entities_parses_the_template_answer(monkeypatch):
+    import io, json as _json
+    body = _json.dumps([["sensor.x", [["mqtt", "franklinwh_sn1"]]],
+                        ["switch.y", [["mqtt", "franklinwh_sn1"], ["bad"]]]]).encode()
+    seen = {}
+    def fake_urlopen(req, timeout=0):
+        seen["url"], seen["method"] = req.full_url, req.get_method()
+        seen["template"] = _json.loads(req.data)["template"]
+        class R(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        return R(body)
+    monkeypatch.setattr(ha_instances.urllib.request, "urlopen", fake_urlopen)
+    rows = ha_instances.bridge_entities("http://supervisor/core", "t")
+    assert seen["url"].endswith("/api/template") and seen["method"] == "POST"
+    assert "Direct Connect Bridge" in seen["template"]       # owned by sw_version
+    assert rows == [("sensor.x", ["franklinwh_sn1"]), ("switch.y", ["franklinwh_sn1"])]
+
+
+def test_a_gateway_that_is_actually_publishing_counts_whatever_its_flag_says(ctx, monkeypatch):
+    """Seen on HAOS (0.4.1): a wizard-created mock read publish_ha=False while its publisher
+    was connected and its device was in HA. The check must follow what is happening."""
+    _mqtt_on(monkeypatch)
+    gw = state.register_gateway("m1", "127.0.0.1", "mock", is_mock=True, publish_ha=False)
+    gw.mqtt_connected = True
+    c = _checks(TestClient(app_module.create_app()))
+    assert c["mqtt_broker"]["ok"] is True and c["mqtt_broker"]["state"] == "Connected"
