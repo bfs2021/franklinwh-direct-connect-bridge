@@ -20,6 +20,13 @@ log = logging.getLogger("franklinwh_direct_connect_bridge.supervisor")
 
 _pollers: dict[str, tuple[asyncio.Task, asyncio.Event]] = {}
 _reaping: set[asyncio.Task] = set()   # tasks winding down after stop, kept referenced
+#: gw_id -> the old poller task still winding down after stop_poller (#82).
+_stopping: dict[str, asyncio.Task] = {}
+#: gw_id -> a start that is waiting for that old task to finish (#82).
+_deferred: dict[str, asyncio.Task] = {}
+#: How long a deferred start waits for the old poller before aborting it. A poll cycle
+#: can sit in a device read for ~30 s; stop_all allows 35 s for the same reason.
+DEFER_WAIT_S = 40.0
 
 
 def is_running(gw_id: str) -> bool:
@@ -48,10 +55,11 @@ async def start_poller(settings: Settings, gw: GatewayState) -> None:
     if is_running(gw.id):
         prev = registry.name_in_use(worker_name(gw.id))
         if prev is not None and prev.state is WorkerState.STOPPING:
-            # Refuse rather than start alongside it. A disable→enable faster than one
-            # poll cycle used to produce two pollers for one gateway.
-            log.warning("poller for %s is still winding down — not starting a second one",
-                        gw.id)
+            # Never start alongside it (a disable→enable faster than one poll cycle used
+            # to produce two pollers), but never DROP the start either: refusing with no
+            # retry left an edited gateway with no poller until the add-on restarted, its
+            # HA entities stuck "unavailable" (#82). Start as soon as the old one is gone.
+            _defer_start(settings, gw)
         return
     stop = asyncio.Event()
     task = asyncio.create_task(run_gateway(settings, gw, stop))
@@ -73,6 +81,40 @@ async def start_poller(settings: Settings, gw: GatewayState) -> None:
     log.info("poller started for gateway %s (%s)", gw.id, gw.label)
 
 
+def _defer_start(settings: Settings, gw: GatewayState) -> None:
+    """Start ``gw``'s poller once its predecessor has finished. Idempotent per gateway."""
+    pending = _deferred.get(gw.id)
+    if pending is not None and not pending.done():
+        return
+    old = _stopping.get(gw.id)
+
+    async def _later() -> None:
+        try:
+            if old is not None and not old.done():
+                done, _ = await asyncio.wait({old}, timeout=DEFER_WAIT_S)
+                if not done:
+                    # The old poller overran its stop. Abort it (confirmed, as stop_all
+                    # does) rather than leave the gateway without a poller.
+                    w = registry.get(worker_name(gw.id))
+                    if w is not None:
+                        state = await workers_abort(w)
+                        log.warning("old poller for %s did not stop in %.0fs — abort -> %s",
+                                    gw.id, DEFER_WAIT_S, state.value)
+                    else:
+                        old.cancel()
+            await asyncio.sleep(0)            # let the reaper free the worker name first
+            _deferred.pop(gw.id, None)
+            await start_poller(settings, gw)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 — a lost restart must at least be loud
+            log.exception("deferred poller start for %s failed", gw.id)
+
+    _deferred[gw.id] = asyncio.create_task(_later())
+    log.info("poller for %s is still winding down — will start it when it has stopped",
+             gw.id)
+
+
 async def stop_poller(gw_id: str) -> None:
     """Signal one gateway's poller to stop and return immediately (a disable toggle must
     not hang the HTTP response). The task exits on its next loop check — setting the stop
@@ -84,6 +126,9 @@ async def stop_poller(gw_id: str) -> None:
     stop.set()
     _reaping.add(task)
     task.add_done_callback(_reaping.discard)
+    _stopping[gw_id] = task
+    task.add_done_callback(lambda _t, _g=gw_id: _stopping.pop(_g, None)
+                           if _stopping.get(_g) is _t else None)
     # STOPPING, not STOPPED — the stop has been *requested*, not completed: the loop only
     # checks its event at the end of a cycle and can sit in a read for ~30s. The worker
     # stays registered under its name so nothing can start alongside it, and the
