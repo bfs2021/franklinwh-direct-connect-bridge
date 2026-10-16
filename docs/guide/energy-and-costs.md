@@ -1,6 +1,6 @@
 # History, costs and tariffs
 
-[Back to the guide index](README.md)
+[Back to the guide index](index.md)
 
 The bridge keeps its own history in a local SQLite database, and prices it against a
 tariff you describe. This page covers what is stored, what the numbers mean, and how much

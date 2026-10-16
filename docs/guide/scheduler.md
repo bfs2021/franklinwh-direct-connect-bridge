@@ -1,6 +1,6 @@
 # Scheduler
 
-[Back to the guide index](README.md)
+[Back to the guide index](index.md)
 
 The Scheduler is the bridge's automation engine. A schedule is one rule, and every rule
 has the same shape:
@@ -603,7 +603,7 @@ rest_command:
     method: POST
     content_type: "application/json"
     payload: "{{ schedule | tojson }}"
-  fwh_schedule_update:          # replaces the schedule's definition
+  fwh_schedule_update:          # merges into the definition (#157); always send name and enabled
     url: "http://<hostname>:8101/api/schedules/{{ id }}"
     method: PUT
     content_type: "application/json"

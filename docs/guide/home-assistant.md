@@ -1,6 +1,6 @@
 # Home Assistant and MQTT
 
-[Back to the guide index](README.md)
+[Back to the guide index](index.md)
 
 The bridge publishes your aGate to Home Assistant over **MQTT discovery**, so the gateway
 arrives as a native HA device with sensors and a few controls. There is no custom
@@ -41,10 +41,11 @@ assumes the official Mosquitto add-on.
 
 ![Settings → Admin → Local history: the metrics store and its mode](../images/home-assistant/02-local-history-auto.png)
 
-The bridge's own SQLite history is **automatically off** when it is running as an HA
-add-on *and* MQTT is enabled — Home Assistant's recorder is already storing the published
-entities, so a second local copy would be redundant. Set `METRICS_ENABLED` explicitly
-(`true` or `false`) to override that decision in either direction.
+The bridge's own SQLite history is **on** unless you turn it off, add-on or not, MQTT
+or not. It used to switch itself off for an add-on with MQTT enabled, on the reasoning
+that Home Assistant's recorder keeps the published entities. But the bridge's own
+charts read only the local store, so they went empty; since #136 an unset value means on
+(`metrics_active()` in `config.py`). Set `METRICS_ENABLED=false` to opt out.
 
 ---
 
@@ -67,11 +68,15 @@ its own field out of the shared state JSON with a `value_template`, and availabi
 separate topic driven by the health round-trip and the MQTT last-will, so an offline
 gateway shows as unavailable in HA rather than as stale numbers.
 
-In Home Assistant the device appears as **"FranklinWH aGate (Local Bridge)"**, with
-`sw_version` set to this bridge's version and the aGate's firmware when known. That name
-is load-bearing, not decorative: it is how the bridge recognises its *own* entities on a
-broker shared with other FranklinWH publishers, and it is HA's device identity — renaming
-it would create a second device and orphan every entity already discovered.
+In Home Assistant the device appears as **"FranklinWH Direct &lt;last 8 characters of the
+serial&gt;"**, so several gateways are told apart (`device_name()` in
+`publish/entities.py`). The name is only a label. The device's identity is its
+`identifiers`, `franklinwh_<node>`; changing those would create a second device and
+orphan every entity already discovered. `sw_version` reads "Direct Connect Bridge v" and
+this bridge's version, and that prefix is how the bridge recognises its *own* entities
+on a broker shared with other FranklinWH publishers. The aGate's firmware is shown as
+the hardware version when known. Developer detail:
+[Sending data to Home Assistant over MQTT](../developers/mqtt.md#identity).
 
 ---
 
@@ -247,6 +252,9 @@ instance) send to.
 A separate set of **notification triggers** — the bridge's own standing alerts, as
 opposed to a schedule's notify action — lives under
 **Settings → Integrations → Notifications**, with a test button and its own log.
+
+Step by step, with what each event sends and what is not yet available:
+[Home Assistant setup and notifications](ha-setup-and-notifications.md).
 
 ### Dashboard card
 

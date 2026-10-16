@@ -1,6 +1,6 @@
 # Control and write safety
 
-[Back to the guide index](README.md)
+[Back to the guide index](index.md)
 
 This page is about changing things, and about the gates that stand between a click and
 your battery. As of 0.5.2 only two of the three still act: `confirm` and provider

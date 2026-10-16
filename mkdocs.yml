@@ -33,6 +33,11 @@ theme:
   icon:
     repo: fontawesome/brands/github
 
+# docs/guide/README.md is kept only so GitHub links to it still work; the guide's index
+# is docs/guide/index.md.
+exclude_docs: |
+  guide/README.md
+
 plugins:
   - search
   # The old (Jekyll, repo-root) site served these pages under /docs/...; keep those links working.
@@ -44,7 +49,7 @@ plugins:
         docs/guide/control.md: guide/control.md
         docs/guide/energy-and-costs.md: guide/energy-and-costs.md
         docs/guide/multi-gateway.md: guide/multi-gateway.md
-        docs/guide/README.md: guide/README.md
+        docs/guide/README.md: guide/index.md
         docs/API_COMPARISON.md: API_COMPARISON.md
         docs/BRIDGE_BASELINE.md: BRIDGE_BASELINE.md
         docs/CONNECTION_DESIGN.md: CONNECTION_DESIGN.md
@@ -86,6 +91,11 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
+  # docs/index.md includes the repository's LICENSE (the in-app "Full terms") with
+  # --8<--, so the published copy cannot drift from the file. base_path is the repo root.
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
   - pymdownx.mark
   - attr_list
   - md_in_html
@@ -96,16 +106,26 @@ markdown_extensions:
 nav:
   - Home: index.md
   - User guide:
-      - guide/README.md
+      - guide/index.md
       - guide/installing.md
       - guide/tour.md
-      - guide/home-assistant.md
+      - guide/control.md
+      - guide/battery-dispatch.md
       - guide/scheduler.md
       - guide/scheduler-troubleshooting.md
-      - guide/control.md
-      - guide/energy-and-costs.md
+      - guide/home-assistant.md
+      - guide/ha-setup-and-notifications.md
       - guide/multi-gateway.md
+      - guide/energy-and-costs.md
       - USER_GUIDE.md
+  - Developers Guide:
+      - developers/index.md
+      - developers/rest-api.md
+      - developers/api-endpoints.md
+      - developers/web-ui.md
+      - developers/mqtt.md
+      - developers/reading-home-assistant.md
+      - developers/scheduler-integration.md
   - Policies & plans:
       - TEST_POLICY.md
       - PARITY_GAP.md
