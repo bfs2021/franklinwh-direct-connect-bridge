@@ -839,6 +839,11 @@ document.addEventListener('alpine:init', () => {
         // selectGateway() — which is exactly the difference, and exactly why it looked
         // like "it only works if I touch it".
         if (next && next !== prev && this._booted) this.selectGateway(next);
+        // The site zone belongs to the SELECTED gateway (#144). loadSiteTz() first runs at
+        // boot, before this list exists, when gwQuery() is '' and the bridge answers with
+        // the DEFAULT gateway's zone (a mock's, on the owner's site). Reload it whenever
+        // the selection it was read for is no longer the selection.
+        if (this._siteTzFor !== this._siteTzKey()) this.loadSiteTz();
         if (hadNone !== !this.gateways.length) this._tuneGatewayPoll();
       } catch (e) {
         console.warn('[Bridge] gateways load failed:', e.message);
@@ -870,6 +875,7 @@ document.addEventListener('alpine:init', () => {
       try { localStorage.setItem('fwh-gateway', id); } catch { /* private mode */ }
       this.poll();
       this._loadGeneratorInstalled();   // generator presence is per-gateway
+      this.loadSiteTz();                  // the site zone is per-gateway too (#144)
       this.loadHistory(this.histRange);   // history is scoped per-gateway (by serial)
     },
 
@@ -1751,14 +1757,24 @@ document.addEventListener('alpine:init', () => {
     },
 
     // Site timezone (from the aGate) so charts read in aGate-local time, not the browser's.
+    // Which selection a zone was read for: the gateway query, or '' for the default.
+    _siteTzKey() { return this.gwQuery('?') + '|' + this.gateways.length; },
     async loadSiteTz() {
+      const key = this._siteTzKey();
+      this._siteTzFor = key;
       try {
         const r = await (await fetch('api/site/timezone' + this.gwQuery('?'))).json();
+        if (this._siteTzFor !== key) return;        // a newer selection's answer wins
         if (r && r.available && r.offset_minutes != null) {
           this.siteTzOffsetMin = r.offset_minutes;
           this.siteTzLabel = r.label + (r.tz_str ? ' \u00b7 ' + r.tz_str : '');
-          if (this._lastSeries) this.renderChart(this._lastSeries);   // re-render with correct tz
+        } else {
+          // Never keep the PREVIOUS gateway's zone for this one (#144): the browser's zone
+          // is the documented fallback.
+          this.siteTzOffsetMin = null;
+          this.siteTzLabel = '';
         }
+        if (this._lastSeries) this.renderChart(this._lastSeries);   // re-render with correct tz
       } catch (e) { /* falls back to browser tz */ }
     },
     // Integration-host timezone (the bridge's own zone) for the SYSTEM OF RECORD — audit trail,

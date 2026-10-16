@@ -42,10 +42,12 @@
     <!-- custom date range -->
     <div x-show="custom" x-cloak class="flex items-center gap-2 flex-wrap">
       <label class="text-xs text-slate-500">From
-        <input type="date" class="form-control form-control-sm ml-1" x-model="customStart"></label>
+        <input type="datetime-local" step="60" class="form-control form-control-sm ml-1" x-model="customStart"></label>
       <label class="text-xs text-slate-500">To
-        <input type="date" class="form-control form-control-sm ml-1" x-model="customEnd"></label>
+        <input type="datetime-local" step="60" class="form-control form-control-sm ml-1" x-model="customEnd"></label>
       <button class="btn btn-secondary btn-sm" @click="applyCustom()">Apply</button>
+      <button class="btn btn-ghost btn-sm" @click="resetCustom()" title="Today 00:00 to now">Today</button>
+      <span class="text-[11px] text-slate-500" x-text="'Times in ' + zoneLabel"></span>
     </div>
 
     <!-- metric toggles -->
@@ -81,7 +83,7 @@
       <canvas x-ref="canvas"></canvas>
     </div>
     <p class="text-[11px] text-slate-500 mt-2" x-show="series.length"
-       x-text="series.length + ' points · ' + rangeLabel"></p>
+       x-text="caption"></p>
   </div>
 
 </div>
