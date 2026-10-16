@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.5.4] — 2026-10-17
+
+Hotfix: a Home Assistant sensor that is down no longer satisfies a schedule condition.
+
 ### Fixed
 
 - **A Home Assistant sensor that is unavailable or unknown no longer counts as 0 in schedule
