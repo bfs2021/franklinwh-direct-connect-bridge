@@ -11,7 +11,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **A Force Charge above the battery's rated power no longer discharges it (and a Force Discharge
+  above it no longer charges).** The request went to the franklinwh-modbus library unlimited, and
+  that library's own limit (0.9.5) returns the rating with the opposite sign, so the battery ran
+  the other way at full power. The bridge now limits the power to the rating itself, keeping the
+  direction, and the result says when it did. Percentages are kept to 0–100. Applies to Battery
+  Control, the battery command and scheduled forces. (#213)
 
 ## [0.5.5] — 2026-10-17
 
