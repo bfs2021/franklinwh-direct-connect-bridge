@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.5] — 2026-10-16
+
+Smart Circuit switches in Home Assistant show their state.
+
 ### Fixed
 
 - **Smart Circuit switches in Home Assistant show on or off.** They always read *unknown*: the bridge
