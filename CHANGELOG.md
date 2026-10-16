@@ -11,7 +11,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Smart Circuit switches in Home Assistant show on or off.** They always read *unknown*: the bridge
+  accepted on/off commands but never published the circuits' state. Each poll now reads it in the same
+  session (one extra read, no extra login). (C1 in docs/MQTT_CONTROLS_PLAN.md, #96)
 
 ## [0.4.4] — 2026-10-16
 

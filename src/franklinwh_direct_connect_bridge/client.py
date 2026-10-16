@@ -1019,6 +1019,17 @@ def summary(s: Settings, host: str | None = None, *, mock: bool = False) -> dict
                 out["der_comms"] = {"sunsMdEn": d.get("sunsMdEn"), "sep2": d.get("enable")}
             except (OSError, TransportError, TimeoutError):
                 pass
+            # Smart-circuit on/off state (1409), in the SAME session, for the Home Assistant
+            # switches, which had no state source and always read "unknown" (C1,
+            # docs/MQTT_CONTROLS_PLAN.md). Same reading the Smart Circuits tab uses
+            # (circuits.build: Sw{n}Mode == 1). Best-effort: a failed read leaves the
+            # switches as they were rather than failing the poll.
+            try:
+                sw = c.smart_circuits() or {}
+                out["circuits_on"] = {n: sw.get(f"Sw{n}Mode") == 1
+                                      for n in (1, 2, 3) if f"Sw{n}Mode" in sw}
+            except (OSError, TransportError, TimeoutError):
+                pass
             # Grid voltage + frequency, inside the SAME session — one extra read, no
             # extra login. `gridLineVol` is the SERVICE voltage in tenths (2409 ->
             # 240.9 V): one reading of the thing itself, not gridVol1 + gridVol2,
