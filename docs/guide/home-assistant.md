@@ -185,7 +185,7 @@ in the Energy dashboard.
 The fix is Home Assistant's own and copies no data: free the old entity id, then rename the
 new entity to it. History and long-term statistics follow the id.
 
-- [INSTALL.md → Reinstalling](../../INSTALL.md#reinstalling-read-this-before-you-remove-anything)
+- [INSTALL.md → Reinstalling](https://github.com/david2069/franklinwh-direct-connect-bridge/blob/main/INSTALL.md#reinstalling-read-this-before-you-remove-anything)
   — the steps.
 - [HA_HISTORY.md](../HA_HISTORY.md) — the whole question, including why merging an old
   series into a new one by hand is **discouraged**, and what has to match before two series
