@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.3] — 2026-10-16
+
+Eight Home Assistant sensors that were always "Unknown" now show values.
+
 ### Fixed
 
 - **Eight Home Assistant sensors show values instead of "Unknown".** These are the five daily totals (solar,
