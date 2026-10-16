@@ -1,5 +1,7 @@
 # User Guide — moved
 
+![The bridge's Dashboard, the starting point of the guide](images/user-guide/01-dashboard.png)
+
 The bridge's user guide is now a set of pages under [`docs/guide/`](guide/README.md),
 organised by what you are trying to do rather than as one long file:
 

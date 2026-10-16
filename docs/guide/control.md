@@ -9,6 +9,8 @@ between a click and your battery.
 
 ## The Control tab
 
+![The Control tab: Operating Mode and Off-grid](../images/control/01-control-tab.png)
+
 One page per gateway, scoped to whichever gateway the top-bar selector names.
 
 - **Battery Control** — Force Charge / Force Discharge / Force Standby / Release. Power
@@ -35,10 +37,14 @@ when the action came from the scheduler rather than from you.
 
 ## The three gates
 
+![Settings → Automation → Control: Read only, Allow writes, Log level](../images/control/02-allow-writes.png)
+
 These are separate mechanisms with separate failure messages. Knowing which one stopped
 you saves a lot of guessing.
 
 ### 1. `allow_writes` — the global write switch
+
+![The Health tab's connection panel, including whether writes are enabled](../images/control/10-read-only-default.png)
 
 Off by default. It can be flipped at runtime from Settings (`PUT /api/settings`), and the
 effect is immediate — no restart. With it off, a gated endpoint answers **403 "writes are
@@ -47,6 +53,8 @@ note.
 
 ### 2. `confirm` — the consequential-action gate
 
+![Choosing a mode asks for confirmation first](../images/control/03-confirm-gate.png)
+
 A handful of actions are physically consequential enough that they require an explicit
 confirmation flag regardless of anything else, and refuse with **428** without it. This
 is not cosmetic: a direct API call without `confirm` is rejected, not just a mis-click in
@@ -54,11 +62,15 @@ the UI.
 
 ### 3. Provider availability — can the path be reached at all
 
+![The Modbus client (this bridge) card: the path the force controls need](../images/control/04-provider-availability.png)
+
 Separate again. A control whose path is missing refuses with a reason: **503** when no
 provider is configured, **501** when a path is detected but deliberately not wired,
 **502** when the provider is unreachable.
 
 ### Which gate applies to what
+
+![The audit trail of consequential actions](../images/control/06-which-gate-applies.png)
 
 Read from `app.py` on this repository's `main`. Note the second row: **operating mode and
 off-grid are gated on `confirm` but *not* on `allow_writes` at the API level.** The UI
@@ -88,6 +100,8 @@ that names the command, both `opt` values, and any known danger text for that `c
 ---
 
 ## Battery force: two paths, and which one you are on
+
+![Battery Control, marked as needing the Modbus client (this bridge)](../images/control/05-battery-force-two-paths.png)
 
 This is the part of the bridge with the most moving parts, so it is worth being precise.
 
@@ -126,11 +140,15 @@ Two further honest notes:
 
 ### Stopping a force
 
+![A scheduled force runs for its window and auto-releases at the end](../images/control/07-stopping-a-force.png)
+
 The **Release** button appears in the top bar on every tab while a dispatch is running.
 A scheduled force also auto-releases at the end of its window, and the window's closing
 edge fires a release as a safety net even if the action itself already ended.
 
 ### After a bridge restart mid-dispatch
+
+![Settings → Automation → Battery dispatch: the interrupted-dispatch policy](../images/control/08-after-restart-mid-dispatch.png)
 
 Controlled by `dispatch_interrupt_policy`, which defaults to **`notify`**: on boot, and
 only when the Modbus path is actually available, the bridge reconciles scheduled
@@ -147,6 +165,8 @@ against rather than guessing.
 
 ## Grid & Inverter limits are unverified
 
+![The Grid & Inverter tab](../images/control/09-grid-inverter-unverified.png)
+
 The **Grid & Inverter** tab writes the `1701` grid power-plane fields (import/export
 enables, soft and hard limits). The code marks this write **UNVERIFIED** and says so in
 the endpoint's own documentation: it is a full-block read-modify-write with a
@@ -160,6 +180,8 @@ that block can stop export or discharge.
 ---
 
 ## Read-only mode is a good default
+
+![Settings → Automation → Control: Read only on, writes switchable live](../images/control/02-allow-writes.png)
 
 With `allow_writes` off, everything on the monitoring side — dashboard, battery detail,
 analytics, costs, logs, network, MQTT publishing of *sensors* — works unchanged. You lose

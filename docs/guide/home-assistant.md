@@ -19,6 +19,8 @@ Two tabs are involved, and they point in opposite directions:
 
 ## Setting up the broker
 
+![Settings → Integrations → MQTT: the broker settings, read-only, with the Connected chip](../images/home-assistant/01-broker-settings.png)
+
 The broker settings are **not live-editable**. They come from the environment (or the
 add-on's options) and need a restart to change, unlike `allow_writes` and the log level.
 Settings → Integrations → MQTT shows them read-only, with a Connected chip.
@@ -37,6 +39,8 @@ assumes the official Mosquitto add-on.
 
 ### One side effect worth knowing
 
+![Settings → Admin → Local history: the metrics store and its mode](../images/home-assistant/02-local-history-auto.png)
+
 The bridge's own SQLite history is **automatically off** when it is running as an HA
 add-on *and* MQTT is enabled — Home Assistant's recorder is already storing the published
 entities, so a second local copy would be redundant. Set `METRICS_ENABLED` explicitly
@@ -45,6 +49,8 @@ entities, so a second local copy would be redundant. Set `METRICS_ENABLED` expli
 ---
 
 ## Topics
+
+![The MQTT tab with an entity's topics expanded](../images/home-assistant/03-topics.png)
 
 The bridge uses one JSON state topic per device. With the defaults, and writing `<node>`
 for the node id:
@@ -71,9 +77,13 @@ it would create a second device and orphan every entity already discovered.
 
 ## The entities
 
+![The MQTT tab's entity list](../images/home-assistant/04-entities.png)
+
 Measured live on 2026-10-15: **21 entities — 17 sensors and 4 controls.**
 
 ### Sensors
+
+![The MQTT tab filtered to sensors](../images/home-assistant/05-sensors.png)
 
 | Key | Name | Unit | Group |
 |---|---|---|---|
@@ -104,6 +114,8 @@ positive is discharging, zero is standby.
 
 ### Controls (writable)
 
+![The MQTT tab filtered to writable entities](../images/home-assistant/06-controls.png)
+
 | Key | HA type | Options |
 |---|---|---|
 | `operating_mode` | `select` | Time-of-Use · Self-Consumption · Emergency Backup |
@@ -121,6 +133,8 @@ cloud instead — see [Control](control.md).
 
 ### Entity groups
 
+![The published-groups switches at the top of the MQTT tab](../images/home-assistant/07-entity-groups.png)
+
 Publishing is opt-in per group, from the MQTT tab. All five were enabled on the bridge
 read live, and all five are on by default:
 
@@ -135,6 +149,8 @@ read live, and all five are on by default:
 Turning a group off reduces both MQTT traffic and the number of HA entities.
 
 ### Republish and Clear HA: what they do (0.4.8)
+
+![The Republish and Clear HA buttons on the MQTT tab](../images/home-assistant/08-republish-clear-ha.png)
 
 Both buttons are on the **MQTT** tab and act on the **gateway selected at the top**, not on
 every gateway.
@@ -153,6 +169,8 @@ The Modbus Bridge and FWHAI already have one.
 
 ### Why Operating Mode appears twice
 
+![Searching the MQTT tab for Operating Mode: one sensor and one select](../images/home-assistant/09-operating-mode-twice.png)
+
 There is an **Operating Mode** sensor (read-only) and an **Operating Mode** select (the control).
 Both show the same value. The sensor is redundant. Removing it removes a Home Assistant entity,
 so it will go with the planned clean-up work, not in a quick fix.
@@ -160,6 +178,8 @@ so it will go with the planned clean-up work, not in a quick fix.
 ---
 
 ## Sharing a broker with other FranklinWH software
+
+![Scan conflicts on the MQTT tab (here with no broker reachable)](../images/home-assistant/10-sharing-a-broker.png)
 
 If you also run the FranklinWH Modbus Bridge or FWHAI against the same aGate and the same
 broker, each publishes the gateway under **its own node id** — so the same physical device
@@ -176,6 +196,8 @@ install one gateway's purge cannot delete another's entities.
 ---
 
 ## Reinstalling, and keeping your history
+
+![Home Assistant's Settings → Entities page, where an entity id is changed](../images/home-assistant/11-reinstalling-entity-ids.png)
 
 An **upgrade** keeps your entities. A **remove-and-reinstall** is the case that costs
 people history: Home Assistant still holds the old entity under its id, the newly
@@ -196,7 +218,11 @@ new entity to it. History and long-term statistics follow the id.
 
 ## The Home Assistant tab
 
+![The Home Assistant tab](../images/home-assistant/12-ha-tab.png)
+
 ### Instances
+
+![Adding a Home Assistant instance](../images/home-assistant/13-instances.png)
 
 Add one or more HA instances with a base URL and a long-lived token; one can be marked
 default, and each can be enabled or disabled. **Test** checks the connection. In the HA
@@ -205,6 +231,8 @@ without configuring anything.
 
 ### Exposing entities
 
+![Browse entities, with sun.sun exposed to the scheduler](../images/home-assistant/14-exposing-entities.png)
+
 Browse an instance's entities (filterable by instance and domain) and **expose** the ones
 you want. Exposing is what makes an entity available to the Scheduler as
 `ha:<instance>:<entity_id>` — see [Scheduler](scheduler.md). Only exposed entities are
@@ -212,6 +240,8 @@ read each tick, which is the whole point: polling a large HA install every tick 
 hammer it.
 
 ### Notification devices
+
+![Settings → Integrations → Notifications](../images/home-assistant/15-notification-devices.png)
 
 Register notification targets, test one, or broadcast to all of them. These are what the
 Scheduler's **Notify** action and the bridge's own alerts (an interrupted dispatch, for
@@ -222,6 +252,8 @@ opposed to a schedule's notify action — lives under
 **Settings → Integrations → Notifications**, with a test button and its own log.
 
 ### Dashboard card
+
+![Published by bridge → Dashboard card, after Build](../images/home-assistant/16-dashboard-card.png)
 
 **Build** generates Lovelace YAML for the published entities — grouped or as a single
 card, with or without the diagnostic entities — and **Copy** puts it on your clipboard.
