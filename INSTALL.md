@@ -40,9 +40,8 @@ Click the button above, or add the repository by hand:
   without a restart.
 - **Timezone** comes from the Supervisor, so logs and rendered times match the host.
   (Schedules do not depend on this — they follow the aGate's own clock.)
-- **Local history** is **off by default** when MQTT is on: Home Assistant's recorder already
-  stores the published entities, so a second copy is redundant. `metrics_enabled: true`
-  forces it on.
+- **Local history** is **on by default**. The bridge's own charts (Power History, Analytics,
+  costs) read it. `metrics_enabled: false` turns recording off.
 - A **watchdog** restarts the add-on if the web app stops serving. It probes `/api/live`,
   which does no gateway I/O, so an unreachable aGate never triggers a restart.
 - **Control writes stay off** until you set `allow_writes`. You can flip it live from the

@@ -129,17 +129,19 @@ def gateway_list(settings: Settings) -> list[tuple[str, str]]:
 
 
 def metrics_active(settings: Settings) -> bool:
-    """Should the local SQLite metrics store be active for this runtime?
+    """Should the bridge RECORD power/energy history in its local store?
 
-    Explicit ``metrics_enabled`` (True/False) always wins. When unset (None) we
-    auto-decide: metrics are ON everywhere EXCEPT when running as an HA add-on with
-    MQTT enabled — there Home Assistant's own recorder already stores history via the
-    published MQTT entities, so a second local copy is redundant.
+    Explicit ``metrics_enabled`` (True/False) always wins. Unset means **on**.
+
+    It used to mean "off as an add-on with MQTT on", on the reasoning that Home
+    Assistant's recorder keeps the published entities' history. But the bridge's own
+    charts (dashboard Power History, Analytics, costs) read only the local store, so
+    they went empty on every add-on install once publishing was on (#136). Opting out
+    is ``metrics_enabled: false``.
     """
     if settings.metrics_enabled is not None:
         return settings.metrics_enabled
-    from .environment import IS_HA_ADDON
-    return not (IS_HA_ADDON and settings.mqtt_enabled)
+    return True
 
 
 # -- live-editable overrides (P7) --------------------------------------------

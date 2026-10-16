@@ -53,8 +53,8 @@ options:
   read_only: true
   allow_writes: false
   ha_notify: true
-  # metrics_enabled intentionally unset → auto: on, unless add-on + MQTT (HA recorder
-  # already stores history via the published MQTT entities). Set explicitly to override.
+  # metrics_enabled unset → history is recorded (the bridge's own charts need it, #136).
+  # Set false to opt out.
 
 schema:
   fwh_host: str

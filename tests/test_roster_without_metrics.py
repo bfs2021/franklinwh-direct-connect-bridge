@@ -41,8 +41,8 @@ def _metrics_off_addon_default(monkeypatch):
     return s
 
 
-@pytest.mark.parametrize("setup", [_metrics_off_explicit, _metrics_off_addon_default],
-                         ids=["metrics_enabled=false", "addon+mqtt default"])
+@pytest.mark.parametrize("setup", [_metrics_off_explicit],
+                         ids=["metrics_enabled=false"])
 def test_store_opens_even_when_metrics_are_off(monkeypatch, setup):
     s = setup(monkeypatch)
     assert config.metrics_active(s) is False   # the premise: history recording is off
@@ -72,7 +72,14 @@ def test_gateways_can_be_added_edited_and_removed_with_metrics_off(
 
 
 def test_metrics_switch_still_reported_off(monkeypatch, no_side_effects):
-    """The fix keeps the store open; it must not quietly turn history recording on."""
-    _metrics_off_addon_default(monkeypatch)
+    """Explicitly off stays off: the store is open for the roster, recording is not."""
+    _metrics_off_explicit(monkeypatch)
     c = TestClient(app_module.create_app())
     assert c.get("/api/settings").json()["metrics"]["enabled"] is False
+
+
+def test_addon_default_records_history(monkeypatch, no_side_effects):
+    """#136: a fresh add-on install (MQTT on, metrics unset) records history again."""
+    _metrics_off_addon_default(monkeypatch)
+    c = TestClient(app_module.create_app())
+    assert c.get("/api/settings").json()["metrics"]["enabled"] is True
