@@ -38,6 +38,12 @@ def _fmt_outage(seconds: float | None) -> str:
     return f"{s // 3600}h {(s % 3600) // 60}m"
 
 
+#: Re-discovery (#123): failed polls in a row before a sweep is even considered, and the
+#: back-off between sweeps while the gateway stays gone.
+REDISCOVER_AFTER_FAILS = 3
+SWEEP_GAP_MIN_S = 300
+SWEEP_GAP_MAX_S = 3600
+
 #: How often the aGate's network state is read for Home Assistant (#134).
 NET_EVERY_S = 600
 
@@ -151,6 +157,8 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
     notifier = Notifier(settings)
     net_state: dict = {}
     net_last = 0.0
+    next_sweep = 0.0
+    sweep_gap = SWEEP_GAP_MIN_S
     prev: dict | None = None
     last_fw = fw
     inserts = 0
@@ -405,14 +413,27 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                             "and re-scan cmdTypes.")
                     if fw_now:
                         last_fw = fw_now
-                else:                                              # re-discover on failure
-                    newhost = await asyncio.to_thread(
-                        client.rediscover, settings, gw.active_host, gw.serial)
-                    if newhost:
-                        gw.active_host = newhost
-                        await asyncio.to_thread(
-                            notifier.notify, "FranklinWH aGate moved",
-                            f"Re-discovered on the LAN at {newhost}.")
+                elif not getattr(gw, "is_mock", False):            # re-discover on failure
+                    # A /24 sweep is heavy on a struggling aGate and the Wi-Fi (#123). Sweep
+                    # only when the gateway has really gone from its address: several failed
+                    # polls in a row AND its known address answers neither ping nor :9000.
+                    # Then back off (5 → 10 → … 60 min) while it stays gone.
+                    now = time.time()
+                    if fail_streak >= REDISCOVER_AFTER_FAILS and now >= next_sweep:
+                        here = await asyncio.to_thread(client.still_at_address, gw.active_host)
+                        if here:
+                            log.info("[%s] %s still answers — not sweeping the network",
+                                     gw.id, gw.active_host)
+                        else:
+                            next_sweep = now + sweep_gap
+                            sweep_gap = min(sweep_gap * 2, SWEEP_GAP_MAX_S)
+                            newhost = await asyncio.to_thread(
+                                client.rediscover, settings, gw.active_host, gw.serial)
+                            if newhost and newhost != gw.active_host:   # it really moved
+                                gw.active_host = newhost
+                                await asyncio.to_thread(
+                                    notifier.notify, "FranklinWH aGate moved",
+                                    f"Re-discovered on the LAN at {newhost}.")
             except Exception as e:  # noqa: BLE001
                 log.warning("[%s] poll failed: %s", gw.id, e)
                 if pub:

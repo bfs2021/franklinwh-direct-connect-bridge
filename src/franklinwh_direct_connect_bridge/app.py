@@ -3926,6 +3926,25 @@ def create_app() -> FastAPI:
         out["cloud_creds"] = bool(s.fwh_cloud_email and s.fwh_cloud_password)
         return out
 
+    @app.get("/api/diagnostics/link")
+    def api_diagnostics_link(gateway: str | None = Query(None)):
+        """Reachability and load (#123): per gateway (or the one named), a timed ping and a
+        timed TCP connect to :9000, and how many TCP connections THIS bridge holds to it by
+        port — Direct Connect :9000 and the aGate Modbus TCP Server :502 (counted from
+        existing sockets, never opened). Plus the bridge process's CPU, memory, threads and
+        open files. Read-only; mocks are listed without probing."""
+        from . import diagnostics as _dg
+        gws = [_gw_or_404(gateway)] if gateway else list(get_gateways() or [])
+        rows = []
+        for g in gws:
+            host = (g.active_host or g.configured_host or "")
+            row = {"id": g.id, "label": g.label, "is_mock": bool(g.is_mock)}
+            if not g.is_mock and host:
+                row.update(_dg.probe(host))
+                row["connections"] = _dg.connections_to(host)
+            rows.append(row)
+        return {"gateways": rows, "bridge": _dg.resources(), "ts": time.time()}
+
     @app.get("/api/network/ping")
     def api_network_ping(gateway: str | None = Query(None), count: int = Query(5, ge=1, le=20)):
         """Latency test: N sendMqtt round-trips to the aGate in one session. Returns per-sample
