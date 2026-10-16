@@ -11,7 +11,7 @@ Scheduler's "Only if" box does. This guide covers the second question.
 
 | If you want to… | Read |
 |---|---|
-| Install, upgrade or configure the bridge | [`INSTALL.md`](../../INSTALL.md) |
+| Install, upgrade or configure the bridge | [`INSTALL.md`](https://github.com/david2069/franklinwh-direct-connect-bridge/blob/main/INSTALL.md) |
 | Know what each tab is for, and how to get around | [Tour of the UI](tour.md) |
 | Change something on the gateway, and know what gates it | [Control and write safety](control.md) |
 | Automate charge/discharge windows, modes, circuits, alerts | [Scheduler](scheduler.md) |

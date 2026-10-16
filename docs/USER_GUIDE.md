@@ -11,4 +11,4 @@ organised by what you are trying to do rather than as one long file:
 - [Multi-gateway and sites](guide/multi-gateway.md) — gateways, mocks, sites and meters
 - [History, costs and tariffs](guide/energy-and-costs.md) — retention, the Sankey, tariffs, backups
 
-For installation and upgrading, see [`INSTALL.md`](../INSTALL.md).
+For installation and upgrading, see [`INSTALL.md`](https://github.com/david2069/franklinwh-direct-connect-bridge/blob/main/INSTALL.md).

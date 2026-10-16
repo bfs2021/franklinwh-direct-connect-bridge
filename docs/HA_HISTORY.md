@@ -26,7 +26,7 @@ backup first — a full Home Assistant backup, not a snapshot of one table.
 ## 1. Keep the entity id (recommended)
 
 This is built into Home Assistant and copies nothing. The steps are in
-[INSTALL.md → Reinstalling](../INSTALL.md#reinstalling-read-this-before-you-remove-anything).
+[INSTALL.md → Reinstalling](https://github.com/david2069/franklinwh-direct-connect-bridge/blob/main/INSTALL.md#reinstalling-read-this-before-you-remove-anything).
 
 In short: free the old entity id (delete or rename the old entity), then rename the new
 entity to that id. Home Assistant moves history and long-term statistics with the id.
