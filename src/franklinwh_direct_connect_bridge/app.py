@@ -3078,12 +3078,20 @@ def create_app() -> FastAPI:
             "text_rhs_ops": list(scheduler.TEXT_RHS_OPERATORS),
         }
 
+    def _normalized_action(action):
+        """On/Off parameters stored as booleans, never the text "false" (#188)."""
+        try:
+            return scheduler.normalize_action(action)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
     @app.post("/api/schedules", status_code=201)
     def api_schedule_create(req: ScheduleReq):
         _guard_writes()
         import uuid
         st = _ha_store()
         spec = req.model_dump(exclude={"name", "enabled"})
+        spec["action"] = _normalized_action(spec.get("action"))
         sid = uuid.uuid4().hex[:12]
         row = st.create_schedule(sid=sid, name=req.name, spec=spec, enabled=req.enabled)
         try:
@@ -3111,6 +3119,7 @@ def create_app() -> FastAPI:
                       if k in prior and k not in ("name", "enabled")}
         sent = req.model_dump(exclude_unset=True, exclude={"name", "enabled"})
         spec = {**req.model_dump(exclude={"name", "enabled"}), **prior_spec, **sent}
+        spec["action"] = _normalized_action(spec.get("action"))
         row = st.update_schedule(sid, name=req.name, enabled=req.enabled, spec=spec)
         try:
             if prior.get("enabled") != req.enabled:
@@ -3286,6 +3295,10 @@ def create_app() -> FastAPI:
                 skipped.append({"name": rep["name"], "errors": rep["errors"]})
                 continue
             spec = scheduler.portable(e)
+            try:                                # On/Off as booleans (#188); an unreadable
+                spec["action"] = scheduler.normalize_action(spec.get("action"))
+            except ValueError:                  # one is refused by the engine at run time
+                pass
             if spec.get("gateway_id") and spec["gateway_id"] not in gw_ids:
                 spec["gateway_id"] = ""     # unknown gateway → default
             name = spec.pop("name", "imported")
