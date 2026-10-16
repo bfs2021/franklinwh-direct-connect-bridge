@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.5.6] — 2026-10-17
+
+Hotfix: a force above the battery's rated power keeps its direction.
+
 ### Fixed
 
 - **A Force Charge above the battery's rated power no longer discharges it (and a Force Discharge
