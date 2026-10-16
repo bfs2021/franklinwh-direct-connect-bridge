@@ -435,12 +435,17 @@ def status(host: str) -> dict:
 
 
 def _ratings(c) -> tuple[int, int]:
+    """The charge/discharge ratings the LIBRARY will clamp against (#213).
+
+    Always read from the controller's own attributes, even when discovery fails: a
+    fallback number of our own that is higher than the library's would pass the bridge's
+    clamp and reach the library's, which (0.9.5) inverts the direction."""
     try:
         c.discover_ratings()
-        return (int(getattr(c, "RATED_MAX_CHARGE_W", 5000) or 5000),
-                int(getattr(c, "RATED_MAX_DISCHARGE_W", 5000) or 5000))
     except Exception:                                           # noqa: BLE001
-        return (5000, 5000)
+        pass
+    return (int(getattr(c, "RATED_MAX_CHARGE_W", 5000) or 5000),
+            int(getattr(c, "RATED_MAX_DISCHARGE_W", 5000) or 5000))
 
 
 #: host -> (expires_at_monotonic, (max_charge_w, max_discharge_w) | (None, None)).
@@ -517,15 +522,26 @@ def execute(command: str, *, host: str, power_w: int = 0, power_pct: int = 0,
             return {"ok": True, "result": "released", "active": "Not Active"}
 
         max_ch, max_dis = _ratings(c)
+        clamp_note = ""
         # Last-set-wins: use watts OR percent of the rated rate for the direction.
         if cmd == "Force Standby":
             watts = 0
         elif cmd in ("Force Charge", "Force Discharge"):
+            limit = max_ch if cmd == "Force Charge" else max_dis
             if power_mode == "w":
-                base = int(power_w or 0)
+                base = abs(int(power_w or 0))
             else:
-                base = int((max_ch if cmd == "Force Charge" else max_dis) * (power_pct or 0) / 100)
-            watts = abs(base) if cmd == "Force Charge" else -abs(base)
+                base = int(limit * min(max(int(power_pct or 0), 0), 100) / 100)
+            # Never hand the library more than the rating (#213). franklinwh-modbus 0.9.5's
+            # own clamp returns the limit with the OPPOSITE sign, so an over-rating Force
+            # Charge was sent as a full-rate DISCHARGE (and vice versa). Clamp here, keeping
+            # the direction, and say so.
+            if base > limit:
+                clamp_note = f" (requested {base}W, limited to the {limit}W rating)"
+                log.warning("battery %s: %sW exceeds the %sW rating — limited to %sW",
+                            cmd, base, limit, limit)
+                base = limit
+            watts = base if cmd == "Force Charge" else -base
         else:
             return {"ok": False, "result": f"unknown command '{cmd}'"}
 
@@ -539,8 +555,8 @@ def execute(command: str, *, host: str, power_w: int = 0, power_pct: int = 0,
                   f"power_mode={power_mode}, duration={duration_s or 'none'}s, "
                   f"target_soc={str(target_soc) + '%' if target_soc else 'off'}")
         active = None if dry_run else (cmd if okc else "Not Active")
-        return {"ok": bool(okc), "result": ("[dry-run] " + msg) if dry_run else msg,
-                "active": active}
+        return {"ok": bool(okc), "result": (("[dry-run] " + msg) if dry_run else msg) + clamp_note,
+                "active": active, "watts": watts}
     except Exception as e:                                       # noqa: BLE001
         return {"ok": False, "result": f"{type(e).__name__}: {e}"}
     finally:
