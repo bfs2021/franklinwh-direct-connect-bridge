@@ -71,7 +71,11 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
     def _start_mqtt():
         """Create + start an MqttPublisher (blocking connect). Raises on failure."""
         # Each gateway is a distinct serial node → distinct HA device (collision-free).
-        device = entities.device_info(node, serial, fw)
+        from . import devicedb as _ddb
+        _hw = getattr(gw, "sy_hd_version", None)
+        _model = ((_ddb.gateway(_hw) or {}).get("model") if _hw is not None else None)
+        device = entities.device_info(node, serial, fw, model=_model,
+                                      is_mock=bool(getattr(gw, "is_mock", False)))
         def _on_control(key: str, payload: str) -> None:
             """Inbound HA control. Runs on the MQTT network thread, so it is kept
             short and every outcome is logged — a control that silently fails is

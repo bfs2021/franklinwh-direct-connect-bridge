@@ -31,16 +31,17 @@ def test_discovery_configs_shape():
     assert soc["state_topic"] == state_topic
     assert soc["availability_topic"] == avail_topic
     assert soc["device"]["identifiers"] == ["franklinwh_sn123"]
-    # sw_version clearly names THIS integration + the aGate firmware
+    # sw_version names THIS integration; the aGate firmware is the hardware version
+    # (laid out as the Modbus Bridge does, #140)
     assert soc["device"]["sw_version"].startswith("Direct Connect Bridge v")
-    assert "V12R02B30D06" in soc["device"]["sw_version"]
+    assert "V12R02B30D06" in soc["device"]["hw_version"]
 
 
 def test_device_info_optional_fields():
     d = entities.device_info("n", "", None)          # no serial/fw
     assert "serial_number" not in d                   # no serial → omitted
     assert d["sw_version"].startswith("Direct Connect Bridge v")  # always names the bridge
-    assert d["manufacturer"] == "FranklinWH"
+    assert d["manufacturer"] == "FranklinWH Technologies Co., Ltd"   # as the Modbus Bridge (#140)
     # Without a serial there is no tail to name it after, so it falls back to a name
     # that is still meaningful rather than "FranklinWH Direct ".
     assert d["name"] == "FranklinWH Direct Connect"

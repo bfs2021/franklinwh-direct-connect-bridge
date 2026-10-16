@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-MANUFACTURER = "FranklinWH"
+# The manufacturer as the Modbus Bridge publishes it, so the two bridges' HA devices
+# read the same (#140). Display only — not part of any identifier.
+MANUFACTURER = "FranklinWH Technologies Co., Ltd"
 
 # key -> HA sensor descriptor. `key` is both the state-JSON field and the discovery id.
 ENTITIES: list[dict[str, Any]] = [
@@ -178,24 +180,27 @@ def device_name(serial: str) -> str:
     return f"FranklinWH Direct {tail}" if tail else "FranklinWH Direct Connect"
 
 
-def device_info(node: str, serial: str, firmware: str | None = None) -> dict[str, Any]:
+def device_info(node: str, serial: str, firmware: str | None = None, *,
+                model: str | None = None, is_mock: bool = False) -> dict[str, Any]:
     from .. import __version__
     # DO NOT change `identifiers`. They are Home Assistant's device IDENTITY: a new value
     # creates a SECOND device and orphans every entity already discovered. The `name`
     # beside it is only a label and is safe to change — see device_name().
     #
-    # sw_version identifies THIS integration on a broker shared with the Modbus bridge and
-    # FWHAI: mqtt_scan decides ownership from its prefix, which is why the legacy "Local
-    # Bridge" spelling is still ACCEPTED there even though new publishes say "Direct
-    # Connect Bridge". The aGate's own firmware is appended when known.
-    bridge = f"Direct Connect Bridge v{__version__}"
+    # The other fields are labels too, laid out as the Modbus Bridge does (#140): the
+    # BRIDGE's version as "Firmware" (sw_version) and the aGate's firmware as "Hardware"
+    # (hw_version). sw_version still identifies THIS integration on a broker shared with
+    # the Modbus bridge and FWHAI — mqtt_scan and the setup checks decide ownership from
+    # its "Direct Connect Bridge" prefix — so the prefix must stay.
     d = {
         "identifiers": [f"franklinwh_{node}"],
         "name": device_name(serial),
         "manufacturer": MANUFACTURER,
-        "model": "aGate",
-        "sw_version": f"{bridge} · aGate {firmware}" if firmware else bridge,
+        "model": "aGate (mock)" if is_mock else (model or "aGate"),
+        "sw_version": f"Direct Connect Bridge v{__version__}",
     }
+    if firmware:
+        d["hw_version"] = f"aGate {firmware}"
     if serial:
         d["serial_number"] = serial
     return d
