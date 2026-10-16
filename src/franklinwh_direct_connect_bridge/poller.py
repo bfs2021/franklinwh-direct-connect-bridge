@@ -142,7 +142,11 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                 detail=(f"{fail_streak} consecutive failed polls" if fail_streak else ""))
             # Self-heal: if MQTT never came up (broker was down at boot), retry — throttled —
             # instead of staying dead until a bridge restart.
-            if settings.mqtt_enabled and pub is None and (time.time() - last_mqtt_try) >= _MQTT_RETRY_S:
+            # publish_ha is checked HERE too: this retry used to start MQTT for a gateway
+            # whose publishing is off, so a mock created with publish_ha=False was in
+            # Home Assistant within one poll (#98).
+            if (settings.mqtt_enabled and getattr(gw, 'publish_ha', True) and pub is None
+                    and (time.time() - last_mqtt_try) >= _MQTT_RETRY_S):
                 last_mqtt_try = time.time()
                 # Re-ask the Supervisor first. Auto-config runs once at startup, so an
                 # add-on installed before Mosquitto kept retrying the SAME unset broker
