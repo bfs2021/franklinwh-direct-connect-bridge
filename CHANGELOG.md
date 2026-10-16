@@ -11,7 +11,27 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Link & load diagnostics.** A *Link & load* card on Health, `GET /api/diagnostics/link` and
+  `franklinwh-direct-connect-bridge ping [HOST]` show:
+  - a timed ping and a timed connection to the aGate's Direct Connect port;
+  - how many connections this bridge holds to the aGate: Direct Connect :9000, and the aGate
+    Modbus TCP Server :502 used by this bridge's Modbus client;
+  - the bridge's own CPU, memory, threads and open files.
+
+  Read-only: the aGate Modbus TCP Server is counted, never opened. (#123)
+
+### Fixed
+
+- **The bridge no longer sweeps your whole network every time the aGate is slow to answer.**
+  It searched all 254 addresses after every failed poll, once a minute while the aGate struggled,
+  adding load exactly when the aGate could least take it. It now searches only after three failed
+  polls **and** when the aGate's known address answers neither ping nor its port. It backs off from
+  5 minutes to 60 while the aGate stays away.
+- **The search no longer probes the aGate Modbus TCP Server (:502),** or port 502 on every other
+  device on your network. It looks for Direct Connect (:9000) only. (#123)
+- **"aGate moved" is announced only when the address actually changed.** (#123)
 
 ## [0.5.1] — 2026-10-16
 
