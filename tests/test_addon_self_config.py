@@ -56,6 +56,25 @@ def test_a_users_own_instances_are_never_overwritten(store, monkeypatch):
     assert [r["id"] for r in store.ha_instances()] == ["mine"]
 
 
+def test_an_update_refreshes_the_stored_supervisor_token(store, monkeypatch):
+    """#99: the Supervisor gives each new container (every update) a new token. The stored
+    one was never refreshed, so after an update every call to HA answered 401."""
+    _as_addon(monkeypatch, token="old-container-token")
+    app_module._seed_self_ha_instance(config.get_settings())
+    _as_addon(monkeypatch, token="new-container-token")       # the add-on was updated
+    app_module._seed_self_ha_instance(config.get_settings())
+    rows = store.ha_instances()
+    assert len(rows) == 1 and rows[0]["token"] == "new-container-token"
+
+
+def test_a_users_own_instance_token_is_never_touched(store, monkeypatch):
+    _as_addon(monkeypatch, token="new-container-token")
+    store.create_ha_instance(ha_id="mine", name="My HA", base_url="http://192.0.2.5:8123",
+                             token="theirs", is_default=True)
+    app_module._seed_self_ha_instance(config.get_settings())
+    assert store.ha_instance("mine")["token"] == "theirs"
+
+
 def test_standalone_registers_nothing(store, monkeypatch):
     monkeypatch.setattr(ha_supervisor, "IS_HA_ADDON", False)
     assert app_module._seed_self_ha_instance(config.get_settings()) is False

@@ -840,7 +840,18 @@ def _seed_self_ha_instance(settings) -> bool:
         return False
     try:
         store = db.get_store(settings)
-        if store is None or store.ha_instances():
+        if store is None:
+            return False
+        rows = store.ha_instances()
+        if rows:
+            # The Supervisor issues a NEW token to every new container (each update), so
+            # a stored copy of the old one is rejected and every HA-backed feature fails
+            # with "token rejected" after an update (#99). Refresh it; only the row that
+            # points at the Supervisor proxy, never a user's own instance.
+            for r in rows:
+                if r.get("base_url") == me["base_url"] and r.get("token") != me["token"]:
+                    store.update_ha_instance(r["id"], token=me["token"])
+                    log.info("refreshed this add-on's Home Assistant token (new container)")
             return False
         import uuid
         store.create_ha_instance(ha_id=uuid.uuid4().hex[:12], name=me["name"],
