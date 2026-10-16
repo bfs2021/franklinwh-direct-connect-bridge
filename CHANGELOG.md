@@ -11,7 +11,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **A schedule set to turn a smart circuit Off no longer turns it On, and "reconnect to the grid"
+  no longer takes the site off-grid.** The schedule form saved the choice as the text "false", which
+  the scheduler read as on. On/Off is now read strictly and saved as true/false; a value that is
+  neither is refused, with nothing sent to the gateway. Schedules saved before this release are read
+  correctly without re-saving. **If you have a schedule with a smart-circuit or off-grid action,
+  check what it did.** (#188)
 
 ## [0.5.4] — 2026-10-17
 

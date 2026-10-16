@@ -1714,6 +1714,39 @@ def _audit_action(store, schedule_id, schedule_name):
     return _audit
 
 
+_ON_TRUE = frozenset({"true", "on", "1", "yes"})
+_ON_FALSE = frozenset({"false", "off", "0", "no"})
+
+
+def on_value(v: Any) -> bool:
+    """An On/Off action parameter as a real bool, read strictly (#188).
+
+    The editor's On/Off picker stores the TEXT "true"/"false", and ``bool("false")`` is
+    True: a schedule set to turn a smart circuit Off turned it On, and "reconnect to the
+    grid" went off-grid. Anything that is not clearly on or off raises, so the action is
+    refused rather than guessed — a device write must never default to a direction.
+    """
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)) and v in (0, 1):
+        return bool(v)
+    if isinstance(v, str):
+        t = v.strip().lower()
+        if t in _ON_TRUE:
+            return True
+        if t in _ON_FALSE:
+            return False
+    raise ValueError(f"'on' must be true or false, not {v!r}")
+
+
+def normalize_action(action: Any) -> Any:
+    """Store On/Off parameters as real booleans. Raises ValueError on an unreadable one."""
+    if isinstance(action, dict) and action.get("kind") in ("smart_circuit", "offgrid") \
+            and "on" in action:
+        return {**action, "on": on_value(action["on"])}
+    return action
+
+
 def run_action(action: dict, *, settings, client, store, snapshot: dict,
                host: str | None = None, window_min: int = 0,
                gateway_id: str | None = None, dry_run: bool = False,
@@ -1754,16 +1787,16 @@ def _run_action_body(action: dict, *, settings, client, store, snapshot: dict,
             return f"mode -> {action['mode']}: {'ok' if out.get('ok', True) else out}"
 
         if kind == "smart_circuit":
-            out = client.set_smart_circuit(settings, int(action["circuit"]),
-                                           bool(action["on"]), host=host)
+            on = on_value(action["on"])          # never bool("false") (#188)
+            out = client.set_smart_circuit(settings, int(action["circuit"]), on, host=host)
             # result:0 means the frame parsed; only the read-back proves it applied.
-            return (f"circuit {action['circuit']} -> {'on' if action['on'] else 'off'}: "
+            return (f"circuit {action['circuit']} -> {'on' if on else 'off'}: "
                     f"{'confirmed' if out.get('confirmed') else 'NOT confirmed'}")
 
         if kind == "offgrid":
-            out = client.set_offgrid(settings, bool(action["on"]),
-                                     int(action.get("soc", 5)), host=host)
-            return f"offgrid {action['on']}: {'ok' if out.get('ok') else out}"
+            on = on_value(action["on"])          # never bool("false") (#188)
+            out = client.set_offgrid(settings, on, int(action.get("soc", 5)), host=host)
+            return f"offgrid {on}: {'ok' if out.get('ok') else out}"
 
         if kind == "notify":
             from . import ha_instances
