@@ -102,4 +102,43 @@
          style="color:var(--text-secondary)">No reading yet.</div>
   </div>
 
+  <!-- Link & load (#123): reachability, this bridge's connections to the aGate, and the
+       bridge's own resource use. Read-only; never opens the aGate Modbus TCP Server :502. -->
+  <div class="card" style="padding:0;overflow:hidden"
+       x-data="{ d: null, busy: false, err: '',
+                 async load() { this.busy = true; this.err = '';
+                   try { const r = await fetch('api/diagnostics/link' + $store.app.gwQuery('?'));
+                         this.d = await r.json(); }
+                   catch (e) { this.err = String(e); } finally { this.busy = false; } } }">
+    <div class="px-5 py-3 flex items-center justify-between" style="border-bottom:1px solid var(--border)">
+      <div class="text-xs font-semibold uppercase tracking-wider" style="color:var(--text-secondary)">Link &amp; load</div>
+      <button class="btn-secondary text-xs" @click="load()" :disabled="busy"
+              x-text="busy ? 'Checking…' : (d ? 'Check again' : 'Check')"></button>
+    </div>
+    <div class="px-5 py-3 text-xs" x-show="err" style="color:var(--danger)" x-text="err"></div>
+    <template x-if="d">
+      <div class="px-5 py-3 text-sm space-y-3">
+        <template x-for="g in d.gateways" :key="g.id">
+          <div>
+            <div class="font-medium" x-text="g.label + (g.is_mock ? ' (mock — not probed)' : '')"></div>
+            <div x-show="!g.is_mock" class="grid grid-cols-2 gap-x-4 text-xs mt-1" style="color:var(--text-secondary)">
+              <span>Ping</span><span x-text="g.ping ? (g.ping_ms + ' ms') : 'no reply'"></span>
+              <span>Connect :9000</span><span x-text="g.dc_9000 ? (g.dc_9000_connect_ms + ' ms') : 'refused / timed out'"></span>
+              <span>This bridge's connections :9000</span>
+              <span x-text="g.connections ? g.connections.dc_9000 : 'n/a (not in a container)'"></span>
+              <span>… to the aGate Modbus TCP Server :502</span>
+              <span x-text="g.connections ? g.connections.modbus_tcp_server_502 : 'n/a'"></span>
+            </div>
+          </div>
+        </template>
+        <div class="text-xs pt-2" style="border-top:1px solid var(--border);color:var(--text-secondary)">
+          Bridge: CPU <span x-text="d.bridge.cpu_pct ?? '–'"></span>% ·
+          memory <span x-text="d.bridge.rss_mb ?? '–'"></span> MB ·
+          threads <span x-text="d.bridge.threads ?? '–'"></span> ·
+          open files <span x-text="d.bridge.open_fds ?? '–'"></span>
+        </div>
+      </div>
+    </template>
+  </div>
+
 </div>
