@@ -139,6 +139,8 @@ def state_payload(summary: dict) -> dict[str, Any]:
     t_amb = (summary.get("battery") or {}).get("t_amb")
     if t_amb is not None:
         st["ambient_temp_c"] = t_amb
+    for n, on in (summary.get("circuits_on") or {}).items():
+        st[f"circuit_{n}_on"] = bool(on)        # the switches' state_key (C1)
     bw = st.get("battery_w")
     if bw is not None:
         # Same convention as build_state: negative battery power is charging.

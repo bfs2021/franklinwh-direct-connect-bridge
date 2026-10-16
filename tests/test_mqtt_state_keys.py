@@ -12,9 +12,8 @@ import pytest
 from franklinwh_direct_connect_bridge import client, config, mockgw
 from franklinwh_direct_connect_bridge.publish import entities
 
-#: Read from the smart-circuit config (1409), which the poll does not fetch. Publishing
-#: their state needs an extra device read per poll — a separate change (#96 follow-up).
-NOT_IN_POLL = {"circuit_1_on", "circuit_2_on", "circuit_3_on"}
+#: Every control's state key is now in the poll (C1 added the 1409 circuit read).
+NOT_IN_POLL: set = set()
 
 
 @pytest.fixture
@@ -65,3 +64,19 @@ def test_daily_energy_maps_from_the_raw_counters():
 def test_unknown_values_stay_absent_rather_than_invented():
     st = entities.state_payload({"power": {}, "latency_ms": None})
     assert "ambient_temp_c" not in st and "battery_status" not in st
+
+
+def test_circuit_state_follows_sw_mode():
+    st = entities.state_payload({"power": {}, "circuits_on": {1: True, 2: False}})
+    assert st["circuit_1_on"] is True and st["circuit_2_on"] is False
+    assert "circuit_3_on" not in st        # a circuit the gateway does not report stays absent
+
+
+def test_switch_state_matches_the_discovery_payload():
+    """HA renders a JSON true through value_template as "True" — what state_on expects."""
+    import json
+    cfgs = dict(entities.discovery_configs("n1", entities.device_info("n1", "SN1"),
+                                           "franklinwh-local", "homeassistant", None)[0])
+    sw = [c for t, c in cfgs.items() if "/switch/" in t][0]
+    assert sw["state_on"] == "True" and sw["state_off"] == "False"
+    assert json.loads(json.dumps({"circuit_1_on": True}))["circuit_1_on"] is True
