@@ -94,3 +94,16 @@ def test_numeric_sensors_carry_a_display_precision():
     assert cfgs["ambient_temp_c"]["suggested_display_precision"] == 1
     assert "suggested_display_precision" not in cfgs["mode"]          # text
     assert "suggested_display_precision" not in cfgs["battery_status"]  # text
+
+
+def test_diagnostic_entities_land_on_the_diagnostic_card():
+    """#121: HA groups by entity_category; the Modbus Bridge puts diagnostics there."""
+    cfgs = {t.split("/")[-2]: c
+            for t, c in entities.discovery_configs("n1", entities.device_info("n1", "SN1"),
+                                                   "franklinwh-local", "homeassistant", None)[0]}
+    diag = {e["key"] for e in entities.ENTITIES if e.get("group") == "diagnostic"}
+    assert diag >= {"latency_ms", "ambient_temp_c", "run_status"}
+    for k in diag:
+        assert cfgs[k]["entity_category"] == "diagnostic", k
+    assert "entity_category" not in cfgs["soc"]              # main sensors stay sensors
+    assert "entity_category" not in cfgs["operating_mode"]   # controls stay controls

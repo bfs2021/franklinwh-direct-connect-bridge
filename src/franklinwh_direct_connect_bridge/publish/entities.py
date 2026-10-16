@@ -230,6 +230,10 @@ def discovery_configs(node: str, device: dict, prefix: str, discovery_prefix: st
             cfg["device_class"] = e["device_class"]
         if e["state_class"]:
             cfg["state_class"] = e["state_class"]
+        if e.get("group") == "diagnostic":
+            # HA files these under the device page's "Diagnostic" card, as the Modbus
+            # Bridge does (#121). A display category, not identity: ids are unchanged.
+            cfg["entity_category"] = "diagnostic"
         prec = display_precision(e)
         if prec is not None:
             # Display only: HA keeps the full value in history and statistics (#114).
