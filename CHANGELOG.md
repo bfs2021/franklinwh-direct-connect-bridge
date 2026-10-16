@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.5.3] — 2026-10-16
+
+The bridge no longer loses the aGate when it misses a few reads, and a new Link & load card shows why a link is slow.
+
 ### Added
 
 - **Link & load diagnostics.** A *Link & load* card on Health, `GET /api/diagnostics/link` and
