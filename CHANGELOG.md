@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.8] — 2026-10-16
+
+Clearer Modbus labels.
+
 ### Changed
 
 - **"Modbus" is always qualified in the UI.** The aGate's listener is *aGate Modbus TCP Server :502*.
