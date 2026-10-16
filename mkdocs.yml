@@ -101,6 +101,7 @@ nav:
       - guide/tour.md
       - guide/home-assistant.md
       - guide/scheduler.md
+      - guide/scheduler-troubleshooting.md
       - guide/control.md
       - guide/energy-and-costs.md
       - guide/multi-gateway.md

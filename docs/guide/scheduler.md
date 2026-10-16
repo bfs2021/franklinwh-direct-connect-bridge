@@ -13,6 +13,192 @@ You can use as little of that as you like. "Switch to Self-Consumption at midnig
 only the first step and the action. The rest exists so that a rule which moves your
 battery can be made to do so only when it should.
 
+You find it on the **Scheduler** tab. It has three views: **Schedules** (the list),
+**Timeline** and **History**.
+
+New to the Scheduler? Read [Concepts](#concepts), then follow
+[Your first schedule](#your-first-schedule). When something does not run, see
+[Scheduler: troubleshooting and examples](scheduler-troubleshooting.md).
+
+## Concepts
+
+| Term | Meaning |
+|---|---|
+| **Schedule** | One card on the Schedules view. Also called a rule or an entry. It has a name, a trigger, an optional battery action, optional conditions and optional Home Assistant actions. |
+| **Trigger** | What opens the **window**: recurring time windows, a fire time plus a duration, every N minutes, a cron expression, or "always". See [Trigger](#1-trigger-when-the-window-opens). |
+| **Window** | The time a schedule is active. For **Recurring windows** it is the start and end you type. For the other triggers it is *fire time → fire time + Duration (min)*. |
+| **Occurrence** | One opening of the window. A schedule fires at most once per occurrence. |
+| **Entry conditions** | The gate ("Entry conditions (must hold to fire)"). Checked before the action is sent. |
+| **Hold** | How long the entry conditions must stay true before the schedule fires. |
+| **Battery action** | What is sent to the gateway: a mode, a smart circuit, off-grid, a reserve, a force command, or nothing ("No battery action (HA only)"). |
+| **Home Assistant actions** | Optional notifications and service calls that run on entry, on exit, or both. |
+| **Exit conditions** | "End early when…". Checked while the window is open; the first time they are true the window closes. |
+| **Priority** and **If busy** | How a schedule competes with other schedules for the same gateway. See [Hold, and conflict resolution](#3-hold-and-conflict-resolution). |
+
+## How a schedule is evaluated
+
+The scheduler runs as its own worker. Every tick (15 seconds by default) it does this,
+for each gateway and each enabled schedule that applies to it:
+
+1. **Is the gateway's data fresh?** The scheduler reads the values the poller last
+   stored for that gateway. If they are older than three poll intervals (at least
+   90 seconds), the gateway is skipped for this tick. A schedule never acts on stale
+   data.
+2. **Is the window open?** The trigger and the calendar restrictions must both allow
+   today and now. If exit conditions are already true, the window counts as closed.
+3. **Has it already fired this occurrence?** If so, it waits for the next window.
+4. **Do the entry conditions pass?** If not, it logs *gated* (once a day) and tries again
+   next tick, for as long as the window is open.
+5. **Has the hold passed?** If not, it logs *waiting* and keeps counting.
+6. **Does it win the gateway?** If several schedules want the same thing, the highest
+   priority wins. Then **If busy** decides what happens when another schedule's force
+   command is already running.
+7. **Send the battery action, then the on-entry Home Assistant actions.** A success
+   logs *fired*. A failure logs *error* and is retried while the window is open. See
+   [When a run fails, is missed, or the bridge restarts](#when-a-run-fails-is-missed-or-the-bridge-restarts).
+
+When the window closes (time runs out, or the exit conditions become true), the bridge
+runs the exit steps described in [Exit](#5-exit-ending-the-window).
+
+A few rules follow from this:
+
+- **Conditions are a gate, not a leash.** Entry conditions are checked before the action
+  is sent. Once a force command is running, only the exit conditions, the end of the
+  window or the force's target SoC stop it.
+- **A mode change is not undone at the end of the window.** Only a force command is
+  released. To switch back, add a second schedule, or set **restore on exit** (see
+  [Exit](#5-exit-ending-the-window)).
+- **Schedules with no battery action never compete.** A notify-only schedule always runs.
+
+## Your first schedule
+
+This walkthrough discharges the battery on weekday evenings, but only if it has charge to
+spare, and stops at your minimum discharge SoC.
+
+!!! note "Force commands need the Modbus client (this bridge)"
+    **Force charge / discharge / standby** goes through the Modbus client (this bridge) to
+    the aGate Modbus TCP Server (:502). If the Modbus client (this bridge) is off, the action
+    is shown as unavailable with the reason. To try the Scheduler without it, use the
+    **Set operating mode** action instead.
+
+![Add schedule: trigger, battery action, priority, If busy, gateway, entry conditions, hold and exit conditions](../images/scheduler/12-hold-and-conflicts.png)
+
+To create it:
+
+1. On the **Scheduler** tab, press **Add schedule**.
+2. **Name:** `Evening discharge`.
+3. **Trigger type:** **Weekly at time**. Under **Days**, tick **Mon** to **Fri** (none
+   ticked means every day). Set **Fire at** to `17:00` and **Duration (min)** to `180`.
+4. **Battery action:** **Force charge / discharge / standby**. Set **Direction** to
+   **Force discharge**, **Power unit** to **% of inverter power**, and **Power** to `50`.
+   Leave **Target SoC** empty.
+5. Leave **Priority** at `0`, **If busy** at `override` and the gateway at
+   **Default gateway**.
+6. **Entry conditions:** press **+ row**. Pick **Battery SoC (%)**, operator `>`,
+   value `40`.
+7. **End early when…:** press **+ row**. Pick **Battery SoC (%)**, operator `<=`, press
+   **Lookup**, and pick **Const: min discharge SoC (%)**. Set that constant first under
+   **Settings → Automation → Automation Constants**.
+8. Press **Test** under each block. Each row is marked *passes*, *fails* or *no value*
+   against the live data.
+9. Leave **Enabled** ticked and press **Create Entry**.
+
+What happens next:
+
+- At 17:00 on a weekday the bridge checks the SoC. Above 40 %, it starts the force
+  discharge. Otherwise it logs *gated* and checks again every tick until 20:00, so it can
+  still start later in the window.
+- When the SoC falls to your minimum discharge SoC, the exit condition closes the window
+  and the force is released. The schedule does not fire again until tomorrow's window.
+- At 20:00 the window closes and the bridge releases the force if it is still running.
+
+!!! warning "For a force action, use a trigger with Fire at and Duration"
+    In 0.5.2 and earlier a force command also stops after the schedule's **Duration (min)** (#160). A
+    **Recurring windows** schedule still has that value, although the form hides it, and
+    a new schedule starts with 90. So a force in a three-hour recurring window stops after
+    90 minutes. Use **Daily at time** or **Weekly at time** for force actions.
+
+To check it before the window opens, open the card's **⋮** menu and choose
+**Test against live**. It says *Would fire* or *Would not fire*, with the reason and each
+row's live value.
+
+## The schedule list
+
+![The Schedules view: a schedule card with Explain, Edit, Turn on and the ⋮ menu](../images/scheduler/18-using-schedules-from-ha.png)
+
+Each schedule is a card. It shows:
+
+- the name, the fire time and duration, the recurrence in words and the number of
+  conditions;
+- **Next:** when it fires next, or *disabled*;
+- **● active** while its window is open, and **On** or **Off**;
+- the battery action (or *No gateway action*) and the number of HA actions;
+- the last result, with its date.
+
+Above the cards, **N active now** counts the running schedules. The **All / Enabled /
+Disabled** buttons filter the list; a note says how many are hidden.
+
+| Control | What it does |
+|---|---|
+| **Explain** | A plain-language summary of what the schedule will do, at three levels: **min**, **medium** and **full**. |
+| **Edit** | Opens the form. If the schedule is running, saving asks first, then applies the change to the window in progress. |
+| **Turn on** / **Turn off** | Enables or disables the schedule. See the warning below. |
+| **Stop** | Shown while the schedule is active. Releases the force command this schedule started. The schedule stays enabled. |
+| **⋮ → Test against live** | Evaluates the conditions against live values, without acting. |
+| **⋮ → Run now** | Runs the actions immediately, ignoring the window. Asks first. See [Run now, Stop, Pause and Resume](#run-now-stop-pause-and-resume). |
+| **⋮ → Duplicate** | Opens a copy in the form, named "Copy of …", with **Enabled** unticked. It is saved as a new schedule. |
+| **⋮ → Delete** | Removes the schedule, after asking. |
+
+!!! note "Before 0.5.2, Turn on / Turn off reset a schedule's settings"
+    Up to 0.5.1 the **Turn on** / **Turn off** button saved only part of the schedule: the
+    trigger type, time windows, days and months, date range, exit conditions, hold,
+    priority, **If busy**, **restore on exit** and **gateway scope "all"** went back to
+    their defaults. Saving from the form also lost the last two. 0.5.2 fixed both: a save
+    now changes only what it sends (#157). **If you used the button before 0.5.2, check
+    the schedule's settings.**
+
+## Timeline
+
+![Planned windows on the Timeline view](../images/scheduler/17-working-with-schedules.png)
+<!-- screenshot needed: the Timeline view, with the SoC line, mode band, fire markers and Planned windows -->
+
+The **Timeline** view shows today, from 00:00 to 24:00:
+
+- a band along the top coloured by the operating mode the gateway actually ran;
+- the battery SoC as a line;
+- dashed markers where a schedule fired, exited, was gated or failed;
+- a line at the current time.
+
+Below it, **Planned windows** lists each enabled schedule's windows for today as a bar.
+Schedules with no fixed daily window (every N minutes, cron, always) are not drawn, nor
+are schedules the calendar excludes today.
+
+## History
+
+<!-- screenshot needed: the History view, with the status filter chips and a few events -->
+
+The **History** view is the activity log: every decision the scheduler made, newest
+first. Times are in bridge-host time.
+
+The chips at the top filter the list. **all** shows everything, **battery** shows battery
+events (force commands, and external control by a VPP), and there is one chip per status present. Click a chip again to clear it.
+
+| Status | Meaning |
+|---|---|
+| created, updated, enabled, disabled, deleted | A change to the schedule. |
+| fired | The actions ran and succeeded. |
+| gated | The window was open but the entry conditions failed. Names the failing rows (up to two) and their live values. Logged once a day. |
+| waiting | The conditions are met and the hold is counting down. Also *If busy = wait*. |
+| deferred | Another schedule won the gateway, or *If busy = defer* skipped it. Names the winner. |
+| exit | The window closed: "exit condition met" or "window closed". |
+| error | An action failed. Says which attempt, and when it will retry. |
+| unknown | The bridge cannot tell whether the write landed. Not retried. |
+| missed | The window closed with no successful run. |
+| coalesced | A run left open by downtime was folded into the current run. |
+| manual | **Run now**. |
+| stopped, paused, resumed | **Stop**, or the pause and resume API calls. |
+| dispatch-start, dispatch-end, vpp-start, vpp-stop | A force command started or ended, or external (VPP) control started or stopped. Shown under the **battery** chip. |
+
 ---
 
 ## 1. Trigger — when the window opens
@@ -58,11 +244,12 @@ A rule that is blocked by one of these reports why — "not one of its days of t
 
 ![The Scheduler tab's note that schedules run on the poll tick](../images/scheduler/03-how-fast-tick-note.png)
 
-The scheduler is driven by the poll loop, so **a rule cannot react faster than the bridge
-reads the gateway**. The tick cadence is its own setting (`scheduler_tick_s`, default 15
-seconds) rather than being derived from the poll interval, and the UI validates that a
-window is long enough to be observable. The Scheduler tab says "Schedules run on the poll
-tick" for this reason.
+The scheduler ticks on its own cadence (`scheduler_tick_s`, default 15 seconds, held
+between 5 and 60 seconds so a one-minute window cannot be stepped over). But it reads
+the values the poller last stored, so **a rule cannot react faster than the bridge reads
+the gateway**. The Scheduler tab says "Schedules run on the poll tick" for this reason.
+A gateway whose stored values are older than three poll intervals (at least 90 seconds)
+is not evaluated at all.
 
 ### Which clock
 
@@ -192,7 +379,21 @@ Contention is per **resource**, not per gateway. This matters: `force`, `set_mod
 `reserve_soc` contend with each other because they are one behaviour, whereas a rule that
 only sends a notification claims nothing and never contends. A wildcard smart-circuit
 claim is merged with the specific-circuit claims on the same gateway before a winner is
-picked, so two rules that genuinely fight cannot each "win" their own group.
+picked, so two rules that genuinely fight cannot each "win" their own group. On a tie in
+priority, the **older** schedule wins, so renaming a schedule never changes the winner.
+
+**If busy** — what a schedule with a **force** action does when another schedule's force
+command is already running on the battery:
+
+| If busy | What happens |
+|---|---|
+| `override` (default) | Takes control and sends its own force command. |
+| `defer` | Skips this occurrence. Logged as *deferred*. |
+| `wait` | Logs *waiting* and tries again next tick, while its window is open. |
+
+**If busy** looks at the force commands the bridge has recorded as running: those
+started by other schedules, and one started from the **Battery Control** widget on the
+Control tab.
 
 ---
 
@@ -271,7 +472,10 @@ At the closing edge the bridge:
 
 **Restore on exit** is opt-in on purpose: "leave it where the rule left it" is a
 legitimate intent, and turning restoration on by default would silently change what
-existing rules do.
+existing rules do. Today it covers the operating mode. The form has no control for it:
+set `"restore_on_exit": true` through the API (see
+[Using schedules from Home Assistant](#7-using-schedules-from-home-assistant)). Saving
+the schedule from the form afterwards turns it off again.
 
 A rule whose exit condition already holds will not *start*; it reports "exit condition
 already holds".
@@ -292,11 +496,10 @@ already holds".
   returns a trace with *one row per leaf*: the sensor, the operator, the resolved
   right-hand side, the live value and the result. There is no short-circuiting during a
   test, so you see every leaf, not just the first failure.
-- **Run now** — fire the action immediately. **Stop** ends a running dispatch.
-  **Pause / Resume** suspends a rule without deleting it. **Duplicate** copies it.
-- **Planned windows** — a 24-hour timeline bar of today's enabled windows per rule, with
-  the current time marked. Rules with no fixed daily window (`interval`, `cron`,
-  `always`) do not appear on it, and nor do rules the calendar excludes today.
+- **Run now**, **Stop**, **Duplicate** — see [The schedule list](#the-schedule-list) and
+  [Run now, Stop, Pause and Resume](#run-now-stop-pause-and-resume). Pause and Resume
+  are API calls only; the tab has no button for them.
+- **Planned windows** — see [Timeline](#timeline).
 - **The log explains itself.** Besides fired and exit events, the engine records a
   `gated` event — *once a day*, not every tick — naming the first failing leaf and its
   live value, so "why did my rule do nothing?" has an answer in the UI.
@@ -307,6 +510,73 @@ already holds".
   separating errors (a missing name, a `fire_at` that is not `HH:MM`, an unknown action)
   from warnings (a gateway or notify device that does not exist here, which you fix after
   import).
+
+---
+
+## Run now, Stop, Pause and Resume
+
+| Control | Where | What it does |
+|---|---|---|
+| **Run now** | **⋮** menu, or `POST /api/schedules/{id}/run` | Runs the battery action and the on-entry HA actions immediately. It ignores the window **and the entry conditions**; each HA action's own guard still applies. A force command runs for the schedule's **Duration (min)**; with no duration it runs until you release it or it reaches its target SoC. Exit conditions do not apply. Logged as *manual*. |
+| **Stop** | Card button while active, or `POST /api/schedules/{id}/stop` | Releases the force command this schedule started. The schedule stays enabled. If it owns no force command, nothing changes and the log says so. Logged as *stopped*. |
+| **Pause** | API only: `POST /api/schedules/{id}/pause` | Releases control but keeps the current run, so you can resume it. Logged as *paused*. |
+| **Resume** | API only: `POST /api/schedules/{id}/resume` | Re-enters a paused run. Refused once its window has closed. Logged as *resumed*. |
+
+To stop a schedule from firing at all, disable it: press **Edit**, untick **Enabled**, and
+press **Save Changes**.
+
+!!! warning "Run now acts for real"
+    Run now does exactly what the schedule does: a mode change, a smart circuit, or a
+    battery force. Use **⋮ → Test against live** first.
+
+## When a run fails, is missed, or the bridge restarts
+
+**A failed action is retried while the window is open.** The bridge waits 30 seconds,
+then doubles the wait after each failure, up to 10 minutes. Each attempt logs *error*
+with the attempt number and the next wait.
+
+**An unknown outcome is not retried.** If the bridge cannot tell whether a write landed
+(for example, the connection dropped mid-write), it logs *unknown* and does not send it
+again. Sending a second force command after an ambiguous first one could dispatch twice.
+Check the battery yourself.
+
+**A window that closes without success is recorded as missed.** Two minutes after the
+window closes, a run that never succeeded is logged as *missed*, with the number of
+attempts. There is no catch-up: a missed run does not fire late.
+
+**After a restart:**
+
+- A schedule that already fired in the current window does not fire again.
+- A schedule that has not yet fired is evaluated afresh. Its hold timer starts again.
+- A force command a restart interrupted is handled by the interrupted-dispatch policy
+  (default: notify you, without touching the battery). See
+  [After a bridge restart mid-dispatch](control.md#after-a-bridge-restart-mid-dispatch).
+- A paused run is not resumed.
+
+**Stale data stops evaluation.** If a gateway's stored values are older than three poll
+intervals (at least 90 seconds), its schedules are not evaluated until fresh data
+arrives.
+
+## Not available in this bridge
+
+The FranklinWH Modbus Bridge's scheduler has some features this bridge does not. Do not
+expect these here:
+
+- **A Release action.** There is no schedule action that only releases. A force command
+  is released at the end of its window, by an exit condition, by **Stop** or by its
+  target SoC.
+- **Release policies and hold-instead-of-release.** At window end a force command is
+  always released. The only option is **restore on exit** (API only).
+- **Site and utility-service targets.** A schedule targets one gateway, or every gateway
+  with gateway scope `all` (API only).
+- **Dispatch verification and re-send.** The bridge does not check that the battery
+  actually moved after a force command, and does not re-send a lost setpoint.
+- **An overshoot guard.** The bridge does not release a force command because the battery
+  ran faster than requested.
+- **Catch-up after an outage.** A missed window is logged, not fired late.
+- **Pause and Resume buttons.** Both exist as API calls only.
+- **Per-schedule export from the card.** **Export** downloads every schedule. To export
+  some, use `GET /api/schedules/export?ids=<id>,<id>`.
 
 ---
 
@@ -393,4 +663,6 @@ Covered in [Multi-gateway and sites](multi-gateway.md), but the short version:
 - An **unbound** rule fires on the **default gateway's** tick only — so it does not run
   once per gateway on a multi-gateway site.
 - A rule with **gateway scope "all"** is evaluated by every gateway on its own tick,
-  producing one run and one resource claim per gateway.
+  producing one run and one resource claim per gateway. The form has no control for
+  this: set `"gateway_scope": "all"` through the API. From 0.5.2, saving the schedule from
+  the form keeps it (before 0.5.2 the form turned it off).

@@ -67,7 +67,7 @@ Everything here except the connection chip and the cog can be turned on or off f
 |---|---|
 | **Gateway selector** | Which aGate every tab is scoped to. Only appears when more than one gateway is registered. |
 | **Connection** | Online / offline for the selected gateway. |
-| **Operating mode** | The active mode. Tap to switch (says "Read-only — enable writes to switch" when writes are off). |
+| **Operating mode** | The active mode. Tap to switch. |
 | **OFF-GRID** | Islanded. Distinguishes `OFF-GRID · OUTAGE` (the grid went) from `OFF-GRID · SIMULATED` (someone asked for it). |
 | **VPP** | The gateway is under external control. |
 | **FORCE** | A battery force dispatch is running. |
@@ -91,7 +91,7 @@ protocol documentation.
 | **Dashboard** | The at-a-glance view, built from ten cards you can individually hide and reorder: State of Charge, Power Flow, Battery, Energy, Energy Flow (the Sankey), Operating Mode (with the per-mode reserves and a **Set** button), Diagnostics, Solar Forecast, Power History and Live Points. |
 | **Battery** | Per-aPower BMS detail — cell voltages, temperatures, pack SoC/SoH, electrical and state readings. Can record a short session and chart cells over time. |
 | **Solar** | Solar production detail. The *forecast* is not here — it is the Solar Forecast card on the Dashboard (see [History and costs](energy-and-costs.md)). |
-| **Smart Circuits** | The aGate's controllable circuits: state now, and on/off control when writes are enabled. |
+| **Smart Circuits** | The aGate's controllable circuits: state now, and on/off control. |
 | **Generator** | Generator status, metrics and configuration. **Hidden entirely unless a genset is present** — the bridge would otherwise show a permanent 0 W. |
 | **Analytics** | Longer-horizon charts from the bridge's own SQLite history. |
 | **Energy Costs** | Period-to-date cost and closed-period history, priced against your tariff. |
@@ -114,6 +114,32 @@ A command console in the browser, for the bridge's CLI-style operations. It is b
 **advanced tools** gate, which is **off by default** and remembered per browser; with the
 gate off, the Terminal entry does not appear and the drawer cannot be opened. Commands
 get an implicit `--host`, and anything that writes requires `--yes`.
+
+### Logs
+
+<!-- screenshot needed: the Logs tab, with the level tiles, filters and table -->
+
+The **Logs** tab shows the bridge's own log lines, newest first, in bridge-host time.
+It refreshes every 10 seconds.
+
+- **Level tiles** — DEBUG, INFO, WARNING, ERROR and CRITICAL, each with its count. Click a
+  tile to show only that level; click it again to clear it.
+- **Search messages…** — filters on the message, source and level.
+- **All sources** and **All levels** — pick one source (logger) or one level.
+- **Time range** — Last 1h, Last 6h, Last 24h (the default), Last 7 days or All time.
+- **Live** / **Paused** — click to stop the 10-second refresh, so the view holds still
+  while you read. Click again to resume.
+- **Export** — downloads the lines currently shown, with your filters, as a `.log` file.
+
+The footer says how many lines are shown, and when the range holds more than were loaded.
+To find a scheduler decision, the Scheduler's **History** view is usually quicker; see
+[Scheduler](scheduler.md#history).
+
+### Sign-in and users
+
+Not available in this bridge. There is no login, no user accounts and no sign-in
+history. Anyone who can reach the web UI or the HTTP API can use all of it, so keep the
+bridge on a trusted network.
 
 ### Settings, by sub-tab
 
