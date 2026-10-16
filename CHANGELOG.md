@@ -11,7 +11,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Turning a schedule on or off no longer wipes its settings.** The on/off switch saved only a few
+  fields and the rest were reset to defaults: the trigger type and windows, calendar days and months,
+  exit conditions, hold time, priority, *If busy*, *restore on exit* and *all gateways*. Saving from
+  the edit form likewise lost *restore on exit* and *all gateways*. A save now changes only what it
+  sends. **If you switched a schedule on or off before this release, check its settings.** (#157)
 
 ## [0.5.1] — 2026-10-16
 
