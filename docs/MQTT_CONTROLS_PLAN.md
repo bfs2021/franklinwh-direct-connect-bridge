@@ -1,6 +1,6 @@
 # Plan: Home Assistant controls over MQTT
 
-Status: **draft**; owner decisions in §4 (partly answered 2026-10-16). Written 2026-10-16 after 0.4.4.
+Status: **agreed** (owner decisions in §4, 2026-10-16). Written 2026-10-16 after 0.4.4.
 
 ## 1. Where it stands (0.4.4)
 
@@ -69,7 +69,7 @@ go-ahead in the session.
 
 1. **No control runs unconfirmed (owner, 2026-10-16).** Grid limits and off-grid stay in the bridge UI.
    The C4 battery command is allowed because choosing the command *is* the explicit action (§3.1).
-2. **C4 here as well as in the Modbus Bridge:** one controller per aGate at a time. Should the bridge
-   refuse a command while another bridge's command is active, if it can detect that?
+2. **C4 alongside the Modbus Bridge: last command wins** (owner, 2026-10-16). The status sensor
+   reports *ended abnormally: overridden* when another controller replaces this bridge's command.
 3. **Off-grid** as an HA control: no (from 1).
-4. **Order:** C1 → C2 → C4?
+4. **Order: C1 → C2 → C4** (owner, 2026-10-16).
