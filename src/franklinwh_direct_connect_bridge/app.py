@@ -2833,7 +2833,11 @@ def create_app() -> FastAPI:
             except Exception:  # noqa: BLE001
                 pubs = []
         else:
-            pubs = [g for g in (get_gateways() or []) if getattr(g, "publish_ha", False)]
+            # A publisher is a gateway that is MEANT to publish or ACTUALLY does: the
+            # publish_ha flag alone was seen False on a mock that was publishing (#98).
+            pubs = [g for g in (get_gateways() or [])
+                    if getattr(g, "publish_ha", False) or getattr(g, "mqtt_connected", False)
+                    or getattr(g, "published_entities", 0)]
         broker_ok = any(bool(getattr(g, "mqtt_connected", False)) for g in pubs)
         no_publisher = not pubs
         # discover_mqtt() already answers "not an add-on" by itself; a second gate here

@@ -225,3 +225,13 @@ def test_bridge_entities_parses_the_template_answer(monkeypatch):
     assert seen["url"].endswith("/api/template") and seen["method"] == "POST"
     assert "Direct Connect Bridge" in seen["template"]       # owned by sw_version
     assert rows == [("sensor.x", ["franklinwh_sn1"]), ("switch.y", ["franklinwh_sn1"])]
+
+
+def test_a_gateway_that_is_actually_publishing_counts_whatever_its_flag_says(ctx, monkeypatch):
+    """Seen on HAOS (0.4.1): a wizard-created mock read publish_ha=False while its publisher
+    was connected and its device was in HA. The check must follow what is happening."""
+    _mqtt_on(monkeypatch)
+    gw = state.register_gateway("m1", "127.0.0.1", "mock", is_mock=True, publish_ha=False)
+    gw.mqtt_connected = True
+    c = _checks(TestClient(app_module.create_app()))
+    assert c["mqtt_broker"]["ok"] is True and c["mqtt_broker"]["state"] == "Connected"
