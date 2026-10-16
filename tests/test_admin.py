@@ -83,3 +83,14 @@ def test_admin_metrics_export_csv_and_json(tmp_path, monkeypatch):
     assert lines[0].startswith("ts,soc,grid_w") and len(lines) == 6   # header + 5 rows
     js = c.get("/api/admin/metrics/export?fmt=json&hours=24").json()
     assert js["count"] == 5
+
+
+def test_admin_metrics_export_uses_start_and_end(tmp_path, monkeypatch):
+    """#145 — a custom range must export what the chart shows, not 'the last N hours'."""
+    c, _ = _client(tmp_path, monkeypatch)
+    now = int(time.time())
+    # samples are at now, now-60 … now-240: a window around the middle three
+    js = c.get(f"/api/admin/metrics/export?fmt=json&start={now - 210}&end={now - 30}").json()
+    assert js["count"] == 3
+    assert all(now - 210 <= r["ts"] <= now - 30 for r in js["rows"])
+    assert c.get(f"/api/admin/metrics/export?fmt=json&start={now}&end={now - 60}").status_code == 422

@@ -5893,15 +5893,24 @@ def create_app() -> FastAPI:
 
     @app.get("/api/admin/metrics/export")
     def api_admin_metrics_export(fmt: str = Query("csv"), hours: int = Query(24),
-                                 gateway: str | None = Query(None)):
-        """Export power samples over the last ``hours`` as CSV or JSON."""
+                                 gateway: str | None = Query(None),
+                                 start: int | None = Query(None),
+                                 end: int | None = Query(None)):
+        """Export power samples as CSV or JSON: between ``start`` and ``end`` (epoch
+        seconds) when both are given, so a custom range exports what the chart shows
+        (#145); otherwise over the last ``hours``."""
         store = db.get_store(get_settings())
         if store is None:
             raise HTTPException(status_code=503, detail="metrics store is off")
         now = int(time.time())
-        start = now - max(1, min(hours, 24 * 90)) * 3600
+        if start is not None and end is not None:
+            if end <= start:
+                raise HTTPException(status_code=422, detail="end must be after start")
+            start = max(start, end - 24 * 90 * 3600)        # same 90-day cap as hours
+        else:
+            start, end = now - max(1, min(hours, 24 * 90)) * 3600, now
         gw = _metrics_gw_key(gateway)
-        rows = store.query(start, now, None, gateway=gw)
+        rows = store.query(start, end, None, gateway=gw)
         cols = ["ts", "soc", "grid_w", "solar_w", "battery_w", "load_w", "generator_w", "mode"]
         stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
         if fmt == "json":
