@@ -149,6 +149,19 @@ def state_payload(summary: dict) -> dict[str, Any]:
     return st
 
 
+def display_precision(e: dict) -> int | None:
+    """Decimals HA should SHOW for a numeric sensor. A real aGate reports SoC as
+    99.789474; HA displayed every digit (#114). None for text sensors."""
+    unit = e.get("unit")
+    if e["key"] == "soc" or unit == "°C":
+        return 1
+    if unit == "W" or unit == "ms":
+        return 0
+    if unit == "kWh":
+        return 2
+    return None
+
+
 def device_name(serial: str) -> str:
     """The Home Assistant DEVICE name: ``FranklinWH Direct <last 8 of serial>``.
 
@@ -212,6 +225,10 @@ def discovery_configs(node: str, device: dict, prefix: str, discovery_prefix: st
             cfg["device_class"] = e["device_class"]
         if e["state_class"]:
             cfg["state_class"] = e["state_class"]
+        prec = display_precision(e)
+        if prec is not None:
+            # Display only: HA keeps the full value in history and statistics (#114).
+            cfg["suggested_display_precision"] = prec
         configs.append((f"{discovery_prefix}/sensor/{node}/{e['key']}/config", cfg))
 
     # Controls. Each gets its own command topic; the publisher subscribes to

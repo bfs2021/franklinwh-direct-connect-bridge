@@ -80,3 +80,17 @@ def test_switch_state_matches_the_discovery_payload():
     sw = [c for t, c in cfgs.items() if "/switch/" in t][0]
     assert sw["state_on"] == "True" and sw["state_off"] == "False"
     assert json.loads(json.dumps({"circuit_1_on": True}))["circuit_1_on"] is True
+
+
+def test_numeric_sensors_carry_a_display_precision():
+    """#114: a real aGate's SoC (99.789474) showed every digit in HA."""
+    cfgs = {t.split("/")[-2]: c
+            for t, c in entities.discovery_configs("n1", entities.device_info("n1", "SN1"),
+                                                   "franklinwh-local", "homeassistant", None)[0]
+            if "/sensor/" in t}
+    assert cfgs["soc"]["suggested_display_precision"] == 1
+    assert cfgs["grid_w"]["suggested_display_precision"] == 0
+    assert cfgs["solar_today_kwh"]["suggested_display_precision"] == 2
+    assert cfgs["ambient_temp_c"]["suggested_display_precision"] == 1
+    assert "suggested_display_precision" not in cfgs["mode"]          # text
+    assert "suggested_display_precision" not in cfgs["battery_status"]  # text

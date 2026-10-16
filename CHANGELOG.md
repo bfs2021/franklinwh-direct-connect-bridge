@@ -11,7 +11,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **State of Charge shows one decimal in Home Assistant**, not six (99.8 %, not 99.789474 %). Power
+  shows whole watts, daily energy two decimals and temperature one. History keeps full precision.
+  (#114)
+- **"Connection Lost" no longer flashes after one slow answer.** Just after the add-on starts, the
+  first page updates wait on a fresh reading from the aGate and can take longer than the page waits.
+  The banner now needs two failures in a row. (#113)
 
 ## [0.4.6] — 2026-10-16
 

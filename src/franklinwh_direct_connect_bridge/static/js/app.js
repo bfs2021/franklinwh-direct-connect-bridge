@@ -1024,6 +1024,7 @@ document.addEventListener('alpine:init', () => {
         state: summary && summary.stale ? 'warn' : 'ok',
         detail: summary && summary.stale ? 'serving stale data' : 'fresh',
       };
+      this._softFail = false;
       if (wasOffline) {
         this._clearRetry();
         this._resumePoll();
@@ -1040,6 +1041,14 @@ document.addEventListener('alpine:init', () => {
     },
 
     _noteConnFail(err) {
+      // One slow or failed answer is not a lost connection: just after a start the
+      // bridge's first summaries wait on a fresh device read and can pass the 15 s
+      // timeout (#113). Only the SECOND consecutive failure declares the bridge offline.
+      if (this.conn.online && !this._softFail) {
+        this._softFail = true;
+        this.conn.lastError = (err && err.message) || String(err);
+        return;
+      }
       if (this.conn.online) {
         this.conn.online = false;
         this.conn.offlineSince = Date.now();
