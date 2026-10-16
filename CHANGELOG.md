@@ -11,7 +11,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Power History and the other charts fill again on add-on installs.** With MQTT publishing on, the add-on
+  stopped recording history, assuming Home Assistant's recorder would keep it. But the bridge's own
+  charts (dashboard Power History, Analytics, costs) read only the bridge's history, so they went empty.
+  This hit every new add-on install since 0.3.3. History is now recorded unless you set
+  `metrics_enabled: false`. The gap from before the update cannot be filled in. (#136)
 
 ## [0.4.9] — 2026-10-16
 

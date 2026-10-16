@@ -13,10 +13,11 @@ def test_metrics_explicit_wins_over_auto(monkeypatch):
     assert metrics_active(Settings(metrics_enabled=False, mqtt_enabled=True)) is False
 
 
-def test_metrics_auto_addon_with_mqtt_off(monkeypatch):
-    # Auto + add-on + MQTT on → OFF (HA recorder covers history via MQTT).
+def test_metrics_auto_addon_with_mqtt_records_history(monkeypatch):
+    # #136: auto + add-on + MQTT on → ON. The bridge's own charts read only the local
+    # store; switching it off emptied Power History on every add-on install.
     monkeypatch.setattr(env, "IS_HA_ADDON", True)
-    assert metrics_active(Settings(metrics_enabled=None, mqtt_enabled=True)) is False
+    assert metrics_active(Settings(metrics_enabled=None, mqtt_enabled=True)) is True
 
 
 def test_metrics_auto_addon_without_mqtt_on(monkeypatch):

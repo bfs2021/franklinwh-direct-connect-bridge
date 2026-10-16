@@ -34,7 +34,7 @@ Nothing needs enabling on the gateway for reads.
 | `read_only` | `true` | Blocks every write, including from the UI. |
 | `allow_writes` | `false` | Permits mode and off-grid changes. Also switchable live from the **Settings** tab. |
 | `ha_notify` | `true` | Send Home Assistant notifications for the events you enable. |
-| `metrics_enabled` | auto | Local SQLite history. **Off by default when MQTT is on** — the HA recorder already stores the published entities, so a second copy is redundant. Set `true` to force it. |
+| `metrics_enabled` | on | Local SQLite history, used by the bridge's own charts. **On unless set to `false`.** |
 | `metrics_retention_days` | — | How long to keep that local history. |
 | `modbus_host` | — | Optional. The aGate's Modbus/SunSpec address, for battery force control. |
 | `modbus_bridge_url` / `fwhai_url` | — | Optional links to the sibling FranklinWH projects. |
