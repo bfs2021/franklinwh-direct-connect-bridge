@@ -578,3 +578,17 @@ def test_the_wizard_listens_and_can_be_reopened_after_finishing():
     body = js[js.index("async reopen()"):js.index("    show() {")]
     # Reopening starts at the beginning, not wherever it was left.
     assert "this.step = 'intent'" in body and "this.history = []" in body
+
+
+def test_publish_yes_turns_on_publishing_for_the_gateways_it_added():
+    """#98 made each gateway's publish flag authoritative. The wizard's "Publish this
+    gateway to Home Assistant? Yes" used to only enable the broker — the gateways it had
+    just added stayed unpublished (their flag defaults off for mocks)."""
+    import pathlib, re
+    js = (pathlib.Path(__file__).resolve().parents[1]
+          / "src/franklinwh_direct_connect_bridge/static/js/setup_wizard.js").read_text()
+    body = js[js.index("async publishYes()"):js.index("publishNo()")]
+    assert "createdIds" in body and re.search(r"publish_ha:\s*true", body)
+    assert body.count("method: 'PATCH'") == 1
+    # every successful add records its id for that
+    assert js.count("this.createdIds.push(d.id)") == 2

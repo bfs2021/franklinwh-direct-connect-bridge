@@ -146,16 +146,24 @@ function mqttTab() {
     },
 
     async unpublish() {
+      let preview = null;
+      try { preview = await (await fetch('api/mqtt/unpublish?dry_run=true' + Alpine.store('app').gwQuery('&'),
+                                         { method: 'POST' })).json(); } catch (e) { /* preview is a nicety */ }
+      const n = preview && preview.would_remove ? preview.would_remove.length : null;
       if (!await this.$store.app.confirmDialog(
-            'Remove all FranklinWH entities from Home Assistant? Their history stays, but the entities disappear until you republish.',
-            { title: 'Clear Home Assistant entities?', danger: true })) return;
+            'Remove THIS gateway from Home Assistant and keep it removed?' +
+            (n != null ? ` ${n} retained topic(s) on the broker will be removed.` : '') +
+            ' Other gateways and other FranklinWH software are not touched. History already in' +
+            ' Home Assistant stays. Republish turns publishing back on.',
+            { title: 'Unpublish this gateway?', danger: true })) return;
       try {
-        const r = await fetch('api/mqtt/unpublish' + Alpine.store('app').gwQuery('?'),
-                              { method: 'POST' });
+        Alpine.store('app').toast('Unpublishing… (waits for the poller to stop)', 'info');
+        const r = await fetch('api/mqtt/unpublish' + Alpine.store('app').gwQuery('?'), { method: 'POST' });
         const d = await r.json();
-        Alpine.store('app').toast(d.detail, d.ok ? 'info' : 'error');
+        Alpine.store('app').toast(d.detail || (d.ok ? 'Unpublished' : 'Unpublish incomplete'),
+                                  d.ok ? 'success' : 'error');
       } catch (e) {
-        Alpine.store('app').toast('Clear failed: ' + e.message, 'error');
+        Alpine.store('app').toast('Unpublish failed: ' + e.message, 'error');
       }
     },
   };
