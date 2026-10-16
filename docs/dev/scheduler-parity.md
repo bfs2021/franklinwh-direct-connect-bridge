@@ -9,6 +9,18 @@ The two bridges' schedulers, compared behaviour by behaviour, so they can be ali
 
 Of the Modbus Bridge's 238 behaviours, this bridge has **74 the same**, **121 that differ**
 and is **missing 55**. It has **83 of its own** (Direct Connect only). 13 more rows compare
+
+!!! warning "Corrections from the Modbus Bridge's code check (2026-10-17)"
+    This page read the Modbus Bridge side from its doc markers. That bridge's session has
+    since checked them against its code (franklinwh-modbus-bridge PR #233):
+
+    - **28 of the 83 "Direct Connect only" rows exist there too**: 17 undocumented, 11
+      documented under other ids. Treat them as *same* or *differs*, not missing there.
+    - Rows TRG-06, TRG-13, TRG-23, HAA-01 and PRI-01 described the Modbus Bridge wrongly; each
+      row carries a note.
+    - TRG-19 (next fire for long intervals) is the **same** bug in both (our #208).
+
+    The counts on this page have **not** been rebased on those corrections yet.
 whole sections of the dependencies and examples pages, which carry no markers.
 
 **How it was built.** Each row is one behaviour id. Ids are shared: where this bridge's page
@@ -235,14 +247,14 @@ a group, the order is a judgement of likelihood times effect, not a measurement.
 | TRG-03 | [triggers](../guide/scheduler/triggers.md) · Fire-based triggers: the active window | yes / tested | yes / untested | same: none |  |  |  |
 | TRG-04 | [triggers](../guide/scheduler/triggers.md) · Recurring windows | yes / tested | yes / untested | same: untested in DC |  |  |  |
 | TRG-05 | [triggers](../guide/scheduler/triggers.md) · Recurring windows | yes / tested | yes / tested | same: none |  |  |  |
-| TRG-06 | [triggers](../guide/scheduler/triggers.md) · Recurring windows | yes / untested | yes / tested | **differs**: DC: each window is its own occurrence (fires once per window) |  | variance: both fire once per window |  |
+| TRG-06 | [triggers](../guide/scheduler/triggers.md) · Recurring windows | yes / untested | yes / tested | **differs**: DC: each window is its own occurrence (fires once per window) Modbus Bridge check (their PR #233): separate windows each fire there too; only back-to-back windows merge. |  | variance: both fire once per window |  |
 | TRG-07 | [triggers](../guide/scheduler/triggers.md) · Recurring windows | yes / tested | yes / untested | same: DC: end <= start wraps |  |  |  |
 | TRG-08 | [triggers](../guide/scheduler/triggers.md) · Recurring windows | yes / untested | yes / untested | **differs**: DC attributes the after-midnight part to the day it opened |  | **behavioural** (battery): the after-midnight part follows the opening day's calendar: a force may run on a day the Modbus Bridge skips |  |
 | TRG-09 | [triggers](../guide/scheduler/triggers.md) · Recurring windows | yes / tested | yes / unclear | **differs**: DC: start == end is a 24-hour window |  | **behavioural** (battery): start = end is open all day: a force runs 24 h | [#198](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/198) |
 | TRG-10 | [triggers](../guide/scheduler/triggers.md) · Recurring windows | yes / untested | yes / untested | **differs**: DC: 24:00 = end of day; unparsable window dropped, empty list falls back to fire_at |  | **behavioural** (battery): an unparsable window falls back to Fire at + duration instead of 00:00 |  |
 | TRG-11 | [triggers](../guide/scheduler/triggers.md) · One-off date window | yes / tested | yes / tested | **differs**: DC: stored days still restrict; form shows windows that are ignored |  | **behavioural** (battery): stored days still restrict a one-off, so it may not fire |  |
 | TRG-12 | [triggers](../guide/scheduler/triggers.md) · One-off date window | yes / tested | yes / tested | same: DC card has no 'passed' label |  |  |  |
-| TRG-13 | [triggers](../guide/scheduler/triggers.md) · One-off date window | yes / untested | yes / untested | **differs**: DC runs past midnight into the next date |  | **behavioural** (battery): an overnight one-off keeps forcing past midnight |  |
+| TRG-13 | [triggers](../guide/scheduler/triggers.md) · One-off date window | yes / untested | yes / untested | **differs**: DC runs past midnight into the next date Modbus Bridge check (their PR #233): an overnight one-off there also runs from 00:00 on its own date. |  | **behavioural** (battery): an overnight one-off keeps forcing past midnight |  |
 | TRG-14 | [triggers](../guide/scheduler/triggers.md) · Daily at time | yes / tested | yes / tested | same: none |  |  |  |
 | TRG-15 | [triggers](../guide/scheduler/triggers.md) · Daily at time | yes / untested | yes / untested | same: form max 1440 |  |  |  |
 | TRG-16 | [triggers](../guide/scheduler/triggers.md) · Weekly at time | yes / tested | yes / tested | **differs**: DC: no days = every day |  | **behavioural** (battery): weekly with no days fires every day (Modbus Bridge: never) |  |
@@ -252,7 +264,7 @@ a group, the order is a judgement of likelihood times effect, not a measurement.
 | TRG-20 | [triggers](../guide/scheduler/triggers.md) · Every N minutes | yes / tested | yes / untested | same: none |  |  |  |
 | TRG-21 | [triggers](../guide/scheduler/triggers.md) · Monthly / calendar | yes / tested | yes / tested | same: none |  |  |  |
 | TRG-22 | [triggers](../guide/scheduler/triggers.md) · Monthly / calendar | yes / tested | yes / untested | **differs**: DC does not validate; day 0/None = no restriction |  | **behavioural** (battery): no range check; day 0 = every day, so an invalid entry fires |  |
-| TRG-23 | [triggers](../guide/scheduler/triggers.md) · Monthly / calendar | yes / untested | yes / untested | **differs**: DC: no day of month = fires every day |  | **behavioural** (battery): monthly with no day fires every day | [#198](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/198) |
+| TRG-23 | [triggers](../guide/scheduler/triggers.md) · Monthly / calendar | yes / untested | yes / untested | **differs**: DC: no day of month = fires every day Modbus Bridge check (their PR #233): monthly with no day fires on the 1st there. |  | **behavioural** (battery): monthly with no day fires every day | [#198](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/198) |
 | TRG-24 | [triggers](../guide/scheduler/triggers.md) · Custom cron | yes / tested | yes / untested | **differs**: DC accepts it; never fires |  | **behavioural** (record): invalid cron saved instead of rejected; never fires in either |  |
 | TRG-25 | [triggers](../guide/scheduler/triggers.md) · Custom cron | yes / untested | yes / untested | same: untested in DC |  |  |  |
 | TRG-26 | [triggers](../guide/scheduler/triggers.md) · Custom cron | yes / tested | yes / tested | same: none |  |  |  |
@@ -383,7 +395,7 @@ a group, the order is a judgement of likelihood times effect, not a measurement.
 | ACT-40 | [actions](../guide/scheduler/actions.md) · What is written | no | yes / untested | Direct Connect only: Up to 5 attempts with sleeps inside one tick; blocks all gateways |  |  | [#197](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/197) |
 | ACT-41 | [actions](../guide/scheduler/actions.md) · What is written | no | yes / unclear | Direct Connect only: UNKNOWN verdict unreachable for scheduler actions |  |  | [#201](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/201) |
 | ACT-42 | [actions](../guide/scheduler/actions.md) · What is written | no | yes / unclear | Direct Connect only: Retry deadline falls to 1 s for Always and zero-duration windows |  |  | [#209](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/209) |
-| HAA-01 | [actions](../guide/scheduler/actions.md) · Home Assistant actions | yes / untested | yes / tested | **differs**: DC saves anything; skips with a reason at run |  | **behavioural** (device/HA): invalid HA actions saved; skipped at run | [#202](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/202) |
+| HAA-01 | [actions](../guide/scheduler/actions.md) · Home Assistant actions | yes / untested | yes / tested | **differs**: DC saves anything; skips with a reason at run Modbus Bridge check (their PR #233): its import skips validation too (their #232), so invalid actions can be saved there as well. |  | **behavioural** (device/HA): invalid HA actions saved; skipped at run | [#202](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/202) |
 | HAA-02 | [actions](../guide/scheduler/actions.md) · Home Assistant actions | yes / untested | yes / untested | **differs**: DC form saves incomplete rows |  | **behavioural** (record): incomplete rows kept and skipped at run with a reason |  |
 | HAA-03 | [actions](../guide/scheduler/actions.md) · When they run | yes / tested | yes / untested | same: DC: after the battery action whatever its result (HAA-07) |  |  |  |
 | HAA-04 | [actions](../guide/scheduler/actions.md) · When they run | yes / tested | yes / untested | same: none |  |  |  |
@@ -451,7 +463,7 @@ a group, the order is a judgement of likelihood times effect, not a measurement.
 | EXT-26 | [exit-and-conflicts](../guide/scheduler/exit-and-conflicts.md) · How a run ends | no | yes / untested | Direct Connect only: bridge watchdog enforces duration and target SoC every 5 s |  |  |  |
 | EXT-27 | [exit-and-conflicts](../guide/scheduler/exit-and-conflicts.md) · Release policy | no | yes / tested | Direct Connect only: restore_on_exit captures mode before first attempt |  |  |  |
 | EXT-28 | [exit-and-conflicts](../guide/scheduler/exit-and-conflicts.md) · Release policy | no | yes / tested | Direct Connect only: PUT merge keeps restore_on_exit |  |  | [#157](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/157) |
-| PRI-01 | [priorities](../guide/scheduler/priorities.md) · Priorities and conflicts | yes / untested | yes / untested | **differs**: DC: any integer, free-text conflict (unknown = override), default override |  | **behavioural** (battery): default If busy = override (there: defer); unknown values act as override |  |
+| PRI-01 | [priorities](../guide/scheduler/priorities.md) · Priorities and conflicts | yes / untested | yes / untested | **differs**: DC: any integer, free-text conflict (unknown = override), default override Modbus Bridge check (their PR #233): its import skips validation (their #232); the default and unknown-value handling are as their code, not their old markers. |  | **behavioural** (battery): default If busy = override (there: defer); unknown values act as override |  |
 | PRI-02 | [priorities](../guide/scheduler/priorities.md) · Entries on the same target | yes / tested | yes / tested | **differs**: DC: contest only among entries ready on the same tick, per resource |  | **behavioural** (battery): contest only within a tick, per resource |  |
 | PRI-03 | [priorities](../guide/scheduler/priorities.md) · Entries on the same target | yes / untested | yes / untested | **differs**: DC: later-ready entries judged only by If busy; override (default) pre-empts regardless of priority; mode entries never checked |  | **behavioural** (battery): a later-ready force overrides a running one whatever the priority | [#196](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/196) |
 | PRI-04 | [priorities](../guide/scheduler/priorities.md) · Entries on the same target | yes / untested | yes / untested | same: none (untested in both) |  |  |  |
