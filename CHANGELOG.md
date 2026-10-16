@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.5.5] — 2026-10-17
+
+Hotfix: a schedule's Off now means off for smart circuits and the off-grid action.
+
 ### Fixed
 
 - **A schedule set to turn a smart circuit Off no longer turns it On, and "reconnect to the grid"
