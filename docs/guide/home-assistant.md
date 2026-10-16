@@ -132,8 +132,30 @@ read live, and all five are on by default:
 | `diagnostic` | Diagnostic |
 | `controls` | Controls (writable) |
 
-Turning a group off reduces both MQTT traffic and the number of HA entities. The MQTT tab
-also offers **Republish** (re-send every discovery config) and **Clear HA** (unpublish).
+Turning a group off reduces both MQTT traffic and the number of HA entities.
+
+### Republish and Clear HA: what they do (0.4.8)
+
+Both buttons are on the **MQTT** tab and act on the **gateway selected at the top**, not on
+every gateway.
+
+| Button | What it does | What it does **not** do |
+|---|---|---|
+| **Republish** | Sends this gateway's discovery configs again, using the groups that are switched on. Use it when Home Assistant has lost an entity, or after changing groups. | It does not remove anything first, so it does not clear leftovers. |
+| **Clear HA** (unpublish) | Sends an empty retained discovery config for each of this gateway's entities, so Home Assistant removes them. Their history stays in HA. | It does **not** turn publishing off. The next time the add-on restarts or reconnects to the broker, the entities come back. It leaves the state and availability messages on the broker, and it does not check that the removal worked. Entities from other gateways, or from other FranklinWH software, are untouched, whatever the confirmation dialog says. |
+
+To stop a gateway publishing **for good**, edit the gateway in **Settings → Gateways** and switch
+off *Publish to Home Assistant*, then use **Clear HA**.
+
+A proper **Unpublish**, one that stays off and removes everything this bridge published, with a
+check that it was removed, is planned (#119).
+The Modbus Bridge and FWHAI already have one.
+
+### Why Operating Mode appears twice
+
+There is an **Operating Mode** sensor (read-only) and an **Operating Mode** select (the control).
+Both show the same value. The sensor is redundant. Removing it removes a Home Assistant entity,
+so it will go with the planned clean-up work, not in a quick fix.
 
 ---
 
