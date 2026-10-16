@@ -175,7 +175,7 @@ There is no per-event switch for these.
 A schedule can send to a notification device, either as its main action or as one of its
 **Home Assistant actions**. Home Assistant actions run on entry, on exit, or both, and
 each can have its own condition (**guard**). See
-[Scheduler → Home Assistant actions](scheduler.md#home-assistant-actions).
+[Scheduler → Home Assistant actions](scheduler/actions.md#home-assistant-actions).
 
 In the schedule editor: **Home Assistant actions (optional) → + notify**, then pick the
 device, and set a title and a message. `%sensor.id%` in the text is replaced with the

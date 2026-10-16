@@ -237,9 +237,10 @@ without configuring anything.
 
 Browse an instance's entities (filterable by instance and domain) and **expose** the ones
 you want. Exposing is what makes an entity available to the Scheduler as
-`ha:<instance>:<entity_id>` — see [Scheduler](scheduler.md). Only exposed entities are
-read each tick, which is the whole point: polling a large HA install every tick would
-hammer it.
+`ha:<instance>:<entity_id>` — see
+[Scheduler → Conditions](scheduler/conditions.md#home-assistant-entities). Only exposed
+entities are offered and evaluated. (Each scheduler tick still fetches the instance's state
+list and keeps the exposed ones.)
 
 ### Notification devices
 

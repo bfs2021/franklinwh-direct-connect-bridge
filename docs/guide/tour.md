@@ -95,7 +95,7 @@ protocol documentation.
 | **Generator** | Generator status, metrics and configuration. **Hidden entirely unless a genset is present** — the bridge would otherwise show a permanent 0 W. |
 | **Analytics** | Longer-horizon charts from the bridge's own SQLite history. |
 | **Energy Costs** | Period-to-date cost and closed-period history, priced against your tariff. |
-| **Scheduler** | Time-based automation. See [Scheduler](scheduler.md). |
+| **Scheduler** | Time-based automation. See [Scheduler](scheduler/index.md). |
 | **Control** | Everything you can *do* to the selected gateway, in one place, plus the audit trail. See [Control](control.md). |
 | **Grid & Inverter** | The grid power-plane limits (import/export enables, soft and hard limits). Advanced, and the write is **unverified** — see [Control](control.md). |
 | **Home Assistant** | HA instances, which HA entities to expose to the scheduler, notification devices, and a dashboard-card YAML generator. |
@@ -133,7 +133,7 @@ It refreshes every 10 seconds.
 
 The footer says how many lines are shown, and when the range holds more than were loaded.
 To find a scheduler decision, the Scheduler's **History** view is usually quicker; see
-[Scheduler](scheduler.md#history).
+[Scheduler → Outcomes and audit](scheduler/outcomes.md#activity-log-results).
 
 ### Sign-in and users
 

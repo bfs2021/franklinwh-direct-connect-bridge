@@ -45,7 +45,12 @@ plugins:
       redirect_maps:
         docs/guide/tour.md: guide/tour.md
         docs/guide/home-assistant.md: guide/home-assistant.md
-        docs/guide/scheduler.md: guide/scheduler.md
+        docs/guide/scheduler.md: guide/scheduler/index.md
+        docs/guide/scheduler-troubleshooting.md: guide/scheduler/dependencies.md
+        # The Scheduler page became a section (docs/guide/scheduler/). guide/scheduler.md and
+        # guide/scheduler/index.md share the URL /guide/scheduler/, so only the troubleshooting
+        # page needs a redirect. Old #anchors keep working: the new pages carry stubs for them.
+        guide/scheduler-troubleshooting.md: guide/scheduler/dependencies.md
         docs/guide/control.md: guide/control.md
         docs/guide/energy-and-costs.md: guide/energy-and-costs.md
         docs/guide/multi-gateway.md: guide/multi-gateway.md
@@ -111,8 +116,19 @@ nav:
       - guide/tour.md
       - guide/control.md
       - guide/battery-dispatch.md
-      - guide/scheduler.md
-      - guide/scheduler-troubleshooting.md
+      - Scheduler:
+          - guide/scheduler/index.md
+          - guide/scheduler/concepts.md
+          - guide/scheduler/triggers.md
+          - guide/scheduler/conditions.md
+          - guide/scheduler/actions.md
+          - guide/scheduler/targets.md
+          - guide/scheduler/exit-and-conflicts.md
+          - guide/scheduler/priorities.md
+          - guide/scheduler/outcomes.md
+          - guide/scheduler/restarts-and-clock.md
+          - guide/scheduler/dependencies.md
+          - guide/scheduler/examples.md
       - guide/home-assistant.md
       - guide/ha-setup-and-notifications.md
       - guide/multi-gateway.md
@@ -126,6 +142,8 @@ nav:
       - developers/mqtt.md
       - developers/reading-home-assistant.md
       - developers/scheduler-integration.md
+      - Scheduler test plan: dev/scheduler-test-plan.md
+      - Scheduler parity: dev/scheduler-parity.md
   - Policies & plans:
       - TEST_POLICY.md
       - PARITY_GAP.md

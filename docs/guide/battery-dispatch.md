@@ -1,6 +1,6 @@
 # Battery dispatch: best practices
 
-[Back to the guide index](index.md) · [Control and write safety](control.md) · [Scheduler](scheduler.md)
+[Back to the guide index](index.md) · [Control and write safety](control.md) · [Scheduler](scheduler/index.md)
 
 A **force** command (Force Charge, Force Discharge or Force Standby) tells the battery
 exactly what to do, overriding the aGate's own operating mode until it is released. This
@@ -24,14 +24,14 @@ page.
 
 Leave the aGate in its default operating mode, **Self-Consumption** or **Emergency
 Backup**. Do not use the aGate's **Time-of-Use** (TOU) mode to time charging and
-discharging. Use the bridge's [Scheduler](scheduler.md) instead: a **force** action in a
+discharging. Use the bridge's [Scheduler](scheduler/index.md) instead: a **force** action in a
 window, with conditions that decide whether it starts and exit conditions and a target
 SoC that end it.
 
 This is the owner's recommendation for this bridge. The reasons, from the code:
 
 - The Scheduler can gate a force on live data, such as SoC, a price or a Home Assistant
-  entity, and can end it early. See [Scheduler](scheduler.md).
+  entity, and can end it early. See [Scheduler](scheduler/index.md).
 - The aGate's TOU schedule cannot be written locally. `GET /api/capabilities` lists it
   as cloud-only ("1407 accepts the write and discards it"; see the
   [guide index](index.md#the-one-thing-to-understand-first)).
@@ -80,7 +80,7 @@ change it, and you should not need to.
 | From | How |
 |---|---|
 | **Control → Battery Control** | Pick **Force Charge**, **Force Discharge** or **Force Standby** from **Command**, with power (watts or percent of the rated rate), a duration and an optional target SoC. It asks for confirmation. |
-| **A schedule** | A `force` action. It starts when the window opens and the conditions hold. See [Scheduler → The force action in detail](scheduler.md#the-force-action-in-detail). |
+| **A schedule** | A `force` action. It starts when the window opens and the conditions hold. See [Scheduler → The force action in detail](scheduler/actions.md#battery-actions-force-charge-and-force-discharge). |
 | **The API** | `POST /api/battery/command`. Not confirm-gated; see [Control](control.md#which-gate-applies-to-what). |
 
 ### Time the window with Daily or Weekly, not Recurring windows
