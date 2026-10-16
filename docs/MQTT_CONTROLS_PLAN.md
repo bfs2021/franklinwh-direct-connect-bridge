@@ -1,6 +1,6 @@
 # Plan: Home Assistant controls over MQTT
 
-Status: **draft for the owner's decisions** (§4). Written 2026-10-16 after 0.4.4.
+Status: **draft**; owner decisions in §4 (partly answered 2026-10-16). Written 2026-10-16 after 0.4.4.
 
 ## 1. Where it stands (0.4.4)
 
@@ -42,17 +42,34 @@ on the same aGate, 2026-10-16) shows what the other two bridges offer:
 | **C1** | Smart-circuit switch **state**: read 1409 in the poll's own session and publish `circuit_N_on`. Run status as text. | G2 read-only: show the switch state follows the app; measure the poll time added |
 | **C2** | Reserve SoC numbers (one per mode), published **only when the cloud provider is configured**. State from the provider's read. | G2 write: plan, read back **and** the app showing the new value, restore the original |
 | **C3** | Grid export/import limits: numbers in kW plus "unlimited" switches, if the owner allows unconfirmed writes from HA (§4) | G2 write: read-back, cloud witness, restore; outside 17:30–20:00 |
-| **C4** | Battery command / dispatch (select plus power, duration, target), if the owner wants it in this bridge at all (§4) | G2 write: **measured** battery W against the command, revert timer, restore mode |
+| **C4** | **Battery command, the same pattern as the Modbus Bridge and FWHAI** (owner, 2026-10-16). See §3.1. | G2 write: **measured** battery W against the command, revert timer, restore the mode; every status state seen on hardware |
 | — | Off-grid as an HA control | only if the owner decides (§4) |
 
 All of them: Modbus off on the real aGate, read-only by default, real hardware only on the owner's
 go-ahead in the session.
 
+### 3.1 C4 battery command: the shape
+
+- **`select` Battery Command**: Not Active / Force Charge / Force Discharge / Force Standby / Release.
+  **Choosing a command is the action.** It is the deliberate step that stands in for a confirm dialog.
+- **`number` parameters, staged only.** Changing one sends nothing to the aGate; it is used by the next
+  command.
+  - Power W, with Max Charge / Max Discharge sized from the **measured** inverter rating, not an assumed 5 kW;
+  - Power %;
+  - Duration (0 = no limit, which uses the bridge's revert timer);
+  - Target SoC (0 = disabled).
+- **Feedback** (`sensor`s), so the outcome is visible at once and an automation can act on it:
+  - *Command status*: `accepted` → `in progress` → `completed`, or `rejected` (with the reason) or
+    `ended abnormally` (with the reason: reverted by timer, overridden by the aGate or app, connection lost);
+  - *Active command*, with the time it started and its remaining duration;
+  - *Last result*: the measured battery W against the commanded W.
+- State comes from reads (the aGate's own state plus measured power), never from "the command was sent".
+
 ## 4. Decisions for the owner
 
-1. **C3 and C4:** may Home Assistant automations change grid limits and dispatch the battery **without
-   a confirm**? If not, those stay in the bridge UI only.
-2. **C4 at all:** the Modbus Bridge already offers battery commands. Offer them here too, or leave them
-   there to avoid two controllers on one aGate?
-3. **Off-grid** as an HA control: yes or no?
+1. **No control runs unconfirmed (owner, 2026-10-16).** Grid limits and off-grid stay in the bridge UI.
+   The C4 battery command is allowed because choosing the command *is* the explicit action (§3.1).
+2. **C4 here as well as in the Modbus Bridge:** one controller per aGate at a time. Should the bridge
+   refuse a command while another bridge's command is active, if it can detect that?
+3. **Off-grid** as an HA control: no (from 1).
 4. **Order:** C1 → C2 → C3 → C4 as above?
