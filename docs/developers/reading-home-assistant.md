@@ -131,16 +131,16 @@ them:
 | State | Becomes |
 |---|---|
 | `on`, `true`, `open`, `home` | `1` |
-| `off`, `false`, `closed`, `away`, **`unavailable`**, **`unknown`** | `0` |
+| `off`, `false`, `closed`, `away` | `0` |
+| `unavailable`, `unknown`, an empty state | no reading: the entity is left out of the snapshot |
 | a number, such as `"12.5"` | `12.5` |
 | anything else | the string, unchanged |
 
-!!! warning "Unavailable reads as 0, not as missing"
+!!! note "Unavailable is treated as missing (from 0.5.4)"
     The Scheduler's rule is that a condition on a missing sensor is false
-    (`evaluate()` in `scheduler.py`). But an entity that is `unavailable` or `unknown`
-    is not missing: it is coerced to `0`. So `ha:...:sensor.price < 10` is **true**
-    while the price sensor is unavailable. Guard against it, for example with a second
-    condition on a sensor that is never 0 when healthy.
+    (`evaluate()` in `scheduler.py`). From 0.5.4 an entity that is `unavailable` or
+    `unknown` is treated the same way. Before 0.5.4 it was coerced to `0`, so
+    `ha:...:sensor.price < 10` was **true** while the price sensor was down (#167).
 
 **When Home Assistant cannot be reached**, `ha_snapshot()` catches the error and skips
 that instance (`except Exception: continue`). Its sensors are then missing from the

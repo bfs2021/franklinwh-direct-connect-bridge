@@ -28,7 +28,7 @@ on 2026-10-17.
 
 Some statements were also checked live, with read-only `GET` requests only, against a
 Home Assistant OS test VM running the add-on. The VM's `/api/version` reported
-**0.5.3**, a pre-release build of the open 0.5.3 batch (PR #164), with `source_sha`
+**0.5.3** (then a pre-release build of PR #164), with `source_sha`
 `unknown`. Those statements say so. Anything else is from reading the code and is
 **not verified live**.
 

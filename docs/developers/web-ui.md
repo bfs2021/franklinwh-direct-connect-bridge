@@ -178,17 +178,16 @@ To get the same thing from your own code:
 curl -s "http://<bridge-host>:8101/api/health/link"
 ```
 
-!!! note "Link & load, coming in 0.5.3"
-    The open 0.5.3 batch (PR #164, not yet in `main`) adds a **Link & load** card to the
+!!! note "Link & load (from 0.5.3)"
+    0.5.3 (PR #164) added a **Link & load** card to the
     **Health** tab, served by `GET /api/diagnostics/link`. It shows a timed ping, a timed
     connect to port 9000, how many connections this bridge holds to the aGate on :9000
     and to the Modbus TCP Server (aGate :502) (counted from existing sockets, never
     opened), and the bridge's CPU, memory, threads and open files. On that branch the
     card is an inline component: `x-data="{ d: null, busy: false, err: '', async load()
     {...} }"`, calling `fetch('api/diagnostics/link' + $store.app.gwQuery('?'))`. It loads
-    only when you press **Check**, with no timer. This is read from the PR branch.
-    The endpoint is in the 0.5.3 build on the test VM's schema, but was not called, because it
-    pings the aGate.
+    only when you press **Check**, with no timer. On the test VM (0.5.3) it reported a
+    mock as "not probed" and showed the bridge's CPU and memory.
 
 ---
 

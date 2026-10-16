@@ -36,7 +36,8 @@ curl -s http://<bridge-host>:8101/openapi.json -o openapi.json
 **Verified live**, 2026-10-17, read-only `GET`s on the add-on in the test VM (version
 0.5.3): `/docs` and `/redoc` returned 200, and `/openapi.json` returned 200 with 233
 operations. The schema generated from `main` (0.5.2) has 232. The extra one is
-`GET /api/diagnostics/link`, which arrives with the open 0.5.3 batch (PR #164).
+`GET /api/diagnostics/link`, added in 0.5.3 (PR #164). The endpoint table is regenerated
+from 0.5.5.
 
 ### Under Home Assistant ingress
 

@@ -299,11 +299,10 @@ Checked with `gh issue view` on 2026-10-17. All four are open.
 
 Also worth knowing:
 
-- **An unavailable price reads as 0.** `_coerce()` maps `unavailable` and `unknown` to
-  `0`, so `price < 10` is **true** while the price sensor is unavailable. Checked on the
-  local copy. If 0 is not a real price for you, add a condition such as
-  `{"sensor": "ha:<instance_id>:sensor.electricity_price", "op": ">", "value": 0}`. A
-  price that can genuinely be 0 or negative needs a separate availability check.
+- **An unavailable price has no value.** From 0.5.4, `_coerce()` returns no reading for
+  `unavailable` and `unknown`, and `ha_snapshot()` leaves the entity out, so every condition
+  on it is false. Before 0.5.4 they read as `0`, which made `price < 10` true while the price
+  sensor was down (#167, fixed in 0.5.4).
 - **Home Assistant unreachable means no fire.** If the `GET /api/states` fails, the
   Home Assistant sensors are missing for that tick, and a missing sensor is false.
 - **The tick is 15 seconds, the data is a poll old.** Gateway values are as fresh as the
