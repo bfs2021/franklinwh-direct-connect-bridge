@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.7] — 2026-10-16
+
+Tidier numbers in Home Assistant, and no false "Connection Lost" at start-up.
+
 ### Fixed
 
 - **State of Charge shows one decimal in Home Assistant**, not six (99.8 %, not 99.789474 %). Power
