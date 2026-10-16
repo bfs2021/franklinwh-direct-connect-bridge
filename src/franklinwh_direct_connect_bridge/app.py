@@ -335,6 +335,7 @@ class SetModeReq(BaseModel):
 class GridStatusReq(BaseModel):
     status: str                         # cloud GridStatus name/value: NORMAL/DOWN/OFF (0/1/2)
     soc: int = 5                        # floor SoC % to hold while islanded
+    confirm: bool = False               # off-grid is consequential: same rule as /api/offgrid
 
 
 class SmartCircuitStateReq(BaseModel):
@@ -4388,8 +4389,13 @@ def create_app() -> FastAPI:
     def api_cloud_grid_status(req: GridStatusReq, gateway: str | None = Query(None)):
         """Cloud ``set_grid_status``. Parses ``status`` against the cloud GridStatus
         names/values (NORMAL=0 / DOWN=1 / OFF=2); ``on = status != NORMAL`` → local
-        set_offgrid (1723) with ``soc`` as the off-grid floor."""
+        set_offgrid (1723) with ``soc`` as the off-grid floor.
+
+        Needs ``confirm`` (428 otherwise), exactly as ``POST /api/offgrid``: this route
+        islands or reconnects the site, and it used to do so with only the write check,
+        which always passes (GHSA-7jmj-vj3g-q2m3)."""
         _guard_writes()
+        _guard_consequential(req.confirm, "go off-grid / reconnect (cloud-compatible route)")
         host = _gw_host(gateway)   # SAFETY: the write must hit the SELECTED gateway
         try:
             value = _grid_status_value(req.status)

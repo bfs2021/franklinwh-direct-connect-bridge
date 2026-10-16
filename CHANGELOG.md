@@ -11,7 +11,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Security
+
+- **Taking the site off-grid always needs a confirmation.** One API route could switch the site off-grid
+  or back without the confirmation the Off-grid control requires. It now requires it too.
 
 ## [0.4.5] — 2026-10-16
 
