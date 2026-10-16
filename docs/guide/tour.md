@@ -6,6 +6,8 @@
 
 ## First run: the setup wizard
 
+![The setup wizard's first step: connect an aGate, explore with a mock, or set it up yourself](../images/tour/01-first-run-wizard.png)
+
 The first time you open a bridge with nothing configured, a modal walks you through the
 essentials. It waits for the legal disclaimer, and you can close it at any point — closing
 records "skipped", which stops the prompt and disables nothing.
@@ -33,6 +35,8 @@ is already satisfied, so a second pass shows current state rather than blank fie
 
 ## Getting around
 
+![Topbar cog → Navbar: show, hide and reorder tabs](../images/tour/03-getting-around.png)
+
 The bridge has one navigation registry and renders it two ways. On a wide screen you get
 the **sidebar**; below roughly 768 px you get a **bottom bar** that fits as many tabs as
 the width allows (about one per 64 px, minimum four) and puts the rest under **More**.
@@ -54,6 +58,8 @@ shared between phone and desktop.
 
 ## The top bar
 
+![The top bar with the gateway selector open](../images/tour/04-the-top-bar.png)
+
 Everything here except the connection chip and the cog can be turned on or off from
 **Topbar cog → Centre indicators / Right buttons**.
 
@@ -73,6 +79,8 @@ Everything here except the connection chip and the cog can be turned on or off f
 | **Refresh · theme · cog** | Re-poll, light/dark and accent, and the preferences popover. |
 
 ## The tabs
+
+![The Dashboard tab with the sidebar listing every tab](../images/tour/05-the-tabs.png)
 
 Seventeen tabs, from the registry in `static/js/app.js`. Two entries in the nav are not
 tabs at all: **Terminal** opens a console drawer, and **Guide** opens the bundled
@@ -100,12 +108,16 @@ protocol documentation.
 
 ### Terminal
 
+![The Terminal drawer, shown once Advanced tools is on](../images/tour/06-terminal.png)
+
 A command console in the browser, for the bridge's CLI-style operations. It is behind the
 **advanced tools** gate, which is **off by default** and remembered per browser; with the
 gate off, the Terminal entry does not appear and the drawer cannot be opened. Commands
 get an implicit `--host`, and anything that writes requires `--yes`.
 
 ### Settings, by sub-tab
+
+![Settings → General, with the other sub-tabs along the top](../images/tour/07-settings-by-sub-tab.png)
 
 - **General** — runtime (add-on or standalone), connection (host, port, timeout, retries,
   subnet, poll interval), display and navigation preferences, log level, the Guide link,
@@ -127,6 +139,8 @@ redacted snapshot — models, firmware, counts, settings, and explicitly no seri
 location or credentials — as text, JSON or CSV, to paste into an issue.
 
 ### Integration → Mapping, and the Probe
+
+![Settings → Integrations → Mapping: a Probe of ibgRunStatus showing the value, cmdType and request sent](../images/tour/08-integration-mapping-probe.png)
 
 Under **Settings → Integrations**. A *mapping* is a name this bridge uses paired with
 **where the value comes from**. Three things live here:

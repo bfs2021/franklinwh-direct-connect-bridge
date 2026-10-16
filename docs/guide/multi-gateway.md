@@ -10,6 +10,8 @@ about. Read this when you have two, or when you want to model a property properl
 
 ## Registering gateways
 
+![Settings → Gateways with two mock gateways](../images/multi-gateway/01-registering-gateways.png)
+
 Three ways, and they coexist:
 
 1. **Configuration** — `FWH_HOSTS`, a comma-separated list where each entry is either
@@ -26,6 +28,8 @@ those are writes, so they need `allow_writes`; with writes off the UI says so
 
 ### The default gateway
 
+![The gateway selector in the top bar](../images/multi-gateway/03-default-gateway.png)
+
 **The first-registered gateway is the default.** Every API endpoint takes an optional
 `?gateway=<id>`; omit it and you get the default, which is precisely the old
 single-gateway behaviour. Name a gateway that does not exist and you get a **404 before
@@ -35,6 +39,8 @@ aGate must not land on another, and the response echoes the gateway it targeted 
 caller can check rather than assume.
 
 ### What is scoped per gateway
+
+![The Dashboard scoped to Mock aGate 2](../images/multi-gateway/04-scoped-per-gateway.png)
 
 The selector at the top of the screen scopes **every tab**: dashboard, battery, solar,
 circuits, generator, control, grid, health, network, MQTT. Also per gateway:
@@ -50,6 +56,8 @@ circuits, generator, control, grid, health, network, MQTT. Also per gateway:
 ---
 
 ## Mock gateways
+
+![Settings → Gateways → Add a mock gateway](../images/multi-gateway/02-add-mock-gateway.png)
 
 **Settings → Gateways → Add mock.** A mock runs the Direct Connect library's threaded
 `Emulator` inside the bridge process on `127.0.0.1` at an ephemeral port, with a seed
@@ -82,6 +90,8 @@ how a stale comment becomes stale documentation.
 
 ## Sites, meters, utilities and tariffs
 
+![Settings → Sites & Billing](../images/multi-gateway/05-sites-meters-tariffs.png)
+
 Above the gateway there is a small normalised model, managed from
 **Settings → Sites & Billing**:
 
@@ -111,6 +121,8 @@ See [History, costs and tariffs](energy-and-costs.md) for what the tariff actual
 ---
 
 ## Schedules across gateways
+
+![A schedule's gateway binding](../images/multi-gateway/06-schedules-across-gateways.png)
 
 The rule is worth stating precisely, because the wrong guess is expensive:
 

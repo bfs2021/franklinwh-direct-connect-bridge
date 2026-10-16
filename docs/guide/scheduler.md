@@ -17,6 +17,8 @@ battery can be made to do so only when it should.
 
 ## 1. Trigger — when the window opens
 
+![Add schedule, with the trigger types listed](../images/scheduler/01-trigger-types.png)
+
 Eight trigger types, confirmed from the running bridge (`GET /api/schedules` →
 `trigger_types`):
 
@@ -40,6 +42,8 @@ run" at 01:00, and recurrence is judged against the opening day.
 
 ### Calendar restrictions
 
+![A Recurring windows trigger: days of the week and time windows](../images/scheduler/02-calendar-restrictions.png)
+
 Every recurrence field is a **restriction**, and leaving it empty means *no* restriction:
 
 - days of the week
@@ -52,6 +56,8 @@ A rule that is blocked by one of these reports why — "not one of its days of t
 
 ### How fast can a schedule react
 
+![The Scheduler tab's note that schedules run on the poll tick](../images/scheduler/03-how-fast-tick-note.png)
+
 The scheduler is driven by the poll loop, so **a rule cannot react faster than the bridge
 reads the gateway**. The tick cadence is its own setting (`scheduler_tick_s`, default 15
 seconds) rather than being derived from the poll interval, and the UI validates that a
@@ -59,6 +65,8 @@ window is long enough to be observable. The Scheduler tab says "Schedules run on
 tick" for this reason.
 
 ### Which clock
+
+![Settings → Setup → Where is this site? The site timezone schedules run on](../images/scheduler/04-which-clock-site-timezone.png)
 
 Schedule *rules* are evaluated in the **site's** wall-clock time — the aGate's timezone,
 not the container's. If the gateway cannot be read, the bridge falls back to
@@ -69,11 +77,15 @@ container-local time. The audit trail and logs, by contrast, are in bridge-host 
 
 ## 2. Conditions — the gate
 
+![An entry condition: Battery SoC > 20](../images/scheduler/05-conditions.png)
+
 A condition tree answers one question: *should this rule act right now?* Two trees are
 available per rule: **entry conditions** (the "Only if" box) and **exit conditions**
 ("End early when…").
 
 ### Operators
+
+![The operator list](../images/scheduler/06-operators.png)
 
 Thirteen, confirmed live (`ops` from `GET /api/schedules`):
 
@@ -90,16 +102,22 @@ The six list- and pattern-style operators take a raw member list on the right, s
 
 ### Value or Lookup
 
+![A Lookup comparison against Const: min discharge SoC](../images/scheduler/07-value-or-lookup.png)
+
 The right-hand side can be a literal **Value** or a **Lookup** — another sensor's live
 value. `battery.soc_pct > const.min_discharge_soc` is a lookup comparison, and keeps the
 threshold in one place instead of copied across rules.
 
 ### ALL / ANY, and nesting
 
+![Match ALL with a nested Match ANY group](../images/scheduler/08-all-any-nesting.png)
+
 Rows combine with **Match ALL** or **Match ANY**, and they nest into groups, so
 "(A and B) or C" is expressible. An empty ALL group is true; an empty ANY group is false.
 
 ### The rule that matters most
+
+![Test: a row with no value (no forecast configured) fails the gate](../images/scheduler/09-missing-value-is-false.png)
 
 **A missing or unreadable value is FALSE for every operator — including `!=`.** A
 scheduler must never act on data it does not have. The same applies to the right-hand
@@ -108,6 +126,8 @@ why a rule can appear to "do nothing" when a sensor briefly goes unavailable, an
 deliberate.
 
 ### What you can gate on
+
+![The grouped sensor picker](../images/scheduler/10-what-you-can-gate-on.png)
 
 The sensor picker is grouped. On the bridge read live on 2026-10-15 it offered **196
 sensors** across eleven groups:
@@ -143,6 +163,8 @@ Two notes on specific sensors, taken from the code's own warnings:
 
 ### Gating on Home Assistant
 
+![An exposed Home Assistant entity in the sensor picker](../images/scheduler/11-gating-on-home-assistant.png)
+
 Any HA entity you expose on the **Home Assistant** tab becomes a scheduler sensor named
 `ha:<instance>:<entity_id>`. Only exposed entities are read each tick — polling every
 entity in a large HA install would hammer it. HA states are coerced for you: numeric
@@ -153,6 +175,8 @@ condition.
 ---
 
 ## 3. Hold, and conflict resolution
+
+![Priority, If busy (override / defer / wait) and Hold](../images/scheduler/12-hold-and-conflicts.png)
 
 **Hold (`entry_hold_s`)** — the conditions must stay true *continuously* for this many
 seconds before the rule fires. A rule that is waiting out its hold logs
@@ -174,6 +198,8 @@ picked, so two rules that genuinely fight cannot each "win" their own group.
 
 ## 4. Actions — what the rule does
 
+![The battery action list](../images/scheduler/13-actions.png)
+
 Six action kinds are offered (`actions` from `GET /api/schedules`), each with a note in
 the code about how it is known to work:
 
@@ -193,6 +219,8 @@ not offering it, so an unavailable action is shown greyed with its reason.
 
 ### The force action in detail
 
+![The force action: direction, power, power unit and target SoC](../images/scheduler/14-force-action.png)
+
 It runs for the schedule's **window**, not for a duration you set separately. The
 bridge's watchdog releases at the window's end and enforces the **target SoC** — charge
 stops at SoC ≥ target, discharge at SoC ≤ target — reading live SoC from that gateway's
@@ -205,6 +233,8 @@ retried once the outcome is unknown. An ambiguous first force-charge is not foll
 second one.
 
 ### Home Assistant actions
+
+![Home Assistant actions on a rule](../images/scheduler/15-home-assistant-actions.png)
 
 In addition to the gateway action, a rule can carry any number of **HA actions**, in
 three flavours:
@@ -225,6 +255,8 @@ that never arrives.
 ---
 
 ## 5. Exit — ending the window
+
+![End early when Battery SoC <= 20](../images/scheduler/16-exit-conditions.png)
 
 A window closes two ways: time runs out, or the **exit conditions** become true
 mid-window. "End early when `battery.soc_pct <= 20`" stops a force discharge before it
@@ -247,6 +279,8 @@ already holds".
 ---
 
 ## 6. Working with schedules
+
+![The built-in Templates](../images/scheduler/17-working-with-schedules.png)
 
 - **Templates** — built-in presets, loaded into the editor for review rather than fired
   blind. The local-only ones (mode switches, a circuit off overnight, a low-battery
@@ -277,6 +311,8 @@ already holds".
 ---
 
 ## 7. Using schedules from Home Assistant
+
+![A saved schedule in the list; each of these actions is also a REST call](../images/scheduler/18-using-schedules-from-ha.png)
 
 Everything the Scheduler tab does is also a REST call. Home Assistant can make those calls
 with `rest_command`, so automations and scripts can read, create, update, delete, run and pause
@@ -348,6 +384,8 @@ For anything more involved, build it in the Scheduler tab and **export** it
 (`GET /api/schedules/export`): that is the exact JSON the API accepts.
 
 ## Multi-gateway behaviour
+
+![Binding a rule to a gateway](../images/scheduler/19-multi-gateway-binding.png)
 
 Covered in [Multi-gateway and sites](multi-gateway.md), but the short version:
 

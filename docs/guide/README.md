@@ -27,6 +27,8 @@ Open the UI at `http://<bridge-host>:8101`. As a Home Assistant add-on, use the 
 
 ## The one thing to understand first
 
+![The Network tab's topology: the local, Modbus and cloud paths from the bridge](../images/readme/01-three-paths.png)
+
 The bridge reaches your system over **three different paths**, and they do not have the
 same powers. Most of the surprises in this UI come from this split, so it is worth
 reading once:
@@ -60,6 +62,8 @@ exact request it sent. See [Tour of the UI](tour.md#integration--mapping-and-the
 ---
 
 ## How this guide was checked
+
+![Settings → Admin → Support info: version, build and a redacted summary](../images/readme/02-how-this-guide-was-checked.png)
 
 Every statement here was taken either from the bridge's source in this repository or from
 a read-only `GET` against a running bridge. Live reads were taken on **2026-10-15**

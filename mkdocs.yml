@@ -97,6 +97,7 @@ nav:
   - Home: index.md
   - User guide:
       - guide/README.md
+      - guide/installing.md
       - guide/tour.md
       - guide/home-assistant.md
       - guide/scheduler.md

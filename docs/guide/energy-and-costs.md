@@ -10,6 +10,8 @@ to trust them.
 
 ## What is stored, and for how long
 
+![Settings → Admin → Database storage](../images/energy-and-costs/01-what-is-stored.png)
+
 | Store | Retention |
 |---|---|
 | Power / metrics samples | `METRICS_RETENTION_DAYS`, **365 days** by default |
@@ -22,6 +24,8 @@ a year locally is deliberate: it removes the only reason the gateway's own histo
 105 days) looked like the longer record.
 
 ### History is automatically off in one specific case
+
+![Settings → Admin → Local history, with its mode](../images/energy-and-costs/02-history-auto-off.png)
 
 When the bridge runs as a **Home Assistant add-on** *and* MQTT is enabled, the local store
 is **off by default** — Home Assistant's recorder is already storing the published
@@ -37,11 +41,15 @@ store answer **503 "metrics store is disabled"**.
 
 ## Analytics
 
+![The Analytics tab](../images/energy-and-costs/03-analytics.png)
+
 Longer-horizon charts over the stored samples — power, battery, energy — with a
 selectable range. This is the bridge's own record, so it survives a gateway reboot and
 goes back further than the aGate's.
 
 ## The energy-flow Sankey
+
+![The Energy Flow card on the Dashboard](../images/energy-and-costs/04-energy-flow-sankey.png)
 
 On the Dashboard. It shows directional flows for a local day: solar to home, solar to
 battery, solar to grid, battery to home, battery to grid, grid to home, grid to battery.
@@ -57,6 +65,8 @@ the numbers should be read accordingly.
 
 ## Energy Costs
 
+![The Energy Costs tab before a tariff is assigned](../images/energy-and-costs/05-energy-costs.png)
+
 The **Energy Costs** tab shows live period-to-date billing and closed-period history:
 net cost this period, peak kW, retailer and plan, and a table of closed periods. You can
 export the history as CSV, import history, or **import from a Modbus Bridge** if you have
@@ -71,12 +81,16 @@ revenue-grade meter, and not a substitute for your bill.
 
 ## Tariffs
 
+![Settings → Sites & Billing → Utilities & Tariffs: a new utility](../images/energy-and-costs/06-tariffs.png)
+
 Set up under **Settings → Sites & Billing → Utilities & Tariffs**. A tariff belongs to a
 utility and is assigned to a meter; the meter is what a gateway connects to. (See
 [Multi-gateway and sites](multi-gateway.md) for why the tariff hangs off the meter rather
 than the gateway.)
 
 ### Static or dynamic
+
+![The tariff editor's Rate type set to Dynamic (live)](../images/energy-and-costs/07b-dynamic.png)
 
 The editor's **Rate type** toggle offers two, and only two, options:
 
@@ -108,6 +122,8 @@ between installs or shared.
 
 ## Solar forecast
 
+![Settings → Integrations → Location & Solar](../images/energy-and-costs/08-solar-forecast.png)
+
 Optional, and off until you give the bridge a location. Under **Settings → Integrations →
 Location & Solar**: latitude, longitude, array size in kWp, tilt, and azimuth. The
 forecast comes from Open-Meteo.
@@ -134,6 +150,8 @@ location configured it says so (422) instead of guessing.
 ---
 
 ## Storage and backups
+
+![Settings → Admin: storage, export and backups](../images/energy-and-costs/09-storage-and-backups.png)
 
 **Settings → Admin.**
 
