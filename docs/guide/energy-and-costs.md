@@ -112,7 +112,7 @@ The editor's **Rate type** toggle offers two, and only two, options:
 
 A dynamic tariff drives two things at once: the billing figures on the Energy Costs tab,
 and the `tariff.spot_price` / `tariff.feed_in_price` sensors available to the
-[Scheduler](scheduler.md) — so a rule can charge when the price is negative without you
+[Scheduler](scheduler/conditions.md) — so a rule can charge when the price is negative without you
 wiring the price in twice. `GET /api/tariff/spot` shows both providers side by side.
 
 Tariffs can be **exported, imported and validated** one at a time, so a plan can be moved

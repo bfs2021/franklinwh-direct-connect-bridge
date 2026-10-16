@@ -1,6 +1,6 @@
 # Use case: integrating with the Scheduler
 
-[Developers Guide](index.md) · User guide: [Scheduler](../guide/scheduler.md)
+[Developers Guide](index.md) · User guide: [Scheduler](../guide/scheduler/index.md)
 
 This page follows one integration from end to end. A Home Assistant electricity price
 sensor decides whether the battery charges overnight. The schedule is created over the
@@ -231,7 +231,7 @@ Any Home Assistant service can be an action, with `ha_kind: "service"`. `run_act
 
 A schedule can be Home Assistant-only. Leave the battery action empty (`"action":
 {"kind": ""}`) and only the `ha_actions` run. Schedules with no battery action never
-compete for the gateway (User Guide, [Scheduler](../guide/scheduler.md)).
+compete for the gateway (User Guide, [Priorities and conflicts](../guide/scheduler/priorities.md)).
 
 For example, start the pool pump at the solar peak, but only when the battery is nearly
 full:
@@ -293,7 +293,7 @@ Checked with `gh issue view` on 2026-10-17. All four are open.
   with cloud credentials configured. Do not build on a `reserve_soc` action yet.
 - **#128: the Scheduler in Home Assistant.** The REST half (create, update, delete, run,
   test, stop, pause, resume) exists, and the user guide has `rest_command` examples
-  ([Using schedules from Home Assistant](../guide/scheduler.md#7-using-schedules-from-home-assistant)).
+  ([Using schedules from Home Assistant](../guide/scheduler/index.md#using-schedules-from-home-assistant-direct-connect-only)).
   The MQTT half, with a switch, buttons and sensors per schedule, is planned and not
   built.
 

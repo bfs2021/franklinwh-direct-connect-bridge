@@ -63,7 +63,7 @@ ingress**.
     Home Assistant login session, which a script does not have. From inside Home
     Assistant, for example a `rest_command`, use the add-on's internal hostname on port
     8101, as described in
-    [Scheduler → Using schedules from Home Assistant](../guide/scheduler.md#7-using-schedules-from-home-assistant).
+    [Scheduler → Using schedules from Home Assistant](../guide/scheduler/index.md#using-schedules-from-home-assistant-direct-connect-only).
 
 ---
 
