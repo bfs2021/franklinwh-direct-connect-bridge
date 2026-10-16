@@ -27,7 +27,7 @@ or `OPEN`.
 
 **Relationship to GitHub issues.** Since the project went public the work queue lives in
 **GitHub issues**, because the PR lifecycle hangs off issue numbers — a branch per issue,
-`Closes #N`, review, CI. This file is the **design record**: why a thing is shaped the way it
+`Refs #N` (never `Closes`: an issue closes only after its post-release check — issue policy §5), review, CI. This file is the **design record**: why a thing is shaped the way it
 is, what the hardware actually does, and what was ruled out. Those are long and get revised,
 which issue bodies are bad at.
 

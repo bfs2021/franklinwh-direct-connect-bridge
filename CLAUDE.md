@@ -203,6 +203,20 @@ offer to group it with the related items, and ask whether it is in fact a blocke
 | **S3 — Medium** | Cosmetic, UX, non-functional | Queue → group by area |
 | **S4 — Low** | Nice-to-have, cleanup, future work | Queue → backlog review |
 
+**Issues follow the shared issue policy**: franklinwh-modbus-bridge `docs/issue-policy.md`
+(adopted here 2026-10-16). In short:
+
+- **Labels at filing:** a type (`bug` / `enhancement` / `documentation` / `chore`), a severity
+  (`sev:S1-blocker` … `sev:S4-low`, by the table above) and an `area:` label (the TEST_POLICY §1 release
+  areas, plus `area:client-transport`).
+- **Milestone = release = one area.** S1 goes to a hotfix now, S2 to the next batch for its area.
+  S4 has no milestone.
+- **PRs say `Refs #N`, never `Fixes`/`Closes`.** Merging labels the issue `fixed`. It is closed only after a
+  **post-release check** of the published build, with the evidence in a comment.
+- **Defects always get an issue when found,** including during other work. BACKLOG.md stays the design
+  record. An item gets an issue when it is picked into a batch.
+- **Triage is posted to the pinned "Triage log" issue**, at each session start and weekly.
+
 **Group → plan → execute → verify.** Group queued items by functional area (client /
 transport, poller, scheduler, store and migrations, HTTP API, UI, MQTT, Modbus) before
 touching code. Each batch gets a written plan first, one verification pass at the end, and
