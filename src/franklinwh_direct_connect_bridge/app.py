@@ -981,6 +981,8 @@ def create_app() -> FastAPI:
                 except Exception:  # noqa: BLE001
                     return None
             if os.environ.get("FWH_VPP_MONITOR", "1") not in ("1", "true", "yes", "on"):
+                _workers.registry.beat("vpp-monitor", state=_workers.WorkerState.PAUSED,
+                                       detail="disabled (FWH_VPP_MONITOR)")
                 return
             try:
                 interval = max(15, int(os.environ.get("FWH_VPP_MONITOR_S", "60")))
@@ -988,6 +990,7 @@ def create_app() -> FastAPI:
                 interval = 60
             boot = True
             while True:
+                _workers.registry.beat("vpp-monitor", state=_workers.WorkerState.RUNNING)
                 try:
                     h, st = _host(), _store()
                     # VPP detection is LOCAL now (cmdType 1707 programme id), so this
@@ -1044,6 +1047,22 @@ def create_app() -> FastAPI:
                     log.debug("VPP monitor pass failed: %s", e)
                 boot = False
                 _t.sleep(interval)
+        # Registered BEFORE their threads start, so a thread's own first beat (or its
+        # "paused: nothing to do") is not overwritten. Each loop beats every cycle; one
+        # that has nothing to do says PAUSED instead of going quiet, which the
+        # supervisor used to report as a failure every few minutes (#93).
+        for _name, _concern, _cadence, _cls, _st in (
+            ("vpp-monitor", "track VPP / force state", 60.0, _workers.RestartClass.FREE,
+             _workers.WorkerState.RUNNING),
+            ("cloud-status", "cloud witness and auth breaker", 300.0,
+             _workers.RestartClass.FREE, _workers.WorkerState.RUNNING),
+            ("dispatch-watchdog", "end forces at their deadline", 30.0,
+             _workers.RestartClass.GUARDED, _workers.WorkerState.PAUSED),
+        ):
+            _w = _workers.registry.register(_workers.Worker(
+                name=_name, concern=_concern, cadence_s=_cadence,
+                restart_class=_cls, kind="thread"))
+            _w.beat(state=_st, detail="no force active" if _st is _workers.WorkerState.PAUSED else "")
         import threading as _th
         _th.Thread(target=_vpp_loop, daemon=True).start()
 
@@ -1056,8 +1075,13 @@ def create_app() -> FastAPI:
             from . import cloud_status
             s0 = get_settings()
             if not (s0.fwh_cloud_email and s0.fwh_cloud_password):
+                # By design: no credentials, no cloud polling. Say so, don't go quiet.
+                _workers.registry.beat("cloud-status", state=_workers.WorkerState.PAUSED,
+                                       detail="no cloud credentials")
                 return
             if os.environ.get("FWH_CLOUD_STATUS", "1") not in ("1", "true", "yes", "on"):
+                _workers.registry.beat("cloud-status", state=_workers.WorkerState.PAUSED,
+                                       detail="disabled (FWH_CLOUD_STATUS)")
                 return
             try:
                 interval = max(120, int(os.environ.get("FWH_CLOUD_STATUS_S", "300")))
@@ -1069,6 +1093,7 @@ def create_app() -> FastAPI:
             _last_status = None   # only log cloud status on a real CHANGE (see Logs policy)
             _fail_streak = 0      # for failure VISIBILITY without 5-min spam (onset + recovery)
             while True:
+                _workers.registry.beat("cloud-status", state=_workers.WorkerState.RUNNING)
                 ok = False
                 try:
                     data = cloud_status.poll(get_settings())
@@ -1115,6 +1140,8 @@ def create_app() -> FastAPI:
                 if providers._cloud_auth.get("state") == "locked":
                     log.warning("cloud auth breaker LOCKED after repeated failures — cloud polling "
                                 "stopped; re-enter FranklinWH credentials to clear it")
+                    _workers.registry.beat("cloud-status", state=_workers.WorkerState.PAUSED,
+                                           detail="cloud auth locked — re-enter credentials")
                     return
                 _t.sleep(interval if ok else retry)
         _th.Thread(target=_cloud_status_loop, daemon=True).start()
@@ -1124,16 +1151,6 @@ def create_app() -> FastAPI:
         # threads above appear here too — observable now, convertible to async
         # workers in phase 1 (decision 1). Until converted they report
         # restartable=False rather than offering a button that cannot work.
-        for _name, _concern, _cadence, _cls in (
-            ("vpp-monitor", "track VPP / force state", 60.0, _workers.RestartClass.FREE),
-            ("cloud-status", "cloud witness and auth breaker", 300.0, _workers.RestartClass.FREE),
-            ("dispatch-watchdog", "end forces at their deadline", 30.0,
-             _workers.RestartClass.GUARDED),
-        ):
-            _w = _workers.registry.register(_workers.Worker(
-                name=_name, concern=_concern, cadence_s=_cadence,
-                restart_class=_cls, kind="thread"))
-            _w.beat(state=_workers.WorkerState.RUNNING)
 
         _sup_stop = asyncio.Event()
 
