@@ -187,7 +187,7 @@ def test_only_exposed_entities_are_read_not_the_whole_instance(tmp_path, monkeyp
 
 def test_ha_binary_state_coerces_for_numeric_conditions():
     assert sch._coerce("on") == 1 and sch._coerce("off") == 0
-    assert sch._coerce("unavailable") == 0
+    assert sch._coerce("unavailable") is None and sch._coerce("unknown") is None
     assert sch._coerce("42.5") == 42.5
     assert sch._coerce("Self-Consumption") == "Self-Consumption"
 
@@ -1043,3 +1043,22 @@ def test_a_normal_programme_id_is_not_treated_as_absence():
     from franklinwh_direct_connect_bridge import client as C
     assert (85232 == C.VPP_PROGRAMME_ID) is False
     assert (9 == C.VPP_PROGRAMME_ID) is True
+
+
+def test_unavailable_or_unknown_ha_entity_never_satisfies_a_condition(tmp_path, monkeypatch):
+    """#167 — an unavailable price sensor was read as 0, so `price < 10` fired a force."""
+    st = _store_with_exposed(tmp_path)
+    st.set_ha_exposed("i1", "sensor.forecast", True)
+    iid = "i1"
+    def fake_states(base, token):
+        return [{"entity_id": "sensor.amber_price", "state": "unavailable"},
+                {"entity_id": "sensor.forecast", "state": "unknown"},
+                {"entity_id": "binary_sensor.export_window", "state": "off"}]
+    monkeypatch.setattr(sch.ha_instances, "states", fake_states)
+    snap = sch.ha_snapshot(st)
+    assert snap == {f"ha:{iid}:binary_sensor.export_window": 0}       # off is still a reading
+    for sensor, op, val in ((f"ha:{iid}:sensor.amber_price", "<", 10),
+                            (f"ha:{iid}:sensor.forecast", "<", 5),
+                            (f"ha:{iid}:sensor.amber_price", "==", 0),
+                            (f"ha:{iid}:sensor.amber_price", "!=", 99)):
+        assert sch.evaluate([{"sensor": sensor, "op": op, "value": val}], snap) is False, (sensor, op)

@@ -936,12 +936,18 @@ def ha_sensor_id(instance_id: str, entity_id: str) -> str:
 
 def _coerce(state: Any) -> Any:
     """HA states are strings. Compare numerically when they look numeric, and map
-    on/off to 1/0 so a binary_sensor works in a `== 1` condition."""
+    on/off to 1/0 so a binary_sensor works in a `== 1` condition. ``unavailable``,
+    ``unknown`` and an empty state are NO reading (None), never 0: a 0 made
+    ``price < 10`` true while the sensor was down and fired a force (#167)."""
+    if state is None:
+        return None
     if isinstance(state, str):
         low = state.strip().lower()
+        if low in ("", "unavailable", "unknown", "none"):
+            return None
         if low in ("on", "true", "open", "home"):
             return 1
-        if low in ("off", "false", "closed", "away", "unavailable", "unknown"):
+        if low in ("off", "false", "closed", "away"):
             return 0
         try:
             return float(state)
@@ -954,8 +960,8 @@ def ha_snapshot(store) -> dict[str, Any]:
     """Live values for the EXPOSED HA entities, keyed ha:<instance>:<entity>.
 
     Only exposed entities are read — a scheduler that pulled all 3,949 every tick
-    would hammer Home Assistant. Missing/unreachable ones are simply absent, and an
-    absent sensor already counts as False in evaluate().
+    would hammer Home Assistant. Missing/unreachable ones, and ones whose state is
+    unavailable or unknown, are simply absent; an absent sensor counts as False in evaluate().
     """
     exposed = store.ha_exposed_ids()
     if not exposed:
@@ -972,7 +978,9 @@ def ha_snapshot(store) -> dict[str, Any]:
             for st in ha_instances.states(inst["base_url"], inst.get("token")):
                 eid = st.get("entity_id", "")
                 if eid in want[inst["id"]]:
-                    out[ha_sensor_id(inst["id"], eid)] = _coerce(st.get("state"))
+                    v = _coerce(st.get("state"))
+                    if v is not None:          # no reading → absent → its conditions are False
+                        out[ha_sensor_id(inst["id"], eid)] = v
         except Exception:                                       # noqa: BLE001
             continue
     return out

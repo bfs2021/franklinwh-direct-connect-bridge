@@ -11,7 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **A Home Assistant sensor that is unavailable or unknown no longer counts as 0 in schedule
+  conditions.** A condition such as *price < 10* was true while the price sensor was down, so a
+  schedule could start a force charge or discharge. Such a sensor now has no reading, and every
+  condition that uses it is false, as for a sensor that doesn't exist. (#167)
 
 ## [0.5.3] — 2026-10-17
 
