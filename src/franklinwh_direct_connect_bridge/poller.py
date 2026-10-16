@@ -72,6 +72,20 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
 
     await _resolve_identity()
 
+    # Publishing OFF means nothing of ours is left in Home Assistant. Until #98 a gateway
+    # with publishing off (every mock, by default) was published anyway; once the flag is
+    # honoured those devices would sit "unavailable" for ever. Remove whatever is still
+    # retained for this node — verified, and a no-op when there is nothing.
+    if settings.mqtt_enabled and not getattr(gw, "publish_ha", True) and serial:
+        try:
+            from .publish import purge as _purge
+            res = await asyncio.to_thread(_purge.purge, settings, node)
+            if res.get("found"):
+                log.warning("[%s] publishing is off: removed %s retained topic(s) left in Home "
+                            "Assistant (%s left)", gw.id, res.get("removed"), len(res.get("left") or []))
+        except Exception as e:  # noqa: BLE001 — a broker problem must not stop polling
+            log.debug("[%s] publish-off clean-up skipped: %s", gw.id, e)
+
     def _start_mqtt():
         """Create + start an MqttPublisher (blocking connect). Raises on failure."""
         # Each gateway is a distinct serial node → distinct HA device (collision-free).

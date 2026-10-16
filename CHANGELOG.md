@@ -42,6 +42,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 - **A gateway with publishing off no longer appears in Home Assistant.** Mocks, which start with
   publishing off, were published anyway within one poll. The setup wizard's *Publish to Home
   Assistant? Yes* now turns publishing on for the gateways it added. (#98)
+  **On update:** a gateway whose publishing is off has its leftover entities removed from Home
+  Assistant when it starts. Its device disappears instead of sitting *unavailable*. Turn publishing
+  on (Republish) to bring it back.
 
 ## [0.5.0] — 2026-10-16
 

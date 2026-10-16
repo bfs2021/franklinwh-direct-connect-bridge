@@ -54,3 +54,22 @@ def test_publish_off_never_starts_a_publisher(monkeypatch):
 
 def test_publish_on_starts_one(monkeypatch):
     assert _run(monkeypatch, publish_ha=True) == ["sn98"]
+
+
+def _purge_calls(monkeypatch, publish_ha: bool) -> list:
+    calls = []
+    from franklinwh_direct_connect_bridge.publish import purge
+    monkeypatch.setattr(purge, "purge", lambda settings, node, **k: calls.append(node) or
+                        {"found": 3, "removed": 3, "left": []})
+    _run(monkeypatch, publish_ha)
+    return calls
+
+
+def test_publish_off_removes_what_is_still_retained(monkeypatch):
+    """Upgrade path for #98: gateways published only because of the bug are removed from
+    Home Assistant instead of being left 'unavailable'."""
+    assert _purge_calls(monkeypatch, publish_ha=False) == ["sn98"]
+
+
+def test_publish_on_never_purges(monkeypatch):
+    assert _purge_calls(monkeypatch, publish_ha=True) == []
