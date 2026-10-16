@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.10] — 2026-10-16
+
+Hotfix: history is recorded again on add-on installs.
+
 ### Fixed
 
 - **Power History and the other charts fill again on add-on installs.** With MQTT publishing on, the add-on
