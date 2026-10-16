@@ -59,7 +59,7 @@ No state recorded. Needs one before it can be planned.
 - [UI-PARITY](#ui-parity-modbus-bridge-for-look-fwhai-for-controlsfunctionality) — Modbus Bridge for LOOK, FWHAI for CONTROLS/functionality
 - [FEAT-CLOUD-CROSSCHECK](#feat-cloud-crosscheck-optional-cloud-api-witness-for-local-writesreads-when-creds-present) — optional cloud-API witness for local writes/reads (when creds present)
 
-### `QUEUED` — 69
+### `QUEUED` — 68
 
 Agreed, not started.
 
@@ -131,7 +131,6 @@ Agreed, not started.
 - [FEAT-ADDON-MODE-HIDE-IRRELEVANT](#feat-addon-mode-hide-irrelevant-hide-what-cannot-work-inside-the-add-on-container) — hide what cannot work inside the add-on container
 - [FEAT-NOTIFY-DEVICE-PICKER](#feat-notify-device-picker-choose-the-home-assistant-instance-when-picking-notify-targets) — choose the Home Assistant instance when picking notify targets
 - [FEAT-NOTIFY-TRIGGER-CATALOGUE](#feat-notify-trigger-catalogue-a-fuller-set-of-predefined-notifications) — a fuller set of predefined notifications
-- [RESEARCH-HA-CONTROL-GAP](#research-ha-control-gap-which-rest-capabilities-reach-home-assistant-over-mqtt-compared-with-fwhai) — which REST capabilities reach Home Assistant over MQTT, compared with FWHAI
 
 ### `PARTIAL` — 28
 
@@ -185,7 +184,7 @@ Deliberately not to be started yet.
 - [FEAT-SCHEDULER-BUILDER-UX](#feat-scheduler-builder-ux-fwhai-style-automation-builder-polish-queued-do-not-start) — FWHAI-style Automation Builder polish
 - [TEST-OFFGRID-BREAKER](#test-offgrid-breaker-real-outage-test-owner-on-site-reminder-2026-11-15) — real outage test, owner on site (reminder 2026-11-15)
 
-### `INFO` — 4
+### `INFO` — 5
 
 Finding, analysis or standing practice — not a work item.
 
@@ -193,6 +192,7 @@ Finding, analysis or standing practice — not a work item.
 - [RESEARCH-SC-387](#research-sc-387-newer-smart-circuit-path-cloud-cmdtype-387389-scv2) — newer smart-circuit path (cloud cmdType 387/389, SCV2)
 - [INFO-CONTAINER-TZ](#info-container-tz-containers-are-utc-the-host-is-aest-mostly-harmless) — containers are UTC, the host is AEST; mostly harmless
 - [OPS-BACKUP](#ops-backup-back-up-regularly-so-nothing-is-lost) — back up regularly so nothing is lost
+- [RESEARCH-HA-CONTROL-GAP](#research-ha-control-gap-which-rest-capabilities-reach-home-assistant-over-mqtt-compared-with-fwhai) — which REST capabilities reach Home Assistant over MQTT, compared with FWHAI
 
 ### `DONE` — 11
 
@@ -4832,7 +4832,7 @@ afterwards.
 
 ## RESEARCH-HA-CONTROL-GAP — which REST capabilities reach Home Assistant over MQTT, compared with FWHAI
 
-**Status:** `QUEUED`
+**Status:** `INFO` — done 2026-10-16: [docs/HA_CONTROL_GAP.md](docs/HA_CONTROL_GAP.md)
 
 Owner's question (2026-10-16): *is Modbus dispatch available over MQTT, or does MQTT only carry part of
 what the REST API exposes?* The answer as of 0.4.5, from the code (`publish/entities.py` CONTROLS):
