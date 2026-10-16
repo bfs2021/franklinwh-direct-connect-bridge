@@ -64,7 +64,7 @@
             <line x1="260" y1="186" x2="400" y2="186" stroke-width="2" :stroke="edgeColor(topo.agate && topo.agate.ports && topo.agate.ports.local_api_9000)"/>
             <text x="330" y="180" font-size="10" text-anchor="middle" style="fill:var(--text-secondary)">:9000 Local API</text>
             <line x1="260" y1="220" x2="400" y2="220" stroke-width="2" :stroke="edgeColor(topo.agate && topo.agate.ports && topo.agate.ports.modbus_502)"/>
-            <text x="330" y="234" font-size="10" text-anchor="middle" style="fill:var(--text-secondary)">:502 Modbus</text>
+            <text x="330" y="234" font-size="10" text-anchor="middle" style="fill:var(--text-secondary)">:502 Modbus TCP Server</text>
             <!-- Bridge → Browser + MQTT -->
             <line x1="640" y1="192" x2="730" y2="150" stroke-width="2" stroke="#34d399"/>
             <text x="648" y="164" font-size="10" style="fill:var(--text-secondary)">:8101</text>
@@ -220,10 +220,10 @@
             <div class="flex items-center justify-between"><span style="color:var(--text-secondary)">sendMqtt :9000</span>
               <span class="font-mono" :style="reach.sendmqtt_9000 ? 'color:#34d399' : 'color:#ef4444'"
                     x-text="(reach.sendmqtt_9000 ? 'OK' : 'FAILED') + (reach.latency_ms!=null ? '  ' + reach.latency_ms + 'ms' : '')"></span></div>
-            <div class="flex items-center justify-between"><span style="color:var(--text-secondary)">Modbus :502</span>
+            <div class="flex items-center justify-between"><span style="color:var(--text-secondary)">aGate Modbus TCP Server :502</span>
               <span class="font-mono"
                     :style="reach.modbus_502 === true ? 'color:#34d399' : (reach.modbus_502 === false ? 'color:#ef4444' : 'color:var(--text-faint)')"
-                    :title="reach.modbus_502 == null ? 'Modbus is disabled in this bridge (or this is a mock gateway), so port 502 was not probed. This is not a statement about the gateway — its own SunSpec Modbus setting is on the SunSpec Modbus card.' : ''"
+                    :title="reach.modbus_502 == null ? 'This bridge's Modbus client is off (or this is a mock gateway), so the aGate's Modbus TCP Server (:502) was not probed. This is not a statement about the gateway — its own SunSpec Modbus setting is on the SunSpec Modbus card.' : ''"
                     x-text="reach.modbus_502 === true ? 'open' : (reach.modbus_502 === false ? 'closed' : 'not probed')"></span></div>
           </div>
         </div>

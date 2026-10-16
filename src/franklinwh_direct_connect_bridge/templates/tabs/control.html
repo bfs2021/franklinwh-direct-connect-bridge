@@ -436,12 +436,12 @@
   <!-- Modbus (SunSpec 502) -->
   <div class="card" style="padding:0;overflow:hidden" x-init="$store.app.loadModbus()">
     <div class="px-5 py-3 border-b border-white/[0.06]">
-      <div class="card-label" style="margin-bottom:0">Modbus TCP (SunSpec 502)</div>
+      <div class="card-label" style="margin-bottom:0">Modbus client (this bridge)</div>
     </div>
     <div class="p-5">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <div class="text-sm" style="color:var(--text-primary)">Use Modbus from this bridge</div>
+          <div class="text-sm" style="color:var(--text-primary)">This bridge connects to the aGate's Modbus TCP Server (:502)</div>
           <div class="text-xs text-slate-500">
             Powers battery ratings (max charge/discharge) and force dispatch. Off → this bridge
             falls back to the max-power constant and cannot force-dispatch.
@@ -470,7 +470,7 @@
              that the gateway's port is shut. -->
         <span class="chip"
               :class="$store.app.summary.modbus_502 === true ? 'ok' : ($store.app.summary.modbus_502 === false ? 'error' : 'muted')"
-              :title="$store.app.summary.modbus_502 == null ? 'Modbus is disabled in this bridge (or this is a mock gateway), so port 502 was not probed. This is not a statement about the gateway — its own SunSpec Modbus setting is on the SunSpec Modbus card.' : 'The gateway\'s port 502, probed by the poller.'"
+              :title="$store.app.summary.modbus_502 == null ? 'This bridge's Modbus client is off (or this is a mock gateway), so the aGate's Modbus TCP Server (:502) was not probed. This is not a statement about the gateway — its own SunSpec Modbus setting is on the SunSpec Modbus card.' : 'The gateway\'s port 502, probed by the poller.'"
               x-text="$store.app.summary.modbus_502 === true ? 'Gateway port 502 reachable' : ($store.app.summary.modbus_502 === false ? 'Gateway port 502 not reachable' : 'Gateway port 502 not probed')"></span>
         <span class="text-slate-500" x-show="!$store.app.modbus.enabled && $store.app.modbus.reason"
               x-text="$store.app.modbus.reason"></span>

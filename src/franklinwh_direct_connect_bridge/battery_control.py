@@ -270,7 +270,7 @@ def is_enabled() -> bool:
 
 def available() -> tuple[bool, str]:
     if not _ENABLED:
-        return False, "Modbus (SunSpec 502) is disabled in Control settings"
+        return False, "This bridge's Modbus client is off (Control → Modbus client); the aGate's Modbus TCP Server is not affected"
     try:
         _lib()
     except Exception as e:                                       # noqa: BLE001

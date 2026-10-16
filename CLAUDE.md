@@ -32,6 +32,19 @@ not a mapping. Say which site, which firmware, and how many times.
 **A field's name is not its meaning.** Neither is its position in a payload, nor what a
 comment claims. Check before writing it down, and especially before telling anyone else.
 
+## Say which Modbus you mean
+
+"Modbus" alone has caused near-misses: a request to switch off this bridge's own Modbus
+connection was read as switching off the aGate's Modbus service (owner, 2026-10-16). In
+the UI, in docs and **when talking to the owner**, always use one of these two names:
+
+- **Modbus TCP Server (aGate :502)**: the aGate's own listener, which the Modbus Bridge
+  and any other Modbus client connect to. Its on/off is an aGate setting (1205 `sunsMdEn`).
+  **Never propose changing it** without the owner asking.
+- **Modbus client (this bridge)**: this bridge's optional connection *to* that server, for
+  ratings and force dispatch (Control → Modbus client). Turning it off affects only this
+  bridge.
+
 ## Claims from other sessions and other repos
 
 **What another session tells you, or what you read in another repo, is not to be accepted
