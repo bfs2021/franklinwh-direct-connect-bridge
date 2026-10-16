@@ -41,9 +41,9 @@ on the same aGate, 2026-10-16) shows what the other two bridges offer:
 |---|---|---|
 | **C1** | Smart-circuit switch **state**: read 1409 in the poll's own session and publish `circuit_N_on`. Run status as text. | G2 read-only: show the switch state follows the app; measure the poll time added |
 | **C2** | Reserve SoC numbers (one per mode), published **only when the cloud provider is configured**. State from the provider's read. | G2 write: plan, read back **and** the app showing the new value, restore the original |
-| **C3** | Grid export/import limits: numbers in kW plus "unlimited" switches, if the owner allows unconfirmed writes from HA (§4) | G2 write: read-back, cloud witness, restore; outside 17:30–20:00 |
+| ~~C3~~ | Grid export/import limits: **not exposed to HA** (owner, 2026-10-16: no unconfirmed writes). They stay in the bridge UI. | — |
 | **C4** | **Battery command, the same pattern as the Modbus Bridge and FWHAI** (owner, 2026-10-16). See §3.1. | G2 write: **measured** battery W against the command, revert timer, restore the mode; every status state seen on hardware |
-| — | Off-grid as an HA control | only if the owner decides (§4) |
+| — | Off-grid: **not exposed to HA** (owner, 2026-10-16) | — |
 
 All of them: Modbus off on the real aGate, read-only by default, real hardware only on the owner's
 go-ahead in the session.
@@ -72,4 +72,4 @@ go-ahead in the session.
 2. **C4 here as well as in the Modbus Bridge:** one controller per aGate at a time. Should the bridge
    refuse a command while another bridge's command is active, if it can detect that?
 3. **Off-grid** as an HA control: no (from 1).
-4. **Order:** C1 → C2 → C3 → C4 as above?
+4. **Order:** C1 → C2 → C4?
