@@ -1,6 +1,6 @@
 # Installing, in pictures
 
-[Back to the guide index](README.md)
+[Back to the guide index](index.md)
 
 A picture for each step of the three ways to install the bridge. The full text, including
 prerequisites, upgrading and troubleshooting, is

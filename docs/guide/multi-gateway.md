@@ -1,6 +1,6 @@
 # Multi-gateway and sites
 
-[Back to the guide index](README.md)
+[Back to the guide index](index.md)
 
 A single aGate needs none of this: with one gateway registered, the gateway selector does
 not even appear and everything behaves as though it were the only thing the bridge knows

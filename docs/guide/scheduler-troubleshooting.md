@@ -1,6 +1,6 @@
 # Scheduler: troubleshooting and examples
 
-[Back to the guide index](README.md) · [Scheduler](scheduler.md)
+[Back to the guide index](index.md) · [Scheduler](scheduler.md)
 
 This page covers what each condition and action needs, how to find out why a schedule did
 nothing, and some worked recipes.

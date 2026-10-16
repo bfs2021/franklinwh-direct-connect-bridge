@@ -1,6 +1,6 @@
 # Tour of the UI
 
-[Back to the guide index](README.md)
+[Back to the guide index](index.md)
 
 ---
 
