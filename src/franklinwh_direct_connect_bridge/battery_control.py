@@ -340,10 +340,27 @@ def effective_target(host: str | None) -> tuple:
     return h, p
 
 
+def _no_connect_writes(c) -> None:
+    """Stop the library writing to the aGate as a side effect of connecting (#224).
+
+    franklinwh-modbus 0.9.5 ``connect()`` runs ``_test_extension_writability()``, which
+    writes a test value to 15507 OnGridMode, 15508 SelfReserve and 15509 TOUReserve and
+    then restores the original, on EVERY connect. Where those registers are writable, a
+    connect would switch the mode and reserves, and leave them wrong if the restore never
+    arrived. This bridge connects for every force, release and availability check, so the
+    test is replaced on the instance with one that writes nothing. Harmless on a library
+    version that no longer runs it.
+    """
+    def _skipped():
+        return {"skipped": "write test disabled by franklinwh-direct-connect-bridge (#224)"}
+    c._test_extension_writability = _skipped
+
+
 def _connect(host: str):
     FranklinWHController, BatteryCommand = _lib()
     eff_host, eff_port = effective_target(host)
     c = FranklinWHController(eff_host, port=eff_port, unit_id=UNIT_ID)
+    _no_connect_writes(c)
     if not c.connect():
         raise ConnectionError(f"could not connect to aGate Modbus at {eff_host}:{eff_port}")
     return c, BatteryCommand

@@ -11,7 +11,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **Connecting to the aGate over Modbus no longer writes its operating mode and reserves.** The
+  franklinwh-modbus library (0.9.5) tested whether the mode and reserve registers (15507–15509)
+  were writable on every connect, by writing a test value and then the original back. This bridge
+  connects for every force, release and availability check, so on a site where those registers
+  are writable the mode and reserves could briefly change, or stay changed if the connection
+  dropped in between. On the AU aGate tested so far those writes are discarded. The bridge now
+  turns that test off. (#224)
 
 ## [0.5.7] — 2026-10-17
 
