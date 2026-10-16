@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.2] — 2026-10-16
+
+The setup checks at the end of the wizard (and in Settings → Setup) report what is true.
+
 ### Fixed
 
 - **"Bridge entities in Home Assistant" counts the right entities.** Since 0.4.0 it reported
