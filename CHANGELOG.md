@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.4] — 2026-10-16
+
+The add-on keeps working with Home Assistant after it is updated.
+
 ### Fixed
 
 - **The add-on keeps its link to Home Assistant after an update.** Home Assistant gives each updated
