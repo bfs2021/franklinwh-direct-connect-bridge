@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.9] — 2026-10-16
+
+No more false worker failures in the log and audit trail.
+
 ### Fixed
 
 - **No more false "worker_failed" entries.** The VPP monitor, the cloud-status check and the dispatch
