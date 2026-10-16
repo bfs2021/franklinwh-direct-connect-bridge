@@ -3,7 +3,7 @@
 [Back to the guide index](README.md)
 
 This page is about changing things, and about the gates that stand between a click and
-your battery. In 0.5.1 only two of the three still act: `confirm` and provider
+your battery. As of 0.5.2 only two of the three still act: `confirm` and provider
 availability.
 
 ---
@@ -47,7 +47,7 @@ you saves a lot of guessing.
 
 ![The Health tab's connection panel, including whether writes are enabled](../images/control/10-read-only-default.png)
 
-**In 0.5.1, `allow_writes` does not stop anything.** The global write gate was dropped:
+**As of 0.5.2, `allow_writes` does not stop anything.** The global write gate was dropped:
 the bridge always reports writes as enabled, and reversible writes (a force command, a
 smart circuit, a schedule) go through whatever the setting says. The **Allow writes**
 switch under **Settings → Automation → Control** is still there, and still saves, but
@@ -189,7 +189,7 @@ that block can stop export or discharge.
 
 ![Settings → Automation → Control: the Allow writes switch, which no longer blocks writes](../images/control/02-allow-writes.png)
 
-The **Allow writes** switch suggests a read-only mode. In 0.5.1 there is none: the
+The **Allow writes** switch suggests a read-only mode. As of 0.5.2 there is none: the
 switch does nothing (see [the first gate](#1-allow_writes-no-longer-blocks-writes)). Anyone who
 can open the UI or reach the HTTP API can change the gateway, within the `confirm` and
 provider gates above. Keep the bridge on a trusted network.

@@ -23,7 +23,7 @@ Three ways, and they coexist:
    `FWH_SUBNET`, or is derived as the host's `/24` when that is blank.
 
 Each gateway can be enabled or disabled, edited, given a description, and removed. All of
-those are writes. In 0.5.1 `allow_writes` no longer blocks them (see
+those are writes. As of 0.5.2, `allow_writes` no longer blocks them (see
 [Control](control.md#1-allow_writes-no-longer-blocks-writes)).
 
 ### The default gateway

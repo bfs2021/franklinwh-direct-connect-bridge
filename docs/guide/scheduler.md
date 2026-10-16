@@ -113,7 +113,7 @@ What happens next:
 - At 20:00 the window closes and the bridge releases the force if it is still running.
 
 !!! warning "For a force action, use a trigger with Fire at and Duration"
-    In 0.5.1 a force command also stops after the schedule's **Duration (min)**. A
+    In 0.5.2 and earlier a force command also stops after the schedule's **Duration (min)** (#160). A
     **Recurring windows** schedule still has that value, although the form hides it, and
     a new schedule starts with 90. So a force in a three-hour recurring window stops after
     90 minutes. Use **Daily at time** or **Weekly at time** for force actions.
@@ -149,14 +149,13 @@ Disabled** buttons filter the list; a note says how many are hidden.
 | **⋮ → Duplicate** | Opens a copy in the form, named "Copy of …", with **Enabled** unticked. It is saved as a new schedule. |
 | **⋮ → Delete** | Removes the schedule, after asking. |
 
-!!! warning "Turn on / Turn off can reset a schedule's settings"
-    In 0.5.1 the **Turn on** / **Turn off** button saves only part of the schedule. The
+!!! note "Before 0.5.2, Turn on / Turn off reset a schedule's settings"
+    Up to 0.5.1 the **Turn on** / **Turn off** button saved only part of the schedule: the
     trigger type, time windows, days and months, date range, exit conditions, hold,
-    priority and **If busy** go back to their defaults. To disable a schedule safely,
-    press **Edit**, untick **Enabled**, and press **Save Changes**.
-
-The form also loses two settings that only the API can set: **restore on exit** and
-**gateway scope "all"**. Saving a schedule from the form turns both off.
+    priority, **If busy**, **restore on exit** and **gateway scope "all"** went back to
+    their defaults. Saving from the form also lost the last two. 0.5.2 fixed both: a save
+    now changes only what it sends (#157). **If you used the button before 0.5.2, check
+    the schedule's settings.**
 
 ## Timeline
 
@@ -665,5 +664,5 @@ Covered in [Multi-gateway and sites](multi-gateway.md), but the short version:
   once per gateway on a multi-gateway site.
 - A rule with **gateway scope "all"** is evaluated by every gateway on its own tick,
   producing one run and one resource claim per gateway. The form has no control for
-  this: set `"gateway_scope": "all"` through the API. Saving the schedule from the form
-  turns it off again.
+  this: set `"gateway_scope": "all"` through the API. From 0.5.2, saving the schedule from
+  the form keeps it (before 0.5.2 the form turned it off).
