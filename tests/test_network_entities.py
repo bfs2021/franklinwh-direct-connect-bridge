@@ -9,9 +9,9 @@ CONN = {"opt": 0, "result": 0, "reason": 0, "routerStatus": 0, "netStatus": 0, "
 SW = {"opt": 0, "result": 0, "reason": 0, "ethernet0NetSwitch": 1, "ethernet1NetSwitch": 1,
       "wifiNetSwitch": 1, "4GNetSwitch": 1}
 IFC = {"currentNetType": 3, "awsStatus": 1,
-       "wifi": {"mac": "AA:BB:CC:00:00:01", "ip": "192.0.2.10", "dhcp": True},
-       "eth0": {"mac": "AA:BB:CC:00:00:02", "ip": None}, "eth1": {"mac": "AA:BB:CC:00:00:03", "ip": None},
-       "operator": {"mac": "AA:BB:CC:00:00:04", "ip": None}}
+       "wifi": {"mac": "00:00:5E:00:53:01", "ip": "192.0.2.10", "dhcp": True},
+       "eth0": {"mac": "00:00:5E:00:53:02", "ip": None}, "eth1": {"mac": "00:00:5E:00:53:03", "ip": None},
+       "operator": {"mac": "00:00:5E:00:53:04", "ip": None}}
 CLOUD = {"serverAddr": "example-ats.iot.us-east-2.amazonaws.com", "serverPort": 8883,
          "password": "secret-should-never-appear"}
 
@@ -30,7 +30,7 @@ def test_matches_what_the_network_tab_shows():
 
 def test_never_publishes_addresses_or_credentials():
     blob = repr(network.network_state(CONN, IFC, SW, CLOUD))
-    for secret in ("AA:BB:CC", "192.0.2.10", "secret-should-never-appear", "8883"):
+    for secret in ("00:00:5E:00:53", "192.0.2.10", "secret-should-never-appear", "8883"):
         assert secret not in blob
 
 
