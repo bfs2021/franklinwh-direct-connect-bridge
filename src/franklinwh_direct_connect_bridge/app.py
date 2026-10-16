@@ -3100,7 +3100,17 @@ def create_app() -> FastAPI:
         prior = st.schedule(sid)
         if prior is None:
             raise HTTPException(status_code=404, detail=f"no schedule '{sid}'")
-        spec = req.model_dump(exclude={"name", "enabled"})
+        # MERGE what was sent into the saved definition (#157). Replacing it rebuilt the
+        # spec from ScheduleReq's defaults, so a request that sent only some fields — the
+        # enable toggle, or the edit form, which has no field for restore_on_exit or
+        # gateway_scope — silently wiped everything else (trigger, windows, calendar, exit
+        # conditions, hold, priority…). Fields actually sent still replace their values;
+        # to clear one, send it empty.
+        # The stored row is flattened (db._sched_row): its spec keys are top-level.
+        prior_spec = {k: prior[k] for k in ScheduleReq.model_fields
+                      if k in prior and k not in ("name", "enabled")}
+        sent = req.model_dump(exclude_unset=True, exclude={"name", "enabled"})
+        spec = {**req.model_dump(exclude={"name", "enabled"}), **prior_spec, **sent}
         row = st.update_schedule(sid, name=req.name, enabled=req.enabled, spec=spec)
         try:
             if prior.get("enabled") != req.enabled:
