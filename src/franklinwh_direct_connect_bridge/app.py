@@ -2823,12 +2823,19 @@ def create_app() -> FastAPI:
         checks = []
 
         # 1. Our connection to the broker. The publisher's own state, not a guess.
-        gw = None
-        try:
-            gw = _gw_or_404(gateway) if gateway else state.default_gateway()
-        except Exception:  # noqa: BLE001
-            gw = None
-        broker_ok = bool(getattr(gw, "mqtt_connected", False)) if gw else False
+        # Each publishing gateway holds its own broker connection, so "connected" is a
+        # question about those publishers. It used to read the DEFAULT gateway only: with
+        # no gateway, or a default whose poller had stopped, it said "Not connected" while
+        # others were publishing, and "Check again" could never change it (#84).
+        if gateway:
+            try:
+                pubs = [_gw_or_404(gateway)]
+            except Exception:  # noqa: BLE001
+                pubs = []
+        else:
+            pubs = [g for g in (get_gateways() or []) if getattr(g, "publish_ha", False)]
+        broker_ok = any(bool(getattr(g, "mqtt_connected", False)) for g in pubs)
+        no_publisher = not pubs
         # discover_mqtt() already answers "not an add-on" by itself; a second gate here
         # only created a path where the two disagreed.
         sup = discover_mqtt()
@@ -2837,14 +2844,20 @@ def create_app() -> FastAPI:
                       "MQTT tab." if sup.get("found") else
                       "Publishing is off. Install the Mosquitto broker add-on, then turn it "
                       "on from the MQTT tab.")
+        elif no_publisher:
+            remedy = ("The connection is made per gateway — add a gateway with "
+                      "Publish to Home Assistant on, then check again.")
         else:
             remedy = "" if broker_ok else "Publishing is on but the broker is not connected — check the MQTT tab."
         checks.append({
             "id": "mqtt_broker", "title": "MQTT broker connected",
             "detail": "Carries this bridge's entities into Home Assistant.",
-            "ok": bool(s.mqtt_enabled and broker_ok),
-            "state": ("Connected" if (s.mqtt_enabled and broker_ok)
-                      else "Not publishing" if not s.mqtt_enabled else "Not connected"),
+            # No publishing gateway yet: nothing has tried to connect, which is not a failure.
+            "ok": (None if (s.mqtt_enabled and no_publisher)
+                   else bool(s.mqtt_enabled and broker_ok)),
+            "state": ("Not publishing" if not s.mqtt_enabled
+                      else "No gateway publishing yet" if no_publisher
+                      else "Connected" if broker_ok else "Not connected"),
             "remedy": remedy,
             "can_enable": bool(sup.get("found") and not s.mqtt_enabled),
         })
@@ -2883,13 +2896,15 @@ def create_app() -> FastAPI:
         ours = leftovers = None
         if inst and probe and probe.get("ok"):
             try:
-                ids = {e.get("entity_id", "") for e in
-                       ha_instances.states(inst["base_url"], inst.get("token"))}
-                nodes = {(g.serial or "").lower() for g in (get_gateways() or []) if g.serial}
-                ours = sum(1 for e in ids if "franklinwh_" in e
-                           and any(n in e for n in nodes)) if nodes else None
-                leftovers = (sum(1 for e in ids if "franklinwh_" in e) - (ours or 0)
-                             if ours is not None else None)
+                # Owned by DEVICE identity, not by entity_id text (#83): since 0.4.0 the
+                # entity_ids carry the serial's last 8 characters, older ones carry the old
+                # device name, and other integrations also use "franklinwh_".
+                rows = ha_instances.bridge_entities(inst["base_url"], inst.get("token"))
+                current = {f"franklinwh_{(g.serial or '').lower()}"
+                           for g in (get_gateways() or []) if g.serial}
+                if current:
+                    ours = sum(1 for _e, idents in rows if current & set(idents))
+                    leftovers = len(rows) - ours
             except Exception:  # noqa: BLE001 — a count is not worth failing the page for
                 ours = leftovers = None
         checks.append({
