@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.5.2] — 2026-10-16
+
+Hotfix: turning a schedule on or off no longer wipes its settings.
+
 ### Fixed
 
 - **Turning a schedule on or off no longer wipes its settings.** The on/off switch saved only a few
