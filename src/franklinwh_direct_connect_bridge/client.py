@@ -149,6 +149,24 @@ def reboot(s: Settings, host: str | None = None) -> dict[str, Any]:
         return c.reboot()
 
 
+def still_at_address(host: str | None) -> bool:
+    """Does the gateway still answer at its known address — ping OR a TCP connect to
+    :9000? Either means it has not moved, so a network sweep would only add load (#123).
+    Never touches :502."""
+    if not host:
+        return False
+    h = host.split(":")[0]
+    try:
+        if discover.ping(h, timeout=1.0):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        return bool(discover.port_open(h, discover.PORT_SENDMQTT, timeout=2.0))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def rediscover(s: Settings, host: str | None = None,
                serial: str | None = None) -> str | None:
     """Scan the subnet for the aGate (it can move IP on reboot / DHCP). Prefer the host
@@ -163,7 +181,10 @@ def rediscover(s: Settings, host: str | None = None,
     except ValueError:
         return None
     log.info("re-discovering aGate on %s ...", subnet)
-    results = discover.scan(targets, timeout=1.0, probe=True)
+    # Direct Connect :9000 ONLY. The library's default also probes :502 — that swept the
+    # aGate Modbus TCP Server (single client) and :502 on every host of the /24, once a
+    # minute during an outage (#123).
+    results = discover.scan(targets, ports=(discover.PORT_SENDMQTT,), timeout=1.0, probe=True)
     hits = [r for r in results if getattr(r, "sendmqtt_confirmed", False)]
     chosen = None
     if known_serial:
