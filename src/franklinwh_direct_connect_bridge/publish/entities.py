@@ -33,6 +33,19 @@ ENTITIES: list[dict[str, Any]] = [
     {"key": "ambient_temp_c", "name": "Ambient Temperature", "unit": "°C", "device_class": "temperature", "state_class": "measurement", "group": "diagnostic"},
     {"key": "run_status", "name": "Run Status", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
     {"key": "battery_status", "name": "Battery State", "unit": None, "device_class": None, "state_class": None, "group": "power"},
+    # aGate network (#134) — read every few minutes, not every poll. Diagnostic card.
+    {"key": "net_in_use", "name": "Network In Use", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_available", "name": "Networks Available", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_write_safety", "name": "Network Write Safety", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_fallback", "name": "Network Fallback", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_wifi_signal", "name": "WiFi Signal", "unit": "%", "device_class": None, "state_class": "measurement", "group": "diagnostic"},
+    {"key": "net_4g_signal", "name": "4G Signal", "unit": None, "device_class": None, "state_class": "measurement", "group": "diagnostic"},
+    {"key": "net_if_eth0", "name": "Ethernet 0", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_if_eth1", "name": "Ethernet 1", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_if_wifi", "name": "WiFi Link", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_if_4g", "name": "4G Link", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_cloud", "name": "Cloud Connection", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
+    {"key": "net_cloud_endpoint", "name": "Cloud Endpoint", "unit": None, "device_class": None, "state_class": None, "group": "diagnostic"},
 ]
 
 #: The three operating work modes. HA shows these names; the bridge maps the
@@ -206,14 +219,19 @@ def device_info(node: str, serial: str, firmware: str | None = None, *,
     return d
 
 
-def discovery_configs(node: str, device: dict, prefix: str, discovery_prefix: str, groups=None):
+#: Keys that only a REAL gateway has a source for (the emulator models no network, #134).
+NETWORK_KEYS = frozenset(e["key"] for e in ENTITIES if e["key"].startswith("net_"))
+
+
+def discovery_configs(node: str, device: dict, prefix: str, discovery_prefix: str, groups=None,
+                      *, skip: frozenset | set = frozenset()):
     """Return (list[(config_topic, config_payload)], state_topic, availability_topic)."""
     state_topic = f"{prefix}/{node}/state"
     avail_topic = f"{prefix}/{node}/availability"
     configs = []
     enabled = _enabled(groups)
     for e in ENTITIES:
-        if e.get("group", "core") not in enabled:
+        if e.get("group", "core") not in enabled or e["key"] in skip:
             continue
         cfg = {
             "name": e["name"],

@@ -38,6 +38,10 @@ def _fmt_outage(seconds: float | None) -> str:
     return f"{s // 3600}h {(s % 3600) // 60}m"
 
 
+#: How often the aGate's network state is read for Home Assistant (#134).
+NET_EVERY_S = 600
+
+
 async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event) -> None:
     """Resolve THIS gateway from its firmware manifest, (optionally) connect MQTT, then
     read state every ``poll_interval`` until ``stop`` is set — publishing to MQTT when
@@ -92,7 +96,9 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                 log.warning("[%s] control %s failed: %s", gw.id, key, e)
 
         pub = MqttPublisher(settings, node, device, command_handler=_on_control,
-                            groups=entities.enabled_from_store(get_store(settings)))
+                            groups=entities.enabled_from_store(get_store(settings)),
+                            skip=(entities.NETWORK_KEYS if getattr(gw, "is_mock", False)
+                                  else frozenset()))
         pub.start()
         return pub
 
@@ -129,6 +135,8 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
         log.info("[%s] metrics store active (%s)", gw.id, settings.metrics_db)
 
     notifier = Notifier(settings)
+    net_state: dict = {}
+    net_last = 0.0
     prev: dict | None = None
     last_fw = fw
     inserts = 0
@@ -203,6 +211,23 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                 except asyncio.TimeoutError:
                     summ = {"ok": False, "error": f"poll timed out after {_poll_timeout}s"}
                 st = entities.state_payload(summ)   # the keys HA's templates read (#96)
+                # aGate network (#134): a separate light read every NET_EVERY_S, never every
+                # poll (the aGate is sensitive to load, #123), and never for a mock.
+                if not getattr(gw, "is_mock", False) and summ.get("ok") and \
+                        time.time() - net_last >= NET_EVERY_S:
+                    net_last = time.time()
+                    try:
+                        nb = await asyncio.wait_for(asyncio.to_thread(
+                            client.network_light, settings, gw.active_host), timeout=_poll_timeout)
+                        from .cloud_compat import network_from_interfaces as _nfi
+                        from .publish.network import network_state as _ns
+                        raw = nb.get("interfaces_raw")
+                        net_state = _ns(nb.get("connectivity"),
+                                        _nfi(raw) if isinstance(raw, dict) else None,
+                                        nb.get("switches"), nb.get("cloud"))
+                    except Exception as e:  # noqa: BLE001 — a network read never breaks the poll
+                        log.debug("[%s] network read failed: %s", gw.id, e)
+                st.update(net_state)
                 gw.last_state = st
                 gw.state_ts = time.time()
                 # Cache the full summary for /api/summary + /api/gateways/{id}/summary so the
