@@ -1,3 +1,5 @@
+> **Superseded by [PARITY_GAP.md](PARITY_GAP.md)** (2026-10-16), which compares the full REST APIs (OpenAPI) as well as the MQTT entities of all three bridges. This file covered HA controls only.
+
 # Home Assistant control gap: Direct Connect REST vs Direct MQTT vs FWHAI vs Modbus Bridge
 
 **Scope.** Written 2026-10-16. Compares FranklinWH Direct Connect Bridge **0.4.5** (`main` at the
