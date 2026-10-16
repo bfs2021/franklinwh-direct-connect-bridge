@@ -152,10 +152,24 @@ def test_cloud_grid_status_normal_is_reconnect(monkeypatch):
 
     monkeypatch.setattr(client_module, "set_offgrid", fake_offgrid)
     c = _app()
-    r = c.post("/api/cloud/grid-status", json={"status": "Normal", "soc": 5})
+    r = c.post("/api/cloud/grid-status", json={"status": "Normal", "soc": 5, "confirm": True})
     assert r.status_code == 200 and seen["on"] is False
-    r = c.post("/api/cloud/grid-status", json={"status": "OFF", "soc": 10})
+    r = c.post("/api/cloud/grid-status", json={"status": "OFF", "soc": 10, "confirm": True})
     assert r.status_code == 200 and seen["on"] is True and seen["soc"] == 10
+
+
+def test_cloud_grid_status_needs_confirm_like_offgrid(monkeypatch):
+    """Islanding the site is consequential. The cloud-compatible route must not be a way
+    around the confirmation POST /api/offgrid requires."""
+    monkeypatch.setattr(client_module, "writes_enabled", lambda s: True)
+    called = []
+    monkeypatch.setattr(client_module, "set_offgrid",
+                        lambda s, on, soc, host=None: called.append(on) or {"ok": True})
+    c = _app()
+    for status in ("OFF", "DOWN", "Normal"):
+        r = c.post("/api/cloud/grid-status", json={"status": status, "soc": 10})
+        assert r.status_code == 428, (status, r.status_code)
+    assert called == []                      # nothing reached the gateway
 
 
 def test_cloud_smart_circuit_state_returns_readback(monkeypatch):
