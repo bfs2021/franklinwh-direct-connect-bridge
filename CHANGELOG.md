@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.5.0] — 2026-10-16
+
+Poller: editing a gateway keeps it running.
+
 ### Fixed
 
 - **Editing a gateway no longer stops it for good.** Changing a gateway in Settings (for example turning
