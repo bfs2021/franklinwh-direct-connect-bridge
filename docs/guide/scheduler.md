@@ -276,6 +276,77 @@ already holds".
 
 ---
 
+## 7. Using schedules from Home Assistant
+
+Everything the Scheduler tab does is also a REST call. Home Assistant can make those calls
+with `rest_command`, so automations and scripts can read, create, update, delete, run and pause
+schedules. Home Assistant entities for run, pause and state over MQTT are planned (#128).
+
+**The address.** From Home Assistant, the add-on is reachable on its internal hostname. The
+add-on's **Info** page shows it (for example `4a12892f-franklinwh-local-bridge`). Use
+`http://<that hostname>:8101`. A Docker install uses its own host and port.
+
+> The bridge's HTTP API has no login. Anything that can reach it can do all of the below.
+> Keep it on a trusted network.
+
+```yaml
+# configuration.yaml
+rest_command:
+  fwh_schedule_create:          # body: a full schedule (see "The fields" below)
+    url: "http://<hostname>:8101/api/schedules"
+    method: POST
+    content_type: "application/json"
+    payload: "{{ schedule | tojson }}"
+  fwh_schedule_update:          # replaces the schedule's definition
+    url: "http://<hostname>:8101/api/schedules/{{ id }}"
+    method: PUT
+    content_type: "application/json"
+    payload: "{{ schedule | tojson }}"
+  fwh_schedule_delete:
+    url: "http://<hostname>:8101/api/schedules/{{ id }}"
+    method: DELETE
+  fwh_schedule_run:             # runs its actions NOW, ignoring the window
+    url: "http://<hostname>:8101/api/schedules/{{ id }}/run"
+    method: POST
+  fwh_schedule_pause:           # releases control but keeps the current run
+    url: "http://<hostname>:8101/api/schedules/{{ id }}/pause"
+    method: POST
+  fwh_schedule_resume:          # re-enters a paused run while its window is open
+    url: "http://<hostname>:8101/api/schedules/{{ id }}/resume"
+    method: POST
+  fwh_schedule_stop:            # releases this schedule's battery dispatch; stays enabled
+    url: "http://<hostname>:8101/api/schedules/{{ id }}/stop"
+    method: POST
+```
+
+**Reading.** A `rest` sensor on `GET /api/schedules` lists every schedule with `enabled`,
+`next_fire` and `active_now`. `GET /api/schedules/runs` and `GET /api/schedules/log` give
+what ran and why.
+
+**Pause vs disable: they are different.**
+
+| You want | Call |
+|---|---|
+| Stop the **current run** but keep it, to resume within its window | `pause`, then `resume` |
+| Release a **battery dispatch** this schedule started, and leave the rule enabled | `stop` |
+| Stop the rule from **firing at all** until further notice | `update` with `"enabled": false` |
+
+**Run means real actions.** `run` does what the schedule does: a mode change, a smart
+circuit, or a battery force. Test a new rule with `POST /api/schedules/{id}/test` first:
+it evaluates the conditions and says what *would* happen, without acting.
+
+**The fields** are those of the Scheduler tab's editor. A minimal rule that switches to
+Self-Consumption at midnight:
+
+```json
+{"name": "Self-Consumption all day", "enabled": true,
+ "fire_at": "00:00", "duration_min": 0,
+ "action": {"kind": "set_mode", "mode": "self"}}
+```
+
+For anything more involved, build it in the Scheduler tab and **export** it
+(`GET /api/schedules/export`): that is the exact JSON the API accepts.
+
 ## Multi-gateway behaviour
 
 Covered in [Multi-gateway and sites](multi-gateway.md), but the short version:
