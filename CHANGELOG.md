@@ -11,6 +11,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Changed
+
+- **The Modbus client (this bridge) is off by default on a new install.** Turn it on under
+  Control → Modbus client (this bridge) to use Battery Control's force commands and the
+  battery ratings read. Some sites don't have the aGate's Modbus TCP Server (:502)
+  switched on, on some gateways it misbehaves, and it serves only one client at a time,
+  so the bridge no longer connects to it unless asked. An existing install keeps its
+  setting, including one that was on only because that used to be the default (#88).
+  Without the metrics store (no saved settings), the client is now off.
+
 ### Fixed
 
 - **The bridge no longer connects to the aGate's Modbus TCP Server (:502) just to show a

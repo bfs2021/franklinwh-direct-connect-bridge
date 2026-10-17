@@ -229,3 +229,47 @@ def test_release_with_client_off_names_the_active_force(monkeypatch):
     monkeypatch.setattr(bc, "_ENABLED", False)
     out = bc.execute("Release", host="192.0.2.10")
     assert out["ok"] is False and "Force Charge" in out["result"]
+
+
+# -- #88: the Modbus client is off for a new install ------------------------------------------
+class _CfgStore:
+    def __init__(self, cfg=None, gateways=()):
+        self.cfg, self._gws = dict(cfg or {}), list(gateways)
+
+    def get_config(self, key, default=None):
+        return self.cfg.get(key, default)
+
+    def set_config(self, key, value):
+        self.cfg[key] = value
+
+    def gateways(self):
+        return self._gws
+
+
+def test_new_install_starts_with_the_client_off_and_keeps_it():
+    st = _CfgStore()
+    assert app_module._modbus_client_enabled(st) is False
+    assert st.cfg["modbus_enabled"] == "0"
+    st._gws.append({"id": "gw1"})               # adding the first gateway changes nothing
+    assert app_module._modbus_client_enabled(st) is False
+
+
+def test_existing_install_that_never_set_it_stays_on():
+    st = _CfgStore(gateways=[{"id": "gw1"}])
+    assert app_module._modbus_client_enabled(st) is True
+    assert st.cfg["modbus_enabled"] == "1"
+
+
+@pytest.mark.parametrize("val,want", [("1", True), ("0", False)])
+def test_an_explicit_choice_is_kept(val, want):
+    assert app_module._modbus_client_enabled(_CfgStore({"modbus_enabled": val})) is want
+
+
+def test_the_module_default_is_off():
+    """Without a store (metrics off) nothing applies a setting: the default must be off."""
+    import ast
+    import pathlib
+    tree = ast.parse(pathlib.Path(bc.__file__).read_text())
+    vals = [n.value.value for n in tree.body if isinstance(n, ast.Assign)
+            and any(getattr(t, "id", "") == "_ENABLED" for t in n.targets)]
+    assert vals == [False]

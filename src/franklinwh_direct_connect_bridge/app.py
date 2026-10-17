@@ -878,6 +878,25 @@ def _site_tz_hours(store) -> float | None:
     return None if off is None else off / 60.0
 
 
+def _modbus_client_enabled(store) -> bool:
+    """The Modbus client switch, deciding it once for an install that never set it (#88).
+
+    Before 0.5.9 an unset switch meant ON. An install that already has gateways was
+    running that way, so it stays on; a new one (no gateways yet) starts off. The
+    decision is stored, so adding the first gateway later does not change it."""
+    val = store.get_config("modbus_enabled", None)
+    if val is None:
+        try:
+            existing = bool(store.gateways())
+        except Exception:  # noqa: BLE001
+            existing = False
+        val = "1" if existing else "0"
+        store.set_config("modbus_enabled", val)
+        log.info("Modbus client (this bridge): %s by default (%s install)",
+                 "on" if val == "1" else "off", "existing" if existing else "new")
+    return val != "0"
+
+
 def create_app() -> FastAPI:
     # Capture the bridge logger's INFO+ records into an in-memory ring buffer so the
     # Logs tab / GET /api/logs can serve them (idempotent — safe across create_app calls).
@@ -914,13 +933,15 @@ def create_app() -> FastAPI:
         await asyncio.to_thread(apply_host_timezone)
         await asyncio.to_thread(apply_supervisor_mqtt, s)
         await asyncio.to_thread(_seed_self_ha_instance, s)
-        # Apply the persisted Modbus (SunSpec 502) master switch — default on. When the
-        # user disabled it from the Control tab, ratings + force dispatch stay off.
+        # Apply the persisted Modbus client (this bridge) switch: ratings + force dispatch.
+        # OFF for a new install (#88): the user opts in from Control. Some sites have
+        # no Modbus TCP Server (aGate :502) switched on, on some gateways it misbehaves,
+        # and it serves one client at a time. An existing install keeps what it had.
         try:
             _mstore = db.get_store(s)
             if _mstore is not None:
                 from . import battery_control as _bc
-                _bc.set_enabled(_mstore.get_config("modbus_enabled", "1") != "0")
+                _bc.set_enabled(_modbus_client_enabled(_mstore))
                 try:
                     _bc.set_host_override(_mstore.get_config("modbus_host_override", "") or "",
                                           int(_mstore.get_config("modbus_port_override", "0") or 0))

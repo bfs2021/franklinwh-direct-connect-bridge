@@ -277,11 +277,12 @@ def _lib():
     return FranklinWHController, BatteryCommand
 
 
-#: User master switch for the direct-Modbus (SunSpec 502) path — ratings AND force
-#: dispatch. Toggled from the Control tab (persisted as the ``modbus_enabled`` config);
-#: applied at startup. Default on. When off, ``available()`` reports disabled and every
+#: User master switch for the Modbus client (this bridge) — ratings AND force dispatch.
+#: Toggled from the Control tab (persisted as the ``modbus_enabled`` config); applied at
+#: startup. Default OFF (#88): a new install opts in; an existing one keeps its setting
+#: (app._modbus_client_enabled). When off, ``available()`` reports disabled and every
 #: caller falls back (ratings → user constant; dispatch → 503).
-_ENABLED = True
+_ENABLED = False
 
 
 def set_enabled(on: bool) -> None:
