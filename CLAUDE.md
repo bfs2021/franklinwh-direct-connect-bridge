@@ -231,8 +231,12 @@ on more fixes.
 
 ## Keep the changelog current
 
-The detailed policy lives in `franklinwh-modbus` at `.agents/policies/release_policy.md`
-and is the source; this is its Direct Connect reading.
+These rules are this repository's own. An earlier version of this file cited a
+`release_policy.md` in `franklinwh-modbus` as the source, but no such file exists there (checked
+2026-10-17: `.agents/policies/` on `develop` holds only `change_management.md` and
+`evidence_and_testing.md`). How a release is cut and signed off is `docs/TEST_POLICY.md`
+(§1 release size, §2 gates, §6 sign-off). If a shared release policy is adopted across the
+repositories, this section will point to it.
 
 **Every change to user-facing behaviour updates `CHANGELOG.md` in the same commit**, under
 `[Unreleased]`, using Keep a Changelog categories — Added, Changed, Fixed, Security.
