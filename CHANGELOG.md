@@ -11,6 +11,25 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Fixed
+
+- **The bridge no longer connects to the aGate's Modbus TCP Server (:502) just to show a
+  status.** The Modbus TCP Server serves one client at a time, and this bridge was a second
+  client next to the Modbus Bridge: up to three connections on every poll to show "Modbus
+  :502 Up" (#221), and a full Modbus session every 30 s for each open browser tab, to show
+  whether Battery Control was available (#223). The Modbus status now shows the result of
+  the bridge's last real connection (a force, a release, the hourly ratings read, or
+  Control → Modbus client → Test), with its time. Battery Control re-checks when it is
+  shown, at most once per 30 s, and otherwise hourly. A force still checks the
+  connection itself before it runs.
+- **A mock gateway is never contacted over Modbus.** A mock-only install logged
+  `ERROR … Error scanning SunSpec base addresses` within seconds (#95). The bridge now
+  reports "a mock gateway has no Modbus TCP Server to reach" without trying.
+- **Release reports what the aGate says.** It reads the aGate back after releasing and
+  reports "released" only if no force is still enabled; otherwise it says the release was
+  sent but not confirmed. With the Modbus client switched off, a Release now explains that
+  the force this bridge started is still active, and how to clear it (#174).
+
 ## [0.5.8] — 2026-10-17
 
 Hotfix: connecting to the aGate over Modbus no longer writes to it.
