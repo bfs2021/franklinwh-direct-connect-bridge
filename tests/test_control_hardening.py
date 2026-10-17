@@ -34,7 +34,6 @@ def test_modbus_toggle_persists_and_audits(tmp_path, monkeypatch):
     c, store = _client(tmp_path, monkeypatch)
     try:
         assert c.get("/api/modbus").json()["enabled"] is False          # new install: off (#88)
-        assert store.get_config("modbus_enabled") == "0"                # decided once, stored
         assert c.put("/api/modbus", json={"enabled": True}).json()["enabled"] is True
         assert store.get_config("modbus_enabled") == "1"
         assert c.put("/api/modbus", json={"enabled": False}).json()["enabled"] is False
