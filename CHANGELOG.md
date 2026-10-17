@@ -11,6 +11,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+## [0.5.8] — 2026-10-17
+
+Hotfix: connecting to the aGate over Modbus no longer writes to it.
+
 ### Fixed
 
 - **Connecting to the aGate over Modbus no longer writes its operating mode and reserves.** The
