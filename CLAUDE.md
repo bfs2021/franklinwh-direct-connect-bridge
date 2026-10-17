@@ -235,8 +235,13 @@ These rules are this repository's own. An earlier version of this file cited a
 `release_policy.md` in `franklinwh-modbus` as the source, but no such file exists there (checked
 2026-10-17: `.agents/policies/` on `develop` holds only `change_management.md` and
 `evidence_and_testing.md`). How a release is cut and signed off is `docs/TEST_POLICY.md`
-(§1 release size, §2 gates, §6 sign-off). If a shared release policy is adopted across the
-repositories, this section will point to it.
+(§1 release size, §2 gates, §6 sign-off).
+
+The **library's** release rules are `franklinwh-modbus` `.agents/policies/release_policy.md` on
+`develop` (adopted 2026-10-17). They are not this repository's procedure, since the library
+publishes from a `vX.Y.Z` tag to PyPI. Cite them for two things only: when the library releases
+(§2: an S1 fix on `develop` triggers a patch release) and how the bridges are told (§4 step 7).
+The G0–G3 gate numbering is shared (§3 there, §2 of `docs/TEST_POLICY.md` here).
 
 **Every change to user-facing behaviour updates `CHANGELOG.md` in the same commit**, under
 `[Unreleased]`, using Keep a Changelog categories — Added, Changed, Fixed, Security.
