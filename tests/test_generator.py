@@ -73,12 +73,17 @@ def test_maintenance_block():
 @pytest.fixture()
 def client(monkeypatch):
     from franklinwh_direct_connect_bridge import client as c
+    from franklinwh_direct_connect_bridge import app as app_module
     monkeypatch.setattr(c, "generator", lambda s, host=None: generator.build(NO_GEN))
+    # A configured default gateway, so the endpoint reaches the (stubbed) device read.
+    monkeypatch.setattr(app_module, "get_state", lambda: type(
+        "G", (), {"active_host": "192.0.2.10", "configured_host": "192.0.2.10"})())
     return TestClient(create_app())
 
 
 def test_api_generator(client):
     body = client.get("/api/generator").json()
+    assert body["available"] is True
     assert body["installed"] is False and body["soc_start_pct"] == 20
 
 
