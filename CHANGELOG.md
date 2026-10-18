@@ -11,6 +11,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Changed
+
+- **The franklinwh-modbus library is pinned to 0.9.6** (#219). The bridge used to accept any
+  0.9 or later, so each new library release went into new installs and rebuilds before it was
+  tested here — 0.9.6 and 0.10.0 both arrived that way within two days. 0.9.6 is the version
+  0.5.9 was tested with on a real aGate. With it, failed Modbus status reads are logged as
+  WARNING (rate-limited), not DEBUG.
+
 ## [0.5.9] — 2026-10-18
 
 The Modbus client (this bridge) stops connecting to the aGate just to show a status, and is off by default on new installs.

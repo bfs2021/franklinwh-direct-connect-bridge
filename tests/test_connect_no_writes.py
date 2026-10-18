@@ -3,8 +3,8 @@
 franklinwh-modbus 0.9.5 ``connect()`` runs a write test on 15507-15509 (operating mode and
 reserves) on every connect. This drives the library's REAL ``connect()`` over a fake
 transport that records every Modbus frame, and checks that the bridge's connection sends
-no write (function 6 or 16). The control test shows the harness does reach the library's
-write test when the bridge doesn't disable it, so a pass is not vacuous."""
+no write (function 6 or 16). On 0.9.5 the library itself wrote on connect; the pinned 0.9.6
+does not, so the second test checks the library and the first the bridge's guard."""
 import struct
 
 import pytest
@@ -68,12 +68,13 @@ def _writes(frames):
     return [f for f in frames if len(f) >= 8 and f[7] in (6, 16)]
 
 
-def test_the_library_alone_does_write_on_connect(frames):
-    """Control: without the bridge's guard, the library's connect() writes 15507-15509."""
+def test_the_pinned_library_writes_nothing_on_connect(frames):
+    """The pinned franklinwh-modbus (0.9.6, its #24) no longer runs the write test in
+    connect(). Without the bridge's guard, connect() must still send no write. On 0.9.5
+    this sent 15507-15509 (#224), which is what the guard below exists for."""
     c = lib.FranklinWHController("192.0.2.10", port=502, unit_id=1)
     assert c.connect()
-    addrs = {struct.unpack(">H", f[8:10])[0] for f in _writes(frames)}
-    assert {15507, 15508, 15509} & addrs, frames
+    assert _writes(frames) == [], [f.hex() for f in _writes(frames)]
 
 
 def test_the_bridge_connect_writes_nothing(frames):
