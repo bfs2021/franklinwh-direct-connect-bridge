@@ -11,6 +11,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+## [0.5.10] — 2026-10-19
+
+The Modbus library is pinned to the version this bridge was tested with.
+
 ### Changed
 
 - **The franklinwh-modbus library is pinned to 0.9.6** (#219). The bridge used to accept any
