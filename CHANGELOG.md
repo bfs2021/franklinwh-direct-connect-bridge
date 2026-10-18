@@ -11,6 +11,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+## [0.5.9] — 2026-10-18
+
+The Modbus client (this bridge) stops connecting to the aGate just to show a status, and is off by default on new installs.
+
 ### Changed
 
 - **The Modbus client (this bridge) is off by default on a new install.** Turn it on under
