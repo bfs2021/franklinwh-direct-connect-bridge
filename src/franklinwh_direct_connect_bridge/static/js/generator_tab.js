@@ -18,7 +18,10 @@ document.addEventListener('alpine:init', () => {
       try {
         const r = await fetch('api/generator' + this.$store.app.gwQuery());
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
-        this.data = await r.json();
+        const d = await r.json();
+        // No gateway yet (#94): say so, rather than render an empty generator.
+        if (d && d.available === false) { this.error = d.reason || 'No gateway yet.'; this.data = null; return; }
+        this.data = d;
       } catch (e) { this.error = e.message; this.data = null; }
       finally { this.loading = false; }
     },

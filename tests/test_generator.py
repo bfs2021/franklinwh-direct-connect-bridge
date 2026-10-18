@@ -194,3 +194,23 @@ def test_enable_succeeds_without_hardware_by_design():
     import inspect
     from franklinwh_direct_connect_bridge import client as c
     assert "NotInstalledError" not in inspect.getsource(c.set_generator_enabled)
+
+
+# ── #94: no gateway yet is an answer, not a 502 ─────────────────────────────
+def test_no_gateway_yet_answers_200_without_device_io(monkeypatch):
+    """The UI asks for the generator on page load, before the setup wizard has added a
+    gateway. That used to try an empty host and answer 502 (two console errors per load)."""
+    from franklinwh_direct_connect_bridge import client as c
+    calls = []
+    monkeypatch.setattr(c, "generator", lambda *a, **kw: calls.append(1) or {})
+    monkeypatch.delenv("FWH_HOST", raising=False)
+    monkeypatch.delenv("FWH_HOSTS", raising=False)
+    app = create_app()
+    from franklinwh_direct_connect_bridge import app as app_module
+    monkeypatch.setattr(app_module, "get_state", lambda: type("G", (), {"active_host": "", "configured_host": ""})(), raising=False)
+    tc = TestClient(app)
+    for path in ("/api/generator", "/api/generator/raw"):
+        r = tc.get(path)
+        assert r.status_code == 200, (path, r.status_code, r.text)
+        assert r.json()["available"] is False and r.json()["reason"]
+    assert calls == []

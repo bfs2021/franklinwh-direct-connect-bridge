@@ -2320,16 +2320,24 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail=str(e))
 
     # ── generator (FEAT-GENERATOR) ───────────────────────────────────────────
+    _NO_GATEWAY_YET = {"available": False, "enabled": False,
+                       "reason": "No gateway is set up yet."}
+
     @app.get("/api/generator")
     def api_generator(gateway: str | None = Query(None)):
         """Generator config + run state (1901).
 
         ``installed`` is evidence-based — the gateway returns the 1901 block whether
         or not a generator exists, exactly as it does for smart circuits.
+
+        No gateway set up yet is an answer, not an upstream failure (#94): 200 with
+        ``available: false``. 502 stays for a gateway that was asked and did not answer.
         """
         host = _gw_host(gateway)
+        if not host:
+            return _NO_GATEWAY_YET
         try:
-            return client.generator(get_settings(), host=host)
+            return {"available": True, **client.generator(get_settings(), host=host)}
         except (OSError, TransportError, TimeoutError) as e:
             raise HTTPException(status_code=502, detail=str(e))
 
@@ -2337,6 +2345,8 @@ def create_app() -> FastAPI:
     def api_generator_raw(gateway: str | None = Query(None)):
         """Raw 1901 payload, including fields the view-model deliberately omits."""
         host = _gw_host(gateway)
+        if not host:
+            return _NO_GATEWAY_YET
         try:
             return client.read(get_settings(), "generator", host=host)
         except (OSError, TransportError, TimeoutError) as e:

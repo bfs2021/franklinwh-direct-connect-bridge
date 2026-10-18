@@ -22,6 +22,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   buttons wrote a field that the FranklinWH app's own traffic shows is a manual start/stop
   command, not the mode. The mode fields are now shown raw, and the mode endpoint refuses
   without writing. Use the FranklinWH app to change the mode.
+- **No more Bad Gateway errors from the Generator before a gateway is set up** (#94). Opening
+  the app before the setup wizard has added a gateway asked the generator endpoint for data,
+  which answered 502 and put two errors in the browser console on every load. It now answers
+  "No gateway is set up yet."
 
 ### Added
 
