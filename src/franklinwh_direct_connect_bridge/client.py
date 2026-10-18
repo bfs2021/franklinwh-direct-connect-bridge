@@ -620,47 +620,6 @@ def generator(s: Settings, host: str | None = None) -> dict[str, Any]:
         return _gen.build(c.generator())
 
 
-def set_generator_mode(s: Settings, mode: str,
-                       host: str | None = None) -> dict[str, Any]:
-    """Set the generator operating mode — 1901 full-block read-modify-write.
-
-    Same shape as the proven 1409 write: read the block, change one field, echo
-    everything else back, then re-read to verify. Echoing the whole block matters
-    here because 1901 also carries the charge windows — a partial write would risk
-    clearing them.
-
-    Refuses when no generator is detected: this write has never been exercised
-    against generator hardware, so it must not be fired blind at a system that has
-    none. See BACKLOG FEAT-GENERATOR.
-    """
-    from . import generator as _gen
-    want = _gen.MODE_TO_VALUE.get(mode)
-    if want is None:
-        raise ValueError(f"mode must be one of {sorted(_gen.MODE_TO_VALUE)}")
-
-    with _client(s, host) as c:
-        c.login()
-        before = c.generator()
-        if not _gen.installed(before):
-            raise NotInstalledError("no generator detected — refusing to write generator mode")
-        block = {k: v for k, v in before.items()
-                 if k not in ("opt", "result", "reason")}
-        block.update({"opt": 1, "manuSw": want})
-        reply = c.call(1901, block)
-        after = c.generator()
-
-    return {
-        "ok": reply.get("result") == 0 and after.get("manuSw") == want,
-        "result": reply.get("result"),
-        "before": before.get("manuSw"),
-        "after": after.get("manuSw"),
-        "confirmed": after.get("manuSw") == want,
-        "hardware_verified": False,
-        "hardware_note": ("1901 mode write has NOT been exercised on generator "
-                          "hardware; the read-back is the only safety net."),
-    }
-
-
 def set_smart_circuit(s: Settings, circuit: int, on: bool,
                       host: str | None = None) -> dict[str, Any]:
     """Turn a smart circuit on/off (1409 full-block RMW) in ONE aGate session. Returns the

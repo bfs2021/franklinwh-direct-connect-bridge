@@ -186,7 +186,10 @@ document.addEventListener('alpine:init', () => {
       await this.loadSetup();
     },
 
-    generatorInstalled: false,
+    //: Is the generator FEATURE switched on (1901 genEn)? Gates generator METRICS only
+    //  (a permanent 0 W otherwise). Never gates the tab: the official app always shows it
+    //  so the user can switch it on, and the bridge cannot know what is wired up (#238).
+    generatorEnabled: false,
     //: The registry filtered to what this gateway actually has — feeds barMax/barTabs/
     //  overflowTabs and the bottom nav. Generator drops out when no genset is present.
     //: One ordering drives BOTH navs. The sidebar and the bottom bar used to be two
@@ -201,7 +204,8 @@ document.addEventListener('alpine:init', () => {
     navLabel(key) { return this.tabTitles[key] || key; },
 
     //: The registry filtered to hardware this gateway actually has.
-    get navAvailable() { return this._navTabsAll.filter(t => t.key !== 'generator' || this.generatorInstalled); },
+    //: Every tab, always. Nothing is hidden on an inference about hardware (#238).
+    get navAvailable() { return this._navTabsAll; },
 
     navPrefs: [],
     _navDefaults() {
@@ -861,14 +865,12 @@ document.addEventListener('alpine:init', () => {
       this._gwInterval = setInterval(() => { if (!this._hidden) this.loadGateways(); }, want);
     },
 
-    //: Detect whether the selected gateway has a generator (per-gateway). Cheap 1901 read.
+    //: Whether the selected gateway's generator feature is on (per-gateway). Cheap 1901 read.
     async _loadGeneratorInstalled() {
       try {
         const r = await (await fetch('api/generator' + this.gwQuery())).json();
-        this.generatorInstalled = !!(r && r.installed);
-      } catch (e) { this.generatorInstalled = false; }
-      // If we're sitting on a now-hidden Generator tab (no genset), fall back to the dashboard.
-      if (!this.generatorInstalled && this.activeTab === 'generator') this.setActiveTab('dashboard');
+        this.generatorEnabled = !!(r && r.enabled);
+      } catch (e) { this.generatorEnabled = false; }
     },
     selectGateway(id) {
       this.selectedGateway = id;

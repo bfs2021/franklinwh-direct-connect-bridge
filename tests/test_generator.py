@@ -34,7 +34,8 @@ def test_absent_generator_is_detected_as_absent():
 def test_installed_generator_is_detected():
     v = generator.build(RUNNING)
     assert v["installed"] and v["running"] and v["power_w"] == 3200
-    assert v["state_name"] == "Running / ON" and v["mode_name"] == "Auto-schedule"
+    assert v["state_name"] == "Running / ON"
+    assert v["evidence"]["run_state"] == 1         # evidence, not an "installed" verdict
 
 
 def test_shared_electricals_are_not_reported_as_generator_output():
@@ -45,9 +46,11 @@ def test_shared_electricals_are_not_reported_as_generator_output():
         assert leaked not in v
 
 
-def test_unset_mode_is_not_guessed():
-    """Cloud documents manuSw 1 and 2 only; 0 is observed and must not be invented."""
-    assert generator.build(NO_GEN)["mode_name"] == "Unset"
+def test_mode_fields_are_reported_raw_and_never_named():
+    """#237: neither ``mode`` nor ``manuSw`` is mapped, so neither gets a name."""
+    v = generator.build({**NO_GEN, "mode": 2, "manuSw": 0})
+    assert v["mode_raw"] == 2 and v["manuSw_raw"] == 0
+    assert "mode_name" not in v and "mode" not in v
 
 
 def test_fault_state_flagged():
@@ -79,23 +82,25 @@ def test_api_generator(client):
     assert body["installed"] is False and body["soc_start_pct"] == 20
 
 
-def test_mode_write_refuses_when_no_generator(monkeypatch):
-    """An unexercised write must not be fired at hardware that isn't there."""
+def test_mode_endpoint_writes_nothing(monkeypatch):
+    """#237: the Auto/Manual write targeted manuSw (start/stop per the cloud captures).
+    The endpoint now refuses before any device I/O, whatever the gateway reports."""
     from franklinwh_direct_connect_bridge import client as c
     monkeypatch.setattr(c, "writes_enabled", lambda s: True)
-
-    def boom(s, mode, host=None):
-        raise c.NotInstalledError("no generator detected")
-    monkeypatch.setattr(c, "set_generator_mode", boom)
+    calls = []
+    monkeypatch.setattr(c, "_client", lambda *a, **kw: calls.append(a) or (_ for _ in ()).throw(AssertionError("device I/O")))
     r = TestClient(create_app()).post("/api/generator/mode", json={"mode": "auto"})
-    assert r.status_code == 409
+    assert r.status_code == 409 and "#237" in r.json()["detail"]
+    assert calls == []
 
 
-def test_invalid_mode_rejected():
+def test_no_code_path_writes_manusw():
+    """The only writer of manuSw (client.set_generator_mode) is gone (#237)."""
+    import pathlib
     from franklinwh_direct_connect_bridge import client as c
-    from franklinwh_direct_connect_bridge.config import Settings
-    with pytest.raises(ValueError):
-        c.set_generator_mode(Settings(), "turbo")
+    assert not hasattr(c, "set_generator_mode")
+    src = pathlib.Path(c.__file__).read_text()
+    assert '"manuSw": want' not in src
 
 
 # ── config write endpoints (1901, hardware-verified) ─────────────────────────

@@ -90,7 +90,7 @@ function settingsTab() {
         if (g.grid) { const gr=g.grid; L.push(`  grid: service ${gr.service_amps??'?'}A · air-switch ${gr.air_switch_amps??'?'}A · import ${gr.import_limit_w===-1?'unlimited':gr.import_limit_w} · export ${gr.grid_export_enabled?'enabled':'disabled'} (${gr.export_limit_w===-1?'unlimited':gr.export_limit_w}) · pcs-discharge ${gr.pcs_discharge_enabled?'on':'off'} · inverter ${gr.inverter_max_charge_kw??'?'}/${gr.inverter_max_discharge_kw??'?'} kW`); }
         if (g.firmware) L.push('  firmware: ' + Object.entries(g.firmware).map(([k,v])=>k+'='+v).join(' '));
         if (g.smart_circuits!=null) L.push(`  smart circuits: ${g.smart_circuits}`);
-        if (g.generator) L.push(`  generator: ${g.generator.installed?('installed · '+(g.generator.mode||'?')+' · '+(g.generator.state||'?')):'not installed'}`);
+        if (g.generator) L.push(`  generator: feature ${g.generator.enabled?'on':'off'} · ${g.generator.state||'?'} · reported model ${(g.generator.evidence&&g.generator.evidence.model)||'none'}`);
         if (g.operating_mode||g.soc_pct!=null) L.push(`  mode ${g.operating_mode||'?'} · SoC ${g.soc_pct!=null?Math.round(g.soc_pct)+'%':'?'} · run ${g.run_status||'?'} · vpp ${g.cloud_vpp}`);
         if (g.contacted_at) L.push(`  last contact: ${new Date(g.contacted_at*1000).toISOString()}`);
       });
