@@ -44,6 +44,9 @@ Click the button above, or add the repository by hand:
   costs) read it. `metrics_enabled: false` turns recording off.
 - A **watchdog** restarts the add-on if the web app stops serving. It probes `/api/live`,
   which does no gateway I/O, so an unreachable aGate never triggers a restart.
+- **A prebuilt image** is downloaded from GitHub's container registry
+  (`ghcr.io/david2069/{arch}-franklinwh-direct-connect-bridge`); nothing is compiled on your
+  machine. Supported: **aarch64** (Raspberry Pi 4/5, most ARM boards) and **amd64** (Intel/AMD).
 - **Control writes stay off** until you set `allow_writes`. You can flip it live from the
   **Settings** tab.
 

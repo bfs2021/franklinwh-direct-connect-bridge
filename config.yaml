@@ -12,9 +12,9 @@ init: false
 arch:
   - aarch64
   - amd64
-  - armhf
-  - armv7
-  - i386
+# Prebuilt image, published by .github/workflows/publish-image.yml before each release (#243).
+# The Supervisor pulls {image}:{version} instead of building locally, and GHCR counts pulls.
+image: "ghcr.io/david2069/{arch}-franklinwh-direct-connect-bridge"
 
 # Web UI + REST served through HA ingress (sidebar panel).
 ingress: true

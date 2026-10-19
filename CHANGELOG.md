@@ -11,6 +11,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Changed
+
+- **The add-on now installs a prebuilt image instead of building on your machine** (#243).
+  Home Assistant downloads `ghcr.io/david2069/{arch}-franklinwh-direct-connect-bridge`, built
+  and tested before release, so installs and updates are faster and everyone runs the same
+  build. GitHub's download count for the image also tells us roughly how many installs and
+  updates there are; nothing else is collected.
+- **Supported architectures are now aarch64 and amd64 only.** armhf, armv7 and i386 are no
+  longer offered: they can't be tested here, and the image is not built for them.
+
 ## [0.5.11] — 2026-10-20
 
 The Generator tab is always available, as in the FranklinWH app, and the bridge no longer changes the generator mode.
