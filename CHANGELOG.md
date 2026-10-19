@@ -11,6 +11,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+## [0.5.11] — 2026-10-20
+
+The Generator tab is always available, as in the FranklinWH app, and the bridge no longer changes the generator mode.
+
 ### Fixed
 
 - **The Generator tab is always available, as in the FranklinWH app** (#238, #229). It was
