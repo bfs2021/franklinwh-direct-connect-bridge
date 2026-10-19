@@ -24,18 +24,19 @@
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="text-sm font-semibold" style="color:var(--text-primary)"
-               x-text="data.configured ? 'Generator is disabled'
-                                       : 'No generator enabled or detected'"></div>
+               x-text="'The generator feature is off'"></div>
           <p class="text-sm mt-1" style="color:var(--text-secondary)">
             <template x-if="!data.configured">
-              <span>The gateway reports the generator block whether or not a module is
-                fitted — there is no model, rated power or run state here, so nothing
-                appears to be installed. The settings below are stored defaults and are
-                <strong>read-only</strong> while the feature is off.</span>
+              <span>As in the FranklinWH app, you can switch the generator feature on
+                here. The aGate returns these settings whether or not a generator is
+                connected, and it currently reports no model, rated power or run state.
+                The settings below are <strong>read-only</strong> while the feature is
+                off.</span>
             </template>
             <template x-if="data.configured">
-              <span>Hardware is reported but the feature is switched off. Settings are
-                read-only until it is enabled.</span>
+              <span>The aGate reports a generator model, rated power or run state, but
+                the feature is switched off. Settings are read-only until it is
+                switched on.</span>
             </template>
           </p>
         </div>
@@ -51,9 +52,10 @@
     <div class="card px-4 py-3 flex flex-wrap items-center justify-between gap-3"
          style="background:rgba(245,158,11,.08)">
       <div class="text-sm" style="color:#fbbf24">
-        Generator is <strong>enabled</strong> but no hardware is reported — settings will
-        save and nothing will act on them until a module is installed. The generator is
-        also only available off-grid: configuration applies on grid, running does not.
+        The generator feature is <strong>on</strong>. The aGate reports no model, rated
+        power or run state, so the bridge cannot tell whether a generator will act on
+        these settings. The generator is only available off-grid: configuration applies
+        on grid, running does not.
       </div>
       <button class="btn btn-secondary btn-sm" :disabled="busy || !canToggleFeature"
               @click="setEnabled(false)">Disable</button>
@@ -99,23 +101,16 @@
           </div>
 
           <div class="pt-3 border-t" style="border-color:var(--border)">
-            <div class="text-sm mb-2" style="color:var(--text-secondary)">
-              Mode · <span style="color:var(--text-primary)" x-text="data.mode_name"></span>
+            <!-- #237: mode is not mapped. The old Auto/Manual buttons wrote manuSw, which
+                 franklinwh-cloud's captures show acts as start/stop. Raw values only. -->
+            <div class="text-sm mb-1" style="color:var(--text-secondary)">Mode</div>
+            <div class="text-xs font-mono" style="color:var(--text-primary)">
+              mode <span x-text="data.mode_raw ?? '—'"></span>
+              · manuSw <span x-text="data.manuSw_raw ?? '—'"></span>
             </div>
-            <div class="flex gap-2">
-              <template x-for="m in ['auto', 'manual']" :key="m">
-                <button class="btn btn-sm flex-1"
-                        :class="data.mode_name.toLowerCase().startsWith(m) ? 'btn-primary' : 'btn-secondary'"
-                        :disabled="busy || !canWrite"
-                        :title="editBlockedReason()"
-                        @click="setMode(m)"
-                        x-text="m === 'auto' ? 'Auto' : 'Manual'"></button>
-              </template>
-            </div>
-            <p class="text-xs mt-2" style="color:var(--text-secondary)"
-               x-show="data.enabled">
-              This write has not been exercised on generator hardware — the read-back
-              is the only safety net.
+            <p class="text-xs mt-2" style="color:var(--text-secondary)">
+              Not changeable here yet: which field sets the mode, and what its values
+              mean, is unconfirmed on generator hardware (#237). Use the FranklinWH app.
             </p>
           </div>
         </div>

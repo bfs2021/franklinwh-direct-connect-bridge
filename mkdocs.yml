@@ -116,6 +116,7 @@ nav:
       - guide/tour.md
       - guide/control.md
       - guide/battery-dispatch.md
+      - guide/generator.md
       - Scheduler:
           - guide/scheduler/index.md
           - guide/scheduler/concepts.md

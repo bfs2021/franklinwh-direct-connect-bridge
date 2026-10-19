@@ -2320,16 +2320,24 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail=str(e))
 
     # ── generator (FEAT-GENERATOR) ───────────────────────────────────────────
+    _NO_GATEWAY_YET = {"available": False, "enabled": False,
+                       "reason": "No gateway is set up yet."}
+
     @app.get("/api/generator")
     def api_generator(gateway: str | None = Query(None)):
         """Generator config + run state (1901).
 
         ``installed`` is evidence-based — the gateway returns the 1901 block whether
         or not a generator exists, exactly as it does for smart circuits.
+
+        No gateway set up yet is an answer, not an upstream failure (#94): 200 with
+        ``available: false``. 502 stays for a gateway that was asked and did not answer.
         """
         host = _gw_host(gateway)
+        if not host:
+            return _NO_GATEWAY_YET
         try:
-            return client.generator(get_settings(), host=host)
+            return {"available": True, **client.generator(get_settings(), host=host)}
         except (OSError, TransportError, TimeoutError) as e:
             raise HTTPException(status_code=502, detail=str(e))
 
@@ -2337,6 +2345,8 @@ def create_app() -> FastAPI:
     def api_generator_raw(gateway: str | None = Query(None)):
         """Raw 1901 payload, including fields the view-model deliberately omits."""
         host = _gw_host(gateway)
+        if not host:
+            return _NO_GATEWAY_YET
         try:
             return client.read(get_settings(), "generator", host=host)
         except (OSError, TransportError, TimeoutError) as e:
@@ -2344,21 +2354,16 @@ def create_app() -> FastAPI:
 
     @app.post("/api/generator/mode")
     def api_generator_mode(req: GeneratorModeReq, gateway: str | None = Query(None)):
-        """Set generator mode (auto/manual) — 1901 full-block RMW, read-back verified.
+        """Refused, writes nothing (#237).
 
-        409 when no generator is detected: the write is unexercised on real generator
-        hardware and must not be fired blind.
+        This used to write ``manuSw``, which franklinwh-cloud's captures show acts as a
+        manual start/stop command, not the mode. The real mode field (``mode``) has
+        unconfirmed values. Until both are confirmed on generator hardware, no write.
         """
-        _guard_writes()
-        host = _gw_host(gateway)
-        try:
-            return client.set_generator_mode(get_settings(), req.mode, host=host)
-        except client.NotInstalledError as e:
-            raise HTTPException(status_code=409, detail=str(e))
-        except ValueError as e:
-            raise HTTPException(status_code=422, detail=str(e))
-        except (OSError, TransportError, TimeoutError) as e:
-            raise HTTPException(status_code=502, detail=str(e))
+        raise HTTPException(
+            status_code=409,
+            detail="Generator mode is not available: the field that sets it is not yet "
+                   "confirmed on generator hardware (#237). Use the FranklinWH app.")
 
     @app.put("/api/circuits/{circuit}/schedule")
     def api_circuit_schedule(circuit: int, req: CircuitScheduleReq,
@@ -5546,10 +5551,10 @@ def create_app() -> FastAPI:
                     pass
                 try:
                     gen = client.generator(settings, host=_host) or {}
-                    row["generator"] = ({"installed": True,
-                                         "mode": gen.get("mode_name") or gen.get("mode"),
-                                         "state": gen.get("state_name")}
-                                        if gen.get("installed") else {"installed": False})
+                    # The feature switch and what the aGate reports; no "installed" verdict (#238).
+                    row["generator"] = {"enabled": bool(gen.get("enabled")),
+                                        "state": gen.get("state_name"),
+                                        "evidence": gen.get("evidence")}
                 except Exception:  # noqa: BLE001
                     pass
             # Non-identifying live state from cache

@@ -18,7 +18,10 @@ document.addEventListener('alpine:init', () => {
       try {
         const r = await fetch('api/generator' + this.$store.app.gwQuery());
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
-        this.data = await r.json();
+        const d = await r.json();
+        // No gateway yet (#94): say so, rather than render an empty generator.
+        if (d && d.available === false) { this.error = d.reason || 'No gateway yet.'; this.data = null; return; }
+        this.data = d;
       } catch (e) { this.error = e.message; this.data = null; }
       finally { this.loading = false; }
     },
@@ -31,23 +34,6 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    async setMode(mode) {
-      if (this.busy) return;
-      this.busy = true;
-      try {
-        const r = await fetch('api/generator/mode' + this.$store.app.gwQuery(), {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode }),
-        });
-        const out = await r.json();
-        if (!r.ok) throw new Error(out.detail || r.statusText);
-        this.$store.app.toast(out.confirmed ? `Mode set to ${mode}`
-          : 'Write sent but read-back did not confirm', out.confirmed ? 'success' : 'warning');
-        await this.load();
-      } catch (e) {
-        this.$store.app.toast(`Mode change failed: ${e.message}`, 'error');
-      } finally { this.busy = false; }
-    },
 
     // ── editable config (1901 writes — hardware-verified 2026-09-14) ─────────
     editWin: null,        // {index, enabled, start, end}
@@ -126,9 +112,9 @@ document.addEventListener('alpine:init', () => {
       if (on) {
         const lines = [];
         if (this.data && !this.data.configured) {
-          lines.push('This gateway reports no generator hardware — no model, no rated '
-            + 'power, no run state. The setting will save, but nothing will happen '
-            + 'unless a module is physically installed.');
+          lines.push('The aGate reports no generator model, rated power or run state. '
+            + 'The setting saves either way, as in the FranklinWH app; whether a '
+            + 'generator acts on it depends on what is connected.');
         }
         // The generator only supplies power off-grid; FranklinWH documents its SoC
         // start/stop as an off-grid behaviour. Whether enabling while ON grid takes

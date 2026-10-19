@@ -24,10 +24,11 @@ from typing import Any
 #: ``genStat`` — matches franklinwh_cloud.const.states.GENERATOR_STATE.
 STATE = {0: "Standby / OFF", 1: "Running / ON", 2: "Cooldown", 3: "Fault"}
 
-#: ``manuSw``. The cloud documents only 1 and 2; 0 is observed on hardware with no
-#: generator installed and is reported as unset rather than guessed at.
-MODE = {0: "Unset", 1: "Auto-schedule", 2: "Manual"}
-
+#: NOT MAPPED (#237). The generator's operating mode and the ``manuSw`` field are both
+#: unconfirmed. franklinwh-cloud's capture corpus (DEF-GEN-MODE-WRITES-MANUSW, 2026-09-14)
+#: shows ``mode`` is the mode setter (values unconfirmed) and ``manuSw`` acts as a manual
+#: start/stop command (one observation: manuSw=2 moved genStat 1->2). Field names here are
+#: not their meanings, so both are reported raw and neither is written by the bridge.
 MODE_TO_VALUE = {"auto": 1, "manual": 2}
 
 
@@ -57,8 +58,9 @@ def configured(payload: dict) -> bool:
 
 
 def installed(payload: dict) -> bool:
-    """Enabled OR showing hardware evidence. Kept as the broad "show me something"
-    signal; use :func:`enabled` to decide whether configuration may be edited."""
+    """Enabled OR showing hardware evidence. NOT a hardware fact: the local protocol cannot
+    say what is wired up, and the official app shows the generator settings regardless.
+    Never use this to hide the generator from the user (#238). Kept for API compatibility."""
     return enabled(payload) or configured(payload)
 
 
@@ -75,7 +77,6 @@ def build(payload: dict) -> dict[str, Any]:
     """Assemble the ``/api/generator`` view-model."""
     p = payload or {}
     stat = p.get("genStat", 0)
-    mode = p.get("manuSw", 0)
 
     return {
         "installed": installed(p),
@@ -89,8 +90,15 @@ def build(payload: dict) -> dict[str, Any]:
         "state_name": STATE.get(stat, f"Unknown ({stat})"),
         "running": stat == 1,
         "fault": stat == 3,
-        "mode": mode,
-        "mode_name": MODE.get(mode, f"Unknown ({mode})"),
+        # What the aGate reports that hints at hardware. Evidence, not an "installed" fact.
+        "evidence": {
+            "model": (p.get("genModel") or "").strip() or None,
+            "rated_power_w": p.get("genRatedPower") or None,
+            "run_state": stat or None,
+        },
+        # Unmapped (#237): reported raw under their own keys, never interpreted.
+        "mode_raw": p.get("mode"),
+        "manuSw_raw": p.get("manuSw"),
         "model": (p.get("genModel") or "").strip() or None,
         "rated_power_w": p.get("genRatedPower") or None,
         # Generator output. The generic power/curr/volt/freq keys are excluded on
