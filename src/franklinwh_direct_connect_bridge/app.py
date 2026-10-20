@@ -1532,7 +1532,7 @@ def create_app() -> FastAPI:
         st = _gw_store()
         try:
             saved = st.get_config("integration_mappings", None) if st else None
-            rows = json.loads(saved) if isinstance(saved, str) else (saved or [])
+            rows = _json.loads(saved) if isinstance(saved, str) else (saved or [])
         except Exception:  # noqa: BLE001
             rows = []
         return {
@@ -1556,7 +1556,7 @@ def create_app() -> FastAPI:
                          "as a placeholder but not saved")
         st = _gw_store()
         if st is not None:
-            st.set_config("integration_mappings", json.dumps(req.mappings))
+            st.set_config("integration_mappings", _json.dumps(req.mappings))
         _audit("integration_mappings", detail=f"{len(req.mappings)} mapping(s)")
         return {"ok": True, "count": len(req.mappings)}
 
