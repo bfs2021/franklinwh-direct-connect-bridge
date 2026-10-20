@@ -78,7 +78,9 @@ function integrationsTab() {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mappings: clean }),
         });
-        const d = await r.json();
+        // A non-JSON reply (a plain-text 500) must show as its status, not as the browser's
+        // JSON parse error, which Safari words as "The string did not match…" (#247).
+        const d = await r.json().catch(() => ({ detail: 'HTTP ' + r.status }));
         if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
         this.$store.app.toast(`Saved ${d.count} mapping(s)`, 'success');
       } catch (e) {

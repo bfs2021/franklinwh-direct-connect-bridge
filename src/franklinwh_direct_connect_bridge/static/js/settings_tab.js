@@ -921,6 +921,54 @@ function settingsTab() {
       } finally { clearTimeout(timer); this.cloudTesting = false; }
     },
 
+    cloudShowPw: false,
+    //: The account hold (server-side, persisted): FranklinWH rejected a sign-in, so none is
+    //  sent until the owner clears it. Editing the fields does not lift it (2026-10-21).
+    get cloudBlocked() { return !!this.cfg?.cloud?.hold?.active; },
+
+    async clearCloudHold() {
+      const ok = await this.$store.app.confirmDialog(
+        'Clear the cloud sign-in hold?\n\nFranklinWH said: "' + (this.cfg?.cloud?.hold?.message || '')
+        + '"\n\nOnly clear it after you have signed in to the FranklinWH app with the same email and '
+        + 'password. Another wrong password may lock the account, the FranklinWH app included.',
+        { title: 'Clear cloud sign-in hold', danger: true });
+      if (!ok) return;
+      try {
+        await fetch('api/cloud/hold/clear', { method: 'POST' });
+        this.$store.app.toast('Hold cleared — one sign-in is allowed', 'info');
+      } finally { await this.reload(); }
+    },
+
+    /** Sign in with the typed credentials and store them only if that works (#248). */
+    async saveCloud() {
+      if (this.cloudBlocked) return;
+      this.cloudTesting = true; this.cloudResult = null;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 45000);
+      try {
+        const r = await fetch('api/setup/cloud', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
+          body: JSON.stringify({ email: this.form.fwh_cloud_email.trim(),
+                                 password: this.form.fwh_cloud_password,
+                                 gateway: (this.form.fwh_cloud_gateway || '').trim() || null,
+                                 save: true }),
+        });
+        const d = await r.json().catch(() => ({ ok: false, detail: 'HTTP ' + r.status }));
+        if (!r.ok && !('ok' in d)) d.detail = d.detail || ('HTTP ' + r.status);
+        this.cloudResult = d.ok ? { state: 'valid' } : { state: 'error', error: d.detail };
+        if (!d.ok) await this.reload();   // pick up a hold the server just set
+        this.$store.app.toast(d.detail || (d.ok ? 'Saved' : 'Not saved'), d.ok ? 'success' : 'error');
+        if (d.ok) {
+          this.form.fwh_cloud_password = '';
+          if (d.gateway) this.form.fwh_cloud_gateway = d.gateway;
+          await this.reload();
+        }
+      } catch (e) {
+        this.cloudResult = { state: 'error', error: e.name === 'AbortError'
+          ? 'Timed out waiting for the FranklinWH cloud — try again.' : e.message };
+      } finally { clearTimeout(timer); this.cloudTesting = false; }
+    },
+
     get cloudOk() { return (this.cloudResult || this.cfg.cloud?.auth || {}).state === 'valid'; },
 
     cloudMessage() {

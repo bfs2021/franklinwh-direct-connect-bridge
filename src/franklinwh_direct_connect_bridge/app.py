@@ -1091,15 +1091,21 @@ def create_app() -> FastAPI:
         # force (see FEAT-VPP-CLOUD-RUNSTATUS). Slow cadence + the providers auth breaker so a
         # bad login never locks the account; a transport error just leaves the last value and
         # the UI falls back to the Modbus FORCE signal.
+        _CLOUD_CREDS_WAIT_S = 30   # how often a credential-less loop re-checks settings
+
         def _cloud_status_loop():
             import time as _t
             from . import cloud_status
-            s0 = get_settings()
-            if not (s0.fwh_cloud_email and s0.fwh_cloud_password):
-                # By design: no credentials, no cloud polling. Say so, don't go quiet.
+            # No credentials, no cloud calls — but WAIT for them rather than exit: they can
+            # be saved from Settings at any time (#248), and the loop used to need an add-on
+            # restart to notice. This check reads local settings only.
+            while True:
+                s0 = get_settings()
+                if s0.fwh_cloud_email and s0.fwh_cloud_password:
+                    break
                 _workers.registry.beat("cloud-status", state=_workers.WorkerState.PAUSED,
                                        detail="no cloud credentials")
-                return
+                _t.sleep(_CLOUD_CREDS_WAIT_S)
             if os.environ.get("FWH_CLOUD_STATUS", "1") not in ("1", "true", "yes", "on"):
                 _workers.registry.beat("cloud-status", state=_workers.WorkerState.PAUSED,
                                        detail="disabled (FWH_CLOUD_STATUS)")
@@ -1108,8 +1114,7 @@ def create_app() -> FastAPI:
                 interval = max(120, int(os.environ.get("FWH_CLOUD_STATUS_S", "300")))
             except ValueError:
                 interval = 300
-            retry = min(interval, 45)   # the cloud link is flaky (HTTP/2 resets) — on a
-            _t.sleep(8)                 # failed read, retry soon rather than after `interval`
+            _t.sleep(8)
             want = (get_settings().fwh_cloud_gateway or "").upper()
             _last_status = None   # only log cloud status on a real CHANGE (see Logs policy)
             _fail_streak = 0      # for failure VISIBILITY without 5-min spam (onset + recovery)
@@ -1153,8 +1158,8 @@ def create_app() -> FastAPI:
                     _fail_streak += 1
                     reason = cloud_status.LAST_ERROR or "cloud unreachable / auth error"
                     if _fail_streak == 1:
-                        log.warning("cloud link failing — %s (will keep retrying every %ds)",
-                                    reason, retry)
+                        log.warning("cloud link failing — %s (backing off from %ds)",
+                                    reason, cloud_status.retry_delay(interval, 1))
                     else:
                         log.debug("cloud link still failing (%d consecutive): %s", _fail_streak, reason)
                 # Back off to the breaker's own cadence once it has locked, so we never hammer.
@@ -1164,7 +1169,9 @@ def create_app() -> FastAPI:
                     _workers.registry.beat("cloud-status", state=_workers.WorkerState.PAUSED,
                                            detail="cloud auth locked — re-enter credentials")
                     return
-                _t.sleep(interval if ok else retry)
+                # Never faster than the interval, and slower with each failure (#233): a
+                # rate-limited account (HTTP 429) must not be polled harder.
+                _t.sleep(interval if ok else cloud_status.retry_delay(interval, _fail_streak))
         _th.Thread(target=_cloud_status_loop, daemon=True).start()
 
         # ── L0 supervision (RUNTIME_DESIGN phase 0) ──────────────────────────
@@ -1532,7 +1539,7 @@ def create_app() -> FastAPI:
         st = _gw_store()
         try:
             saved = st.get_config("integration_mappings", None) if st else None
-            rows = json.loads(saved) if isinstance(saved, str) else (saved or [])
+            rows = _json.loads(saved) if isinstance(saved, str) else (saved or [])
         except Exception:  # noqa: BLE001
             rows = []
         return {
@@ -1556,7 +1563,7 @@ def create_app() -> FastAPI:
                          "as a placeholder but not saved")
         st = _gw_store()
         if st is not None:
-            st.set_config("integration_mappings", json.dumps(req.mappings))
+            st.set_config("integration_mappings", _json.dumps(req.mappings))
         _audit("integration_mappings", detail=f"{len(req.mappings)} mapping(s)")
         return {"ok": True, "count": len(req.mappings)}
 
@@ -2854,16 +2861,22 @@ def create_app() -> FastAPI:
         if res.get("ok") and req.save:
             save_override("fwh_cloud_email", req.email)
             save_override("fwh_cloud_password", req.password)
-            if req.gateway:
-                save_override("fwh_cloud_gateway", req.gateway)
+            # The serial the check settled on: the one typed, or the account's only aGate.
+            # Never a guess among several (#248) — that case is not ok, so nothing is saved.
+            if res.get("gateway"):
+                save_override("fwh_cloud_gateway", res["gateway"])
             from . import config as _config
             _config._settings = None      # re-read on the next call, so it takes effect now
+            from . import providers as _providers
+            _providers.reset_cloud_breaker()   # new credentials: the old verdict is void
         # Never echo the credentials back, and never log them.
         _audit("setup_cloud", detail="credential check", result=("ok" if res.get("ok") else "failed"),
                ok=bool(res.get("ok")))
         return {"ok": bool(res.get("ok")), "detail": res.get("detail", ""),
                 "saved": bool(res.get("ok") and req.save),
-                "gateways": res.get("gateways") or []}
+                "gateways": res.get("gateways") or [], "gateway": res.get("gateway"),
+                "rejected": bool(res.get("rejected")), "held": bool(res.get("held")),
+                "hold": providers.cloud_hold()}
 
     @app.get("/api/setup/ha-checks")
     def api_setup_ha_checks(gateway: str | None = Query(None)):
@@ -4291,6 +4304,17 @@ def create_app() -> FastAPI:
         except Exception:  # pragma: no cover — auditing must never break a control
             pass
 
+    # Every cloud login attempt and hold change lands in the Audit Trail (2026-10-21).
+    providers.AUDIT = _audit
+
+    @app.post("/api/cloud/hold/clear")
+    def api_cloud_hold_clear():
+        """Lift the cloud sign-in hold. Only the owner, explicitly: the hold exists because
+        FranklinWH rejected a sign-in, and the next wrong one may lock the account."""
+        was = providers.cloud_hold()
+        providers.clear_cloud_hold("user (Settings)")
+        return {"ok": True, "was": was, "hold": providers.cloud_hold()}
+
     @app.post("/api/mode")
     def api_set_mode(req: ModeReq, gateway: str | None = Query(None)):
         _guard_consequential(req.confirm, "set operating mode")
@@ -5302,6 +5326,7 @@ def create_app() -> FastAPI:
                 "password_set": bool(s.fwh_cloud_password),
                 "gateway": s.fwh_cloud_gateway or "",
                 "auth": providers.cloud_auth_status(),
+                "hold": providers.cloud_hold(),
             },
             "mqtt": {
                 "enabled": s.mqtt_enabled,
@@ -5414,6 +5439,9 @@ def create_app() -> FastAPI:
                 setattr(s, key, val)
                 save_override(key, val)
                 if changed:
+                    # Audited without the value: which field changed, never what to.
+                    providers.audit_cloud("cloud_settings", detail=f"{key} changed",
+                                          result="saved", ok=True)
                     # Any credential change invalidates the previous verdict — including a
                     # LOCKED breaker, which is the intended way out of a lockout.
                     providers.reset_cloud_breaker()

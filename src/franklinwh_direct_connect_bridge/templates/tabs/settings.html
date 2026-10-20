@@ -1988,32 +1988,76 @@
       <div class="flex items-center justify-between text-sm gap-3">
         <span class="text-slate-500 shrink-0">Email</span>
         <input type="text" x-model="form.fwh_cloud_email"
-               :placeholder="cfg.cloud?.email || 'you@example.com'"
-               class="form-control text-right" style="max-width:16rem">
+               autocomplete="off" spellcheck="false" autocapitalize="off"
+               :placeholder="cfg.cloud?.email || 'the email your FranklinWH app uses'"
+               class="form-control" style="max-width:20rem">
       </div>
       <div class="flex items-center justify-between text-sm gap-3">
         <span class="text-slate-500 shrink-0">Password
           <span class="chip" :class="cfg.cloud?.password_set ? 'ok' : 'muted'"
                 x-text="cfg.cloud?.password_set ? 'set' : 'unset'"></span>
         </span>
-        <input type="password" x-model="form.fwh_cloud_password"
-               :placeholder="cfg.cloud?.password_set ? '•••••••• (leave blank to keep)' : 'cloud password'"
-               class="form-control text-right" style="max-width:16rem">
+        <div class="flex items-center gap-1" style="max-width:20rem;width:100%">
+          <!-- NOT a password input (2026-10-21). type=password made Safari autofill an
+               unrelated saved password, and autocomplete="new-password" invited its generator
+               to insert a fresh "Strong Password" — both rejected by FranklinWH and counted
+               toward its account lockout. A plain text input, masked with CSS, is not offered
+               to password managers at all. -->
+          <input type="text" x-model="form.fwh_cloud_password" name="fwh-cloud-secret"
+                 autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other"
+                 spellcheck="false" autocapitalize="off" autocorrect="off"
+                 :style="cloudShowPw ? '' : '-webkit-text-security:disc;text-security:disc'"
+                 :placeholder="cfg.cloud?.password_set ? '•••••••• (leave blank to keep)' : 'FranklinWH app password'"
+                 class="form-control flex-1">
+          <button type="button" class="btn btn-secondary btn-sm shrink-0"
+                  @click="cloudShowPw = !cloudShowPw"
+                  :title="cloudShowPw ? 'Hide password' : 'Show password'"
+                  :aria-label="cloudShowPw ? 'Hide password' : 'Show password'"
+                  x-text="cloudShowPw ? 'Hide' : 'Show'"></button>
+        </div>
+      </div>
+      <div class="text-[11px]" style="color:var(--text-secondary)">
+        Type or paste your FranklinWH app password. Don't use a password the browser suggests,
+        and press Show to check it before Save &amp; test.
       </div>
       <div class="flex items-center justify-between text-sm gap-3">
         <span class="text-slate-500 shrink-0">Gateway serial</span>
         <input type="text" x-model="form.fwh_cloud_gateway"
-               :placeholder="cfg.cloud?.gateway || 'aGate serial'"
-               class="form-control text-right" style="max-width:16rem">
+               autocomplete="off" spellcheck="false" autocapitalize="characters"
+               :placeholder="cfg.cloud?.gateway || 'aGate serial (optional with one aGate)'"
+               class="form-control" style="max-width:20rem">
       </div>
+    </div>
+
+    <!-- The account hold (2026-10-21): FranklinWH rejected a sign-in, so every cloud
+         sign-in is refused until the owner clears it here. FranklinWH's own words. -->
+    <div x-show="cfg.cloud?.hold?.active" x-cloak class="rounded-lg px-3 py-2 text-sm space-y-2"
+         style="background:rgba(239,68,68,.1);color:#fca5a5">
+      <div><strong>Cloud sign-in is on hold.</strong> FranklinWH said:
+        "<span x-text="cfg.cloud?.hold?.message"></span>"
+        <span class="opacity-70" x-show="cfg.cloud?.hold?.since"
+              x-text="'(' + new Date((cfg.cloud?.hold?.since||0)*1000).toLocaleString() + ')'"></span></div>
+      <div class="text-xs" style="color:var(--text-secondary)">
+        No sign-in is sent while the hold is on. FranklinWH locks the account (the FranklinWH
+        app too) after a few wrong passwords. Check the password by signing in to the
+        FranklinWH app first, then clear the hold and try once.</div>
+      <button class="btn btn-secondary btn-sm" @click="clearCloudHold()">Clear hold</button>
     </div>
 
     <div class="flex items-center justify-between text-sm pt-1 gap-3">
       <span class="text-[11px]"
             :style="cloudOk ? 'color:#34d399' : 'color:var(--text-secondary)'"
             x-text="cloudMessage()"></span>
-      <button @click="testCloud()" class="btn btn-secondary btn-sm shrink-0"
-              :disabled="cloudTesting" x-text="cloudTesting ? 'Testing…' : 'Test'"></button>
+      <div class="flex gap-2 shrink-0">
+        <!-- Signs in with what is typed and stores it only if that works (#248). -->
+        <button @click="saveCloud()" class="btn btn-primary btn-sm"
+                :disabled="cloudTesting || !form.fwh_cloud_email || !form.fwh_cloud_password || cloudBlocked"
+                :title="cloudBlocked ? 'FranklinWH rejected this password: change it before trying again'
+                        : ((!form.fwh_cloud_email || !form.fwh_cloud_password) ? 'Enter the email and password' : '')"
+                x-text="cloudTesting ? 'Signing in…' : 'Save & test'"></button>
+        <button @click="testCloud()" class="btn btn-secondary btn-sm"
+                :disabled="cloudTesting" title="Check the stored credentials">Test</button>
+      </div>
     </div>
 
   <!-- ══ Integration → Mapping ══════════════════════════════════════
