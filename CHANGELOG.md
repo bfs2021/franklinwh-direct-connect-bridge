@@ -11,6 +11,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+## [0.5.13] — 2026-10-21
+
+Hotfix: the FranklinWH cloud can be connected from the add-on again, it signs in once instead of every 5 minutes, and a rejected password stops all sign-ins before the account can lock. Save mappings works.
+
 ### Changed
 
 - **franklinwh-cloud is pinned to 0.6.0** (#254). It was an open range, so each new library
