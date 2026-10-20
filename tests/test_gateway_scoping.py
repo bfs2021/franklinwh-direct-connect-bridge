@@ -41,6 +41,8 @@ NOT_DEVICE_BOUND = {
     "api/notify/test",             # sends a test notification via HA, no gateway
     "api/settings",                # bridge configuration, not per-gateway
     "api/cloud/validate",          # checks the bridge's cloud credentials, not a gateway
+    "api/setup/cloud",             # signs in and stores the bridge's cloud credentials; the
+                                   # aGate serial travels explicitly in the body (#248)
     "api/cloud/pop",               # CloudFront PoP edge metrics — account-level, not per-gateway
     "api/tariff/spot",             # AEMO NEM wholesale spot — account/region-level, not per-gateway
     "api/support-info",            # redacted diagnostic bundle — spans ALL gateways, not one
