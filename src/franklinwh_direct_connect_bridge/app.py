@@ -2875,7 +2875,8 @@ def create_app() -> FastAPI:
         return {"ok": bool(res.get("ok")), "detail": res.get("detail", ""),
                 "saved": bool(res.get("ok") and req.save),
                 "gateways": res.get("gateways") or [], "gateway": res.get("gateway"),
-                "rejected": bool(res.get("rejected")), "attempts_left": res.get("attempts_left")}
+                "rejected": bool(res.get("rejected")), "held": bool(res.get("held")),
+                "hold": providers.cloud_hold()}
 
     @app.get("/api/setup/ha-checks")
     def api_setup_ha_checks(gateway: str | None = Query(None)):
@@ -4303,6 +4304,17 @@ def create_app() -> FastAPI:
         except Exception:  # pragma: no cover — auditing must never break a control
             pass
 
+    # Every cloud login attempt and hold change lands in the Audit Trail (2026-10-21).
+    providers.AUDIT = _audit
+
+    @app.post("/api/cloud/hold/clear")
+    def api_cloud_hold_clear():
+        """Lift the cloud sign-in hold. Only the owner, explicitly: the hold exists because
+        FranklinWH rejected a sign-in, and the next wrong one may lock the account."""
+        was = providers.cloud_hold()
+        providers.clear_cloud_hold("user (Settings)")
+        return {"ok": True, "was": was, "hold": providers.cloud_hold()}
+
     @app.post("/api/mode")
     def api_set_mode(req: ModeReq, gateway: str | None = Query(None)):
         _guard_consequential(req.confirm, "set operating mode")
@@ -5314,6 +5326,7 @@ def create_app() -> FastAPI:
                 "password_set": bool(s.fwh_cloud_password),
                 "gateway": s.fwh_cloud_gateway or "",
                 "auth": providers.cloud_auth_status(),
+                "hold": providers.cloud_hold(),
             },
             "mqtt": {
                 "enabled": s.mqtt_enabled,
@@ -5426,6 +5439,9 @@ def create_app() -> FastAPI:
                 setattr(s, key, val)
                 save_override(key, val)
                 if changed:
+                    # Audited without the value: which field changed, never what to.
+                    providers.audit_cloud("cloud_settings", detail=f"{key} changed",
+                                          result="saved", ok=True)
                     # Any credential change invalidates the previous verdict — including a
                     # LOCKED breaker, which is the intended way out of a lockout.
                     providers.reset_cloud_breaker()

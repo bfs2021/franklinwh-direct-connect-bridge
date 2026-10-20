@@ -23,6 +23,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   typed and stores it only if that works. The gateway serial is optional when your account
   has one aGate; with several, it lists them and asks you to choose, instead of quietly using
   the first.
+- **One rejected cloud sign-in now stops all of them** (#248). FranklinWH locks the account,
+  the FranklinWH app included, after a few wrong passwords, warning first ("you still have 2
+  chances"). As soon as FranklinWH rejects a sign-in, the bridge puts cloud sign-in **on hold**:
+  nothing is sent from any part of the bridge, whatever is typed, until you check the password
+  in the FranklinWH app and press **Clear hold**. The card shows FranklinWH's exact reply.
+- **Every cloud sign-in is in the Audit Trail** — where it came from (the card, the status
+  check, a reserve write), the account (masked), and FranklinWH's reply; the password never.
+  Cloud credential changes are audited too (which field, not its value).
+- **The cloud card's fields are left-aligned**, the password can be shown, and the browser no
+  longer fills it in with an unrelated saved password.
 - **The cloud status check no longer signs in every 5 minutes** (#233). It signs in once and
   reuses the session (the library renews it when it expires). After a failed check it now
   waits longer each time, up to 30 minutes, instead of retrying every 45 seconds, so a

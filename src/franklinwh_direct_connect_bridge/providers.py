@@ -19,10 +19,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 import urllib.request
 
 from .config import Settings, get_settings
 from . import modbus_bridge
+
+log = logging.getLogger(__name__)
 
 
 class DispatchUnavailable(RuntimeError):
@@ -347,6 +350,120 @@ def _note_auth_failure(err: str, *, counts: bool = True) -> None:
     _cloud_auth["state"] = "locked" if _cloud_auth["fail_count"] >= _MAX_AUTH_FAILS else "invalid"
 
 
+# ── Account hold (2026-10-21) ─────────────────────────────────────────────────────
+# FranklinWH locks the owner's REAL account (the FranklinWH app included) after a few wrong
+# passwords, warning first with code 400 "you still have N chances". On 2026-10-21 the
+# per-credential guard was bypassed by editing the email, and the account was locked. So:
+# ANY login rejection puts the whole bridge on hold — every login path refuses, whatever
+# credentials are typed — until the owner clears it. A credential change does NOT clear it.
+_HOLD_KEY = "_cloud_login_hold"
+_hold: dict = {"active": False, "message": "", "since": 0.0, "account": ""}
+_hold_loaded = False
+
+#: Optional ``audit(action, detail, result, ok)`` hook, set by the app so every cloud
+#: login attempt and hold change lands in the Audit Trail. Never given secrets.
+AUDIT = None
+
+
+def mask_email(email: str | None) -> str:
+    """'david@example.com' -> 'd***@example.com'. For logs and the audit trail only."""
+    e = (email or "").strip()
+    if "@" not in e:
+        return "***" if e else ""
+    name, dom = e.split("@", 1)
+    return (name[:1] + "***@" + dom) if name else "***@" + dom
+
+
+def audit_cloud(action: str, *, detail: str = "", result: str = "", ok: bool | None = None) -> None:
+    """Log and audit one cloud event. Never raises."""
+    try:
+        (log.warning if ok is False else log.info)(
+            "cloud: %s%s%s", action, f" · {detail}" if detail else "",
+            f" → {result}" if result else "")
+    except Exception:  # noqa: BLE001
+        pass
+    if AUDIT is not None:
+        try:
+            AUDIT(action, detail=detail, result=result, ok=ok)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _load_hold() -> None:
+    global _hold_loaded
+    if _hold_loaded:
+        return
+    _hold_loaded = True
+    from .config import load_overrides
+    try:
+        saved = (load_overrides() or {}).get(_HOLD_KEY)
+    except Exception:  # noqa: BLE001
+        return
+    if isinstance(saved, dict):
+        _hold.update({k: saved[k] for k in _hold if k in saved})
+
+
+def cloud_hold() -> dict:
+    """The account hold: ``{active, message, since, account}``."""
+    _load_hold()
+    return dict(_hold)
+
+
+def set_cloud_hold(message: str, email: str | None, source: str) -> None:
+    """Stop all cloud logins after FranklinWH rejected one. Keeps FranklinWH's own words."""
+    import time as _t
+    from .config import save_override_raw
+    _load_hold()
+    _hold.update(active=True, message=message, since=_t.time(), account=mask_email(email))
+    try:
+        save_override_raw(_HOLD_KEY, dict(_hold))
+    except Exception:  # noqa: BLE001
+        pass
+    audit_cloud("cloud_login_hold", detail=f"{source} · {mask_email(email)}",
+                result=f"ON — {message}", ok=False)
+
+
+def clear_cloud_hold(by: str = "user") -> None:
+    """Lift the hold. Only an explicit owner action calls this."""
+    from .config import save_override_raw
+    _load_hold()
+    was = dict(_hold)
+    _hold.update(active=False, message="", since=0.0, account="")
+    try:
+        save_override_raw(_HOLD_KEY, dict(_hold))
+    except Exception:  # noqa: BLE001
+        pass
+    audit_cloud("cloud_login_hold", detail=f"cleared by {by}",
+                result=f"OFF (was: {was.get('message') or 'none'})", ok=True)
+
+
+class CloudLoginHeld(RuntimeError):
+    """A login was refused locally because the account hold is on."""
+
+
+def guard_login(email: str | None, source: str) -> None:
+    """Call before EVERY cloud login. Raises CloudLoginHeld while the hold is on."""
+    _load_hold()
+    if _hold["active"]:
+        audit_cloud("cloud_login", detail=f"{source} · {mask_email(email)}",
+                    result=f"refused locally: hold is on ({_hold['message']})", ok=False)
+        raise CloudLoginHeld("Cloud sign-in is on hold after FranklinWH said: "
+                             f"\"{_hold['message']}\". Check your password in the FranklinWH "
+                             "app, then clear the hold in Settings → Integrations.")
+
+
+def note_login_result(email: str | None, source: str, exc: BaseException | None) -> None:
+    """Audit one login attempt, and put the account on hold if FranklinWH rejected it."""
+    if exc is None:
+        audit_cloud("cloud_login", detail=f"{source} · {mask_email(email)}", result="ok", ok=True)
+        return
+    msg = str(exc) or type(exc).__name__
+    audit_cloud("cloud_login", detail=f"{source} · {mask_email(email)}",
+                result=f"{type(exc).__name__}: {msg}", ok=False)
+    if _is_auth_rejection(exc):
+        set_cloud_hold(msg, email, source)
+
+
 def revalidate_due(s: Settings) -> bool:
     """Should a background re-check run now?
 
@@ -359,7 +476,7 @@ def revalidate_due(s: Settings) -> bool:
     _load_breaker()
     if not (s.fwh_cloud_email and s.fwh_cloud_password):
         return False
-    if _cloud_auth.get("state") == "locked":
+    if _cloud_auth.get("state") == "locked" or cloud_hold()["active"]:
         return False
     checked = _cloud_auth.get("checked_at") or 0
     window = (RETRY_UNREACHABLE_AFTER_S
@@ -397,9 +514,16 @@ def validate_cloud(s: Settings) -> dict:
     if _cloud_auth["state"] == "locked":
         return cloud_auth_status()   # refuse to attempt — protects the account
     try:
+        guard_login(s.fwh_cloud_email, "validate")
+    except CloudLoginHeld as e:
+        _cloud_auth["error"] = str(e)
+        return cloud_auth_status()
+    try:
         _cloud_login_check(s.fwh_cloud_email, s.fwh_cloud_password, s.fwh_cloud_gateway or None)
         _note_auth_success()
+        note_login_result(s.fwh_cloud_email, "validate", None)
     except Exception as e:  # noqa: BLE001 — any auth/permission/transport failure
+        note_login_result(s.fwh_cloud_email, "validate", e)
         _note_auth_failure(str(e) or type(e).__name__,
                            counts=_is_auth_rejection(e))
     import time as _t
@@ -474,12 +598,15 @@ def set_reserve(s: Settings, mode: str, soc) -> dict:
     # the display preference that puts FWHAI-REST first.
     cloud = next((c for c in cands if c["kind"] == "cloud-lib" and c.get("available")), None)
     if cloud:
+        guard_login(s.fwh_cloud_email, "reserve write")    # raises while the hold is on
         try:
             out = _cloud_set_reserve(s.fwh_cloud_email, s.fwh_cloud_password,
                                      s.fwh_cloud_gateway or None, wm, soc_i)
         except Exception as e:  # noqa: BLE001 — feed the breaker so bad creds don't hammer cloud
+            note_login_result(s.fwh_cloud_email, "reserve write", e)
             _note_auth_failure(str(e) or type(e).__name__)
             raise
+        note_login_result(s.fwh_cloud_email, "reserve write", None)
         _note_auth_success()   # a successful write proves the creds are good
         return {"ok": True, "mode": act, "workMode": wm, "requested_soc": soc_i,
                 "prior": out.get("prior"),

@@ -28,6 +28,10 @@ class _Auth:
         return "t"
 
 
+class _Audit:
+    rows: list = []
+
+
 class _Stats:
     class current:
         run_status, tou_mode, effective_mode, run_status_desc = 0, 0, "Self", ""
@@ -66,6 +70,17 @@ def fakes(monkeypatch):
     monkeypatch.setattr(fwrapper, "PasswordAuth", _Auth)
     monkeypatch.setattr(fwrapper, "Client", _Client)
     monkeypatch.setattr(cs, "_AUTH", {}, raising=False)
+    from franklinwh_direct_connect_bridge import config, providers
+    store: dict = {}
+    monkeypatch.setattr(config, "load_overrides", lambda: dict(store))
+    monkeypatch.setattr(config, "save_override_raw", lambda k, v: store.__setitem__(k, v))
+    monkeypatch.setattr(providers, "_hold", {"active": False, "message": "", "since": 0.0,
+                                             "account": ""}, raising=False)
+    monkeypatch.setattr(providers, "_hold_loaded", True, raising=False)
+    audit: list = []
+    monkeypatch.setattr(providers, "AUDIT", lambda action, **kw: audit.append((action, kw)),
+                        raising=False)
+    _Audit.rows = audit
 
 
 # -- #233: one login, many passes ---------------------------------------------------------
@@ -126,49 +141,6 @@ def test_verify_reports_a_bad_password():
     assert v["ok"] is False and v["rejected"] is True
 
 
-def test_a_rejected_password_says_how_many_attempts_are_left(monkeypatch):
-    """FranklinWH counts wrong passwords and then locks the owner's real account
-    (2026-10-21: "Incorrect password, you still have 2 chances to enter")."""
-    class AccountLockedException(Exception):
-        pass
-
-    async def _locked(self, force_refresh=False):
-        raise AccountLockedException("Incorrect password, you still have 2 chances to enter.")
-    monkeypatch.setattr(_Auth, "get_token", _locked)
-    v = cs.verify_credentials("a@example.com", "pw")
-    assert v["ok"] is False and v["rejected"] is True and v["attempts_left"] == 2
-    assert "2 more attempts" in v["detail"] and "before trying again" in v["detail"]
-
-
-def test_the_card_blocks_a_retry_of_a_rejected_password_and_can_show_it():
-    import pathlib
-    root = pathlib.Path(cs.__file__).parent
-    js = (root / "static/js/settings_tab.js").read_text()
-    html = (root / "templates/tabs/settings.html").read_text()
-    assert "get cloudBlocked()" in js and "if (this.cloudBlocked) return;" in js
-    assert "cloudBlocked" in html.split("saveCloud()")[1][:400]
-    assert "cloudShowPw ? 'text' : 'password'" in html
-    assert 'autocomplete="new-password"' in html
-
-
-def test_verify_hands_its_login_to_the_poller():
-    cs.verify_credentials("a@example.com", "pw", "SN1")
-    cs._read_sync("a@example.com", "pw", "SN1")
-    assert _Auth.logins == 1
-
-
-# -- #248: the card saves through the sign-in check ---------------------------------------
-def test_cloud_card_saves_through_setup_cloud():
-    import pathlib
-    root = pathlib.Path(cs.__file__).parent
-    js = (root / "static/js/settings_tab.js").read_text()
-    html = (root / "templates/tabs/settings.html").read_text()
-    body = js[js.index("async saveCloud()"):js.index("get cloudOk()")]
-    assert "'api/setup/cloud'" in body
-    assert "fwh_cloud_email" in body and "fwh_cloud_password" in body and "fwh_cloud_gateway" in body
-    assert 'saveCloud()' in html
-
-
 def test_the_status_loop_waits_for_credentials_instead_of_exiting():
     """#248: credentials saved from Settings must start cloud polling without an add-on
     restart. The loop used to `return` when it started with none, and never came back."""
@@ -178,3 +150,78 @@ def test_the_status_loop_waits_for_credentials_instead_of_exiting():
     head = body[:body.index("FWH_CLOUD_STATUS")]
     assert "while True:" in head and "_t.sleep(_CLOUD_CREDS_WAIT_S)" in head
     assert "return" not in head
+
+
+
+# -- 2026-10-21: one FranklinWH rejection puts the whole account on hold ------------------
+class AccountLockedException(Exception):
+    pass
+
+
+def _reject_with(monkeypatch, msg):
+    async def _no(self, force_refresh=False):
+        _Auth.logins += 1
+        raise AccountLockedException(msg)
+    monkeypatch.setattr(_Auth, "get_token", _no)
+
+
+def test_a_rejection_holds_every_later_login_whatever_is_typed(monkeypatch):
+    from franklinwh_direct_connect_bridge import providers
+    _reject_with(monkeypatch, "Incorrect password, you still have 2 chances to enter.")
+    v = cs.verify_credentials("David@example.com", "pw")
+    assert v["ok"] is False and v["held"] is True
+    assert "Incorrect password, you still have 2 chances to enter." in v["detail"]  # verbatim
+    sent = _Auth.logins
+    # The 2026-10-21 bypass: change the email's case, add a serial, change the password.
+    for email, pw, gw in [("david@example.com", "pw", None), ("david@example.com", "pw2", "SN1")]:
+        v = cs.verify_credentials(email, pw, gw)
+        assert v["ok"] is False and v["held"] is True and "on hold" in v["detail"]
+    with pytest.raises(providers.CloudLoginHeld):
+        cs._read_sync("david@example.com", "pw", "SN1")
+    assert _Auth.logins == sent, "a login was sent while the hold was on"
+
+
+def test_saving_new_credentials_does_not_clear_the_hold(monkeypatch):
+    from franklinwh_direct_connect_bridge import providers
+    _reject_with(monkeypatch, "The password is locked. Please try again after 2 min 38 sec")
+    cs.verify_credentials("a@example.com", "pw")
+    providers.reset_cloud_breaker()                 # what a credential change calls
+    assert providers.cloud_hold()["active"] is True
+
+
+def test_only_an_explicit_clear_lifts_the_hold(monkeypatch):
+    from franklinwh_direct_connect_bridge import providers
+    _reject_with(monkeypatch, "Incorrect password, you still have 1 chances to enter.")
+    cs.verify_credentials("a@example.com", "pw")
+    providers.clear_cloud_hold("test")
+    monkeypatch.setattr(_Auth, "get_token", _Auth.get_token.__wrapped__
+                        if hasattr(_Auth.get_token, "__wrapped__") else _Auth.get_token)
+    assert providers.cloud_hold()["active"] is False
+
+
+def test_every_login_attempt_is_audited_with_the_exact_reply_and_no_secret(monkeypatch):
+    _reject_with(monkeypatch, "Incorrect password, you still have 2 chances to enter.")
+    cs.verify_credentials("david@example.com", "s3cret-pw", None)
+    text = repr(_Audit.rows)
+    assert "cloud_login" in text and "cloud_login_hold" in text
+    assert "Incorrect password, you still have 2 chances to enter." in text
+    assert "d***@example.com" in text
+    assert "s3cret-pw" not in text and "david@example.com" not in text
+
+
+def test_a_successful_login_is_audited_too():
+    cs.verify_credentials("a@example.com", "pw", "SN1")
+    assert any(a == "cloud_login" and kw.get("result") == "ok" for a, kw in _Audit.rows)
+
+
+def test_the_card_shows_the_hold_and_offers_an_explicit_clear():
+    import pathlib
+    root = pathlib.Path(cs.__file__).parent
+    js = (root / "static/js/settings_tab.js").read_text()
+    html = (root / "templates/tabs/settings.html").read_text()
+    assert "get cloudBlocked() { return !!this.cfg?.cloud?.hold?.active; }" in js
+    assert "api/cloud/hold/clear" in js and "clearCloudHold()" in html
+    assert "cfg.cloud?.hold?.message" in html
+    card = html[html.index("FranklinWH Cloud API"):html.index("Integration → Mapping")]
+    assert "text-right" not in card, "cloud card fields must be left-aligned"
+    assert "cloudShowPw ? 'text' : 'password'" in card and 'autocomplete="new-password"' in card

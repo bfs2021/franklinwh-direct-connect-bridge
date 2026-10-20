@@ -44,6 +44,14 @@ def retry_delay(interval: int, failures: int) -> int:
     return min(int(interval) * 2 ** min(max(failures, 1), 3), MAX_BACKOFF_S)
 
 
+class _LoginFailed(Exception):
+    """Carries the library's login exception out of the event loop, untouched."""
+
+    def __init__(self, original: BaseException):
+        super().__init__(str(original))
+        self.original = original
+
+
 class GatewayChoiceNeeded(RuntimeError):
     """The account has several aGates and no serial is set: never guess one (#248)."""
 
@@ -53,8 +61,9 @@ class GatewayChoiceNeeded(RuntimeError):
                          + ", ".join(serials) + "). Enter the gateway serial to use.")
 
 
-async def _auth_for(email: str, password: str):
-    """The shared, logged-in auth for these credentials (one login per process)."""
+async def _auth_for(email: str, password: str, source: str = "status"):
+    """The shared, logged-in auth for these credentials (one login per process).
+    Every real login is guarded by the account hold and audited."""
     global LOGINS
     from franklinwh_cloud.auth import PasswordAuth
     key = (email, password)
@@ -64,8 +73,14 @@ async def _auth_for(email: str, password: str):
         _AUTH.clear()            # only the current credentials are ever kept
         _AUTH[key] = auth
     if not (getattr(auth, "info", None) or {}).get("token"):
+        providers.guard_login(email, source)        # raises while the hold is on
         LOGINS += 1
-        await auth.get_token()
+        try:
+            await auth.get_token()
+        except Exception as e:  # noqa: BLE001
+            providers.note_login_result(email, source, e)
+            raise
+        providers.note_login_result(email, source, None)
     return auth
 
 
@@ -95,10 +110,10 @@ async def _close(cloud) -> None:
             pass
 
 
-async def cloud_client(email: str, password: str, gateway: str | None):
+async def cloud_client(email: str, password: str, gateway: str | None, source: str = "status"):
     """A cloud Client bound to the right aGate, on the shared login (#233, #248)."""
     from franklinwh_cloud.client import Client
-    auth = await _auth_for(email, password)
+    auth = await _auth_for(email, password, source)
     return Client(auth, await resolve_gateway(auth, gateway))
 
 _VPP_ID = 9
@@ -159,11 +174,21 @@ def verify_credentials(email: str, password: str, gateway: str | None = None) ->
                           "so cloud features are unavailable regardless of credentials."}
     want = gateway.strip().upper() if gateway else None
 
+    try:
+        providers.guard_login(email, "credential check")
+    except providers.CloudLoginHeld as e:
+        return {"ok": False, "held": True, "detail": str(e)}
+
     async def _run():
         global LOGINS
         auth = PasswordAuth(email, password)
         LOGINS += 1
-        await auth.get_token()                      # a fresh login: this IS the test
+        try:
+            await auth.get_token()                  # a fresh login: this IS the test
+        except Exception as e:  # noqa: BLE001
+            providers.note_login_result(email, "credential check", e)
+            raise _LoginFailed(e) from e
+        providers.note_login_result(email, "credential check", None)
         probe = Client(auth, "placeholder")
         try:
             raw = await probe.get_home_gateway_list()
@@ -178,20 +203,18 @@ def verify_credentials(email: str, password: str, gateway: str | None = None) ->
 
     try:
         serials = asyncio.run(_run())
-    except Exception as e:  # noqa: BLE001 — report it, do not raise it
-        log.info("cloud credential check failed: %s", type(e).__name__)
-        # A rejected password must not be retried blindly: FranklinWH locks the account
-        # after a few wrong attempts ("you still have 2 chances"), and that lock is on the
-        # owner's real account, the FranklinWH app included (2026-10-21).
-        if providers._is_auth_rejection(e):
-            import re
-            m = re.search(r"(\d+)\s+chances?", str(e))
-            left = int(m.group(1)) if m else None
-            warn = (f" FranklinWH allows {left} more attempt{'s' if left != 1 else ''} before "
-                    "it locks the account." if left is not None else "")
-            return {"ok": False, "rejected": True, "attempts_left": left,
-                    "detail": "FranklinWH rejected the password." + warn
-                              + " Check it before trying again."}
+    except _LoginFailed as lf:
+        e = lf.original
+        # FranklinWH's own words, unedited: "Incorrect password, you still have 2 chances",
+        # "The password is locked. Please try again after …". A rejection has already put
+        # the account on hold (providers.note_login_result).
+        msg = str(e) or type(e).__name__
+        held = providers.cloud_hold()["active"]
+        return {"ok": False, "rejected": providers._is_auth_rejection(e), "held": held,
+                "detail": f"FranklinWH: {msg}" + (" — cloud sign-in is now on hold; check "
+                          "the password in the FranklinWH app before clearing it." if held else "")}
+    except Exception as e:  # noqa: BLE001 — after the login: listing the account's aGates
+        log.info("cloud credential check failed after login: %s: %s", type(e).__name__, e)
         return {"ok": False, "detail": f"{type(e).__name__}: {e}"}
     if want:
         if serials and want not in serials:
@@ -220,7 +243,7 @@ def read_power_control(email: str, password: str, gateway: str | None) -> dict:
     import asyncio
 
     async def _run():
-        cloud = await cloud_client(email, password, gateway)
+        cloud = await cloud_client(email, password, gateway, "power-control read")
         try:
             return await cloud.get_power_control_settings()
         finally:
@@ -271,6 +294,10 @@ def poll(s: Settings) -> dict | None:
     try:
         cur, prog, edge = _read_sync(s.fwh_cloud_email, s.fwh_cloud_password,
                                      s.fwh_cloud_gateway or None)
+    except providers.CloudLoginHeld as e:
+        # Refused locally: no request was sent, so the breaker is not touched.
+        LAST_ERROR = str(e)
+        return None
     except Exception as e:  # noqa: BLE001 — feed the breaker; transport ≠ auth failure
         providers._note_auth_failure(str(e) or type(e).__name__,
                                      counts=providers._is_auth_rejection(e))
