@@ -11,6 +11,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+## [0.5.12] — 2026-10-21
+
+The add-on installs a prebuilt, tested image instead of building on your machine.
+
 ### Changed
 
 - **The add-on now installs a prebuilt image instead of building on your machine** (#243).
