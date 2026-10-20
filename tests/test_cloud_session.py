@@ -167,3 +167,14 @@ def test_cloud_card_saves_through_setup_cloud():
     assert "'api/setup/cloud'" in body
     assert "fwh_cloud_email" in body and "fwh_cloud_password" in body and "fwh_cloud_gateway" in body
     assert 'saveCloud()' in html
+
+
+def test_the_status_loop_waits_for_credentials_instead_of_exiting():
+    """#248: credentials saved from Settings must start cloud polling without an add-on
+    restart. The loop used to `return` when it started with none, and never came back."""
+    import pathlib
+    src = pathlib.Path(cs.__file__).with_name("app.py").read_text()
+    body = src[src.index("def _cloud_status_loop():"):]
+    head = body[:body.index("FWH_CLOUD_STATUS")]
+    assert "while True:" in head and "_t.sleep(_CLOUD_CREDS_WAIT_S)" in head
+    assert "return" not in head

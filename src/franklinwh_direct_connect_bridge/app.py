@@ -1091,15 +1091,21 @@ def create_app() -> FastAPI:
         # force (see FEAT-VPP-CLOUD-RUNSTATUS). Slow cadence + the providers auth breaker so a
         # bad login never locks the account; a transport error just leaves the last value and
         # the UI falls back to the Modbus FORCE signal.
+        _CLOUD_CREDS_WAIT_S = 30   # how often a credential-less loop re-checks settings
+
         def _cloud_status_loop():
             import time as _t
             from . import cloud_status
-            s0 = get_settings()
-            if not (s0.fwh_cloud_email and s0.fwh_cloud_password):
-                # By design: no credentials, no cloud polling. Say so, don't go quiet.
+            # No credentials, no cloud calls — but WAIT for them rather than exit: they can
+            # be saved from Settings at any time (#248), and the loop used to need an add-on
+            # restart to notice. This check reads local settings only.
+            while True:
+                s0 = get_settings()
+                if s0.fwh_cloud_email and s0.fwh_cloud_password:
+                    break
                 _workers.registry.beat("cloud-status", state=_workers.WorkerState.PAUSED,
                                        detail="no cloud credentials")
-                return
+                _t.sleep(_CLOUD_CREDS_WAIT_S)
             if os.environ.get("FWH_CLOUD_STATUS", "1") not in ("1", "true", "yes", "on"):
                 _workers.registry.beat("cloud-status", state=_workers.WorkerState.PAUSED,
                                        detail="disabled (FWH_CLOUD_STATUS)")
