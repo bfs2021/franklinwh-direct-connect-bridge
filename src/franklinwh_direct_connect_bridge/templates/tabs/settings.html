@@ -1998,10 +1998,15 @@
                 x-text="cfg.cloud?.password_set ? 'set' : 'unset'"></span>
         </span>
         <div class="flex items-center gap-1" style="max-width:20rem;width:100%">
-          <!-- new-password: stop the browser autofilling an unrelated saved password, which
-               is how a wrong password reached FranklinWH on 2026-10-21. -->
-          <input :type="cloudShowPw ? 'text' : 'password'" x-model="form.fwh_cloud_password"
-                 autocomplete="new-password" spellcheck="false" autocapitalize="off"
+          <!-- NOT a password input (2026-10-21). type=password made Safari autofill an
+               unrelated saved password, and autocomplete="new-password" invited its generator
+               to insert a fresh "Strong Password" — both rejected by FranklinWH and counted
+               toward its account lockout. A plain text input, masked with CSS, is not offered
+               to password managers at all. -->
+          <input type="text" x-model="form.fwh_cloud_password" name="fwh-cloud-secret"
+                 autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other"
+                 spellcheck="false" autocapitalize="off" autocorrect="off"
+                 :style="cloudShowPw ? '' : '-webkit-text-security:disc;text-security:disc'"
                  :placeholder="cfg.cloud?.password_set ? '•••••••• (leave blank to keep)' : 'FranklinWH app password'"
                  class="form-control flex-1">
           <button type="button" class="btn btn-secondary btn-sm shrink-0"
@@ -2010,6 +2015,10 @@
                   :aria-label="cloudShowPw ? 'Hide password' : 'Show password'"
                   x-text="cloudShowPw ? 'Hide' : 'Show'"></button>
         </div>
+      </div>
+      <div class="text-[11px]" style="color:var(--text-secondary)">
+        Type or paste your FranklinWH app password. Don't use a password the browser suggests,
+        and press Show to check it before Save &amp; test.
       </div>
       <div class="flex items-center justify-between text-sm gap-3">
         <span class="text-slate-500 shrink-0">Gateway serial</span>

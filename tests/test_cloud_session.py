@@ -238,7 +238,11 @@ def test_the_card_shows_the_hold_and_offers_an_explicit_clear():
     assert "cfg.cloud?.hold?.message" in html
     card = html[html.index("FranklinWH Cloud API"):html.index("Integration → Mapping")]
     assert "text-right" not in card, "cloud card fields must be left-aligned"
-    assert "cloudShowPw ? 'text' : 'password'" in card and 'autocomplete="new-password"' in card
+    # Not a password input: Safari autofilled one, and generated a "Strong Password" into
+    # autocomplete=new-password, both spending FranklinWH lockout attempts (2026-10-21).
+    assert 'type="password"' not in card and "new-password" not in card
+    assert 'x-model="form.fwh_cloud_password"' in card and 'autocomplete="off"' in card
+    assert "-webkit-text-security:disc" in card and "Don't use a password the browser suggests" in card
 
 
 
