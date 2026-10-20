@@ -179,7 +179,19 @@ def verify_credentials(email: str, password: str, gateway: str | None = None) ->
     try:
         serials = asyncio.run(_run())
     except Exception as e:  # noqa: BLE001 — report it, do not raise it
-        log.info("cloud credential check failed: %s: %s", type(e).__name__, e)
+        log.info("cloud credential check failed: %s", type(e).__name__)
+        # A rejected password must not be retried blindly: FranklinWH locks the account
+        # after a few wrong attempts ("you still have 2 chances"), and that lock is on the
+        # owner's real account, the FranklinWH app included (2026-10-21).
+        if providers._is_auth_rejection(e):
+            import re
+            m = re.search(r"(\d+)\s+chances?", str(e))
+            left = int(m.group(1)) if m else None
+            warn = (f" FranklinWH allows {left} more attempt{'s' if left != 1 else ''} before "
+                    "it locks the account." if left is not None else "")
+            return {"ok": False, "rejected": True, "attempts_left": left,
+                    "detail": "FranklinWH rejected the password." + warn
+                              + " Check it before trying again."}
         return {"ok": False, "detail": f"{type(e).__name__}: {e}"}
     if want:
         if serials and want not in serials:

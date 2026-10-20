@@ -123,7 +123,32 @@ def test_verify_settles_the_serial():
 
 def test_verify_reports_a_bad_password():
     v = cs.verify_credentials("a@example.com", "wrong")
-    assert v["ok"] is False and "401" in v["detail"]
+    assert v["ok"] is False and v["rejected"] is True
+
+
+def test_a_rejected_password_says_how_many_attempts_are_left(monkeypatch):
+    """FranklinWH counts wrong passwords and then locks the owner's real account
+    (2026-10-21: "Incorrect password, you still have 2 chances to enter")."""
+    class AccountLockedException(Exception):
+        pass
+
+    async def _locked(self, force_refresh=False):
+        raise AccountLockedException("Incorrect password, you still have 2 chances to enter.")
+    monkeypatch.setattr(_Auth, "get_token", _locked)
+    v = cs.verify_credentials("a@example.com", "pw")
+    assert v["ok"] is False and v["rejected"] is True and v["attempts_left"] == 2
+    assert "2 more attempts" in v["detail"] and "before trying again" in v["detail"]
+
+
+def test_the_card_blocks_a_retry_of_a_rejected_password_and_can_show_it():
+    import pathlib
+    root = pathlib.Path(cs.__file__).parent
+    js = (root / "static/js/settings_tab.js").read_text()
+    html = (root / "templates/tabs/settings.html").read_text()
+    assert "get cloudBlocked()" in js and "if (this.cloudBlocked) return;" in js
+    assert "cloudBlocked" in html.split("saveCloud()")[1][:400]
+    assert "cloudShowPw ? 'text' : 'password'" in html
+    assert 'autocomplete="new-password"' in html
 
 
 def test_verify_hands_its_login_to_the_poller():

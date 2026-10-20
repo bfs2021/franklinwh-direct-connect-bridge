@@ -1996,9 +1996,19 @@
           <span class="chip" :class="cfg.cloud?.password_set ? 'ok' : 'muted'"
                 x-text="cfg.cloud?.password_set ? 'set' : 'unset'"></span>
         </span>
-        <input type="password" x-model="form.fwh_cloud_password"
-               :placeholder="cfg.cloud?.password_set ? '•••••••• (leave blank to keep)' : 'cloud password'"
-               class="form-control text-right" style="max-width:16rem">
+        <div class="flex items-center gap-1" style="max-width:16rem;width:100%">
+          <!-- new-password: stop the browser autofilling an unrelated saved password, which
+               is how a wrong password reached FranklinWH on 2026-10-21. -->
+          <input :type="cloudShowPw ? 'text' : 'password'" x-model="form.fwh_cloud_password"
+                 autocomplete="new-password" spellcheck="false" autocapitalize="off"
+                 :placeholder="cfg.cloud?.password_set ? '•••••••• (leave blank to keep)' : 'FranklinWH app password'"
+                 class="form-control text-right flex-1">
+          <button type="button" class="btn btn-secondary btn-sm shrink-0"
+                  @click="cloudShowPw = !cloudShowPw"
+                  :title="cloudShowPw ? 'Hide password' : 'Show password'"
+                  :aria-label="cloudShowPw ? 'Hide password' : 'Show password'"
+                  x-text="cloudShowPw ? 'Hide' : 'Show'"></button>
+        </div>
       </div>
       <div class="flex items-center justify-between text-sm gap-3">
         <span class="text-slate-500 shrink-0">Gateway serial</span>
@@ -2015,8 +2025,9 @@
       <div class="flex gap-2 shrink-0">
         <!-- Signs in with what is typed and stores it only if that works (#248). -->
         <button @click="saveCloud()" class="btn btn-primary btn-sm"
-                :disabled="cloudTesting || !form.fwh_cloud_email || !form.fwh_cloud_password"
-                :title="(!form.fwh_cloud_email || !form.fwh_cloud_password) ? 'Enter the email and password' : ''"
+                :disabled="cloudTesting || !form.fwh_cloud_email || !form.fwh_cloud_password || cloudBlocked"
+                :title="cloudBlocked ? 'FranklinWH rejected this password: change it before trying again'
+                        : ((!form.fwh_cloud_email || !form.fwh_cloud_password) ? 'Enter the email and password' : '')"
                 x-text="cloudTesting ? 'Signing in…' : 'Save & test'"></button>
         <button @click="testCloud()" class="btn btn-secondary btn-sm"
                 :disabled="cloudTesting" title="Check the stored credentials">Test</button>

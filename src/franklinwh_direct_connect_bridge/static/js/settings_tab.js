@@ -921,8 +921,19 @@ function settingsTab() {
       } finally { clearTimeout(timer); this.cloudTesting = false; }
     },
 
+    cloudShowPw: false,
+    //: The email+password FranklinWH last rejected. Save & test stays disabled until one of
+    //  them changes: a blind retry spends one of the account's few attempts before lockout.
+    cloudRejected: null,
+    get cloudBlocked() {
+      const r = this.cloudRejected;
+      return !!r && r.email === (this.form.fwh_cloud_email || '').trim()
+                 && r.password === this.form.fwh_cloud_password;
+    },
+
     /** Sign in with the typed credentials and store them only if that works (#248). */
     async saveCloud() {
+      if (this.cloudBlocked) return;
       this.cloudTesting = true; this.cloudResult = null;
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 45000);
@@ -937,6 +948,10 @@ function settingsTab() {
         const d = await r.json().catch(() => ({ ok: false, detail: 'HTTP ' + r.status }));
         if (!r.ok && !('ok' in d)) d.detail = d.detail || ('HTTP ' + r.status);
         this.cloudResult = d.ok ? { state: 'valid' } : { state: 'error', error: d.detail };
+        if (d.rejected) {
+          this.cloudRejected = { email: this.form.fwh_cloud_email.trim(),
+                                 password: this.form.fwh_cloud_password };
+        }
         this.$store.app.toast(d.detail || (d.ok ? 'Saved' : 'Not saved'), d.ok ? 'success' : 'error');
         if (d.ok) {
           this.form.fwh_cloud_password = '';

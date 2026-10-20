@@ -2868,7 +2868,8 @@ def create_app() -> FastAPI:
                ok=bool(res.get("ok")))
         return {"ok": bool(res.get("ok")), "detail": res.get("detail", ""),
                 "saved": bool(res.get("ok") and req.save),
-                "gateways": res.get("gateways") or [], "gateway": res.get("gateway")}
+                "gateways": res.get("gateways") or [], "gateway": res.get("gateway"),
+                "rejected": bool(res.get("rejected")), "attempts_left": res.get("attempts_left")}
 
     @app.get("/api/setup/ha-checks")
     def api_setup_ha_checks(gateway: str | None = Query(None)):
