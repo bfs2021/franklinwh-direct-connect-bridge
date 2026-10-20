@@ -11,6 +11,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Fixed
+
+- **Settings → Integrations → Save mappings works** (#247). It failed every time since the
+  Mapping panel arrived (0.5.0), with an internal server error that Safari showed as "The
+  string did not match the expected pattern". Errors that aren't JSON now show their HTTP
+  status instead of the browser's parse message.
+- **The FranklinWH Cloud API card can save your credentials** (#248). The email, password and
+  serial you typed were never saved, and **Test** only checked what was already stored, so
+  the cloud could not be connected from the add-on. **Save & test** now signs in with what you
+  typed and stores it only if that works. The gateway serial is optional when your account
+  has one aGate; with several, it lists them and asks you to choose, instead of quietly using
+  the first.
+- **The cloud status check no longer signs in every 5 minutes** (#233). It signs in once and
+  reuses the session (the library renews it when it expires). After a failed check it now
+  waits longer each time, up to 30 minutes, instead of retrying every 45 seconds, so a
+  rate-limited account is not polled harder.
+
 ## [0.5.12] — 2026-10-21
 
 The add-on installs a prebuilt, tested image instead of building on your machine.

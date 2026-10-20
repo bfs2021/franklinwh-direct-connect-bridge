@@ -921,6 +921,34 @@ function settingsTab() {
       } finally { clearTimeout(timer); this.cloudTesting = false; }
     },
 
+    /** Sign in with the typed credentials and store them only if that works (#248). */
+    async saveCloud() {
+      this.cloudTesting = true; this.cloudResult = null;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 45000);
+      try {
+        const r = await fetch('api/setup/cloud', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
+          body: JSON.stringify({ email: this.form.fwh_cloud_email.trim(),
+                                 password: this.form.fwh_cloud_password,
+                                 gateway: (this.form.fwh_cloud_gateway || '').trim() || null,
+                                 save: true }),
+        });
+        const d = await r.json().catch(() => ({ ok: false, detail: 'HTTP ' + r.status }));
+        if (!r.ok && !('ok' in d)) d.detail = d.detail || ('HTTP ' + r.status);
+        this.cloudResult = d.ok ? { state: 'valid' } : { state: 'error', error: d.detail };
+        this.$store.app.toast(d.detail || (d.ok ? 'Saved' : 'Not saved'), d.ok ? 'success' : 'error');
+        if (d.ok) {
+          this.form.fwh_cloud_password = '';
+          if (d.gateway) this.form.fwh_cloud_gateway = d.gateway;
+          await this.reload();
+        }
+      } catch (e) {
+        this.cloudResult = { state: 'error', error: e.name === 'AbortError'
+          ? 'Timed out waiting for the FranklinWH cloud — try again.' : e.message };
+      } finally { clearTimeout(timer); this.cloudTesting = false; }
+    },
+
     get cloudOk() { return (this.cloudResult || this.cfg.cloud?.auth || {}).state === 'valid'; },
 
     cloudMessage() {

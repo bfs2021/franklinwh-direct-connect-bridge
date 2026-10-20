@@ -1108,8 +1108,7 @@ def create_app() -> FastAPI:
                 interval = max(120, int(os.environ.get("FWH_CLOUD_STATUS_S", "300")))
             except ValueError:
                 interval = 300
-            retry = min(interval, 45)   # the cloud link is flaky (HTTP/2 resets) — on a
-            _t.sleep(8)                 # failed read, retry soon rather than after `interval`
+            _t.sleep(8)
             want = (get_settings().fwh_cloud_gateway or "").upper()
             _last_status = None   # only log cloud status on a real CHANGE (see Logs policy)
             _fail_streak = 0      # for failure VISIBILITY without 5-min spam (onset + recovery)
@@ -1153,8 +1152,8 @@ def create_app() -> FastAPI:
                     _fail_streak += 1
                     reason = cloud_status.LAST_ERROR or "cloud unreachable / auth error"
                     if _fail_streak == 1:
-                        log.warning("cloud link failing — %s (will keep retrying every %ds)",
-                                    reason, retry)
+                        log.warning("cloud link failing — %s (backing off from %ds)",
+                                    reason, cloud_status.retry_delay(interval, 1))
                     else:
                         log.debug("cloud link still failing (%d consecutive): %s", _fail_streak, reason)
                 # Back off to the breaker's own cadence once it has locked, so we never hammer.
@@ -1164,7 +1163,9 @@ def create_app() -> FastAPI:
                     _workers.registry.beat("cloud-status", state=_workers.WorkerState.PAUSED,
                                            detail="cloud auth locked — re-enter credentials")
                     return
-                _t.sleep(interval if ok else retry)
+                # Never faster than the interval, and slower with each failure (#233): a
+                # rate-limited account (HTTP 429) must not be polled harder.
+                _t.sleep(interval if ok else cloud_status.retry_delay(interval, _fail_streak))
         _th.Thread(target=_cloud_status_loop, daemon=True).start()
 
         # ── L0 supervision (RUNTIME_DESIGN phase 0) ──────────────────────────
@@ -2854,16 +2855,20 @@ def create_app() -> FastAPI:
         if res.get("ok") and req.save:
             save_override("fwh_cloud_email", req.email)
             save_override("fwh_cloud_password", req.password)
-            if req.gateway:
-                save_override("fwh_cloud_gateway", req.gateway)
+            # The serial the check settled on: the one typed, or the account's only aGate.
+            # Never a guess among several (#248) — that case is not ok, so nothing is saved.
+            if res.get("gateway"):
+                save_override("fwh_cloud_gateway", res["gateway"])
             from . import config as _config
             _config._settings = None      # re-read on the next call, so it takes effect now
+            from . import providers as _providers
+            _providers.reset_cloud_breaker()   # new credentials: the old verdict is void
         # Never echo the credentials back, and never log them.
         _audit("setup_cloud", detail="credential check", result=("ok" if res.get("ok") else "failed"),
                ok=bool(res.get("ok")))
         return {"ok": bool(res.get("ok")), "detail": res.get("detail", ""),
                 "saved": bool(res.get("ok") and req.save),
-                "gateways": res.get("gateways") or []}
+                "gateways": res.get("gateways") or [], "gateway": res.get("gateway")}
 
     @app.get("/api/setup/ha-checks")
     def api_setup_ha_checks(gateway: str | None = Query(None)):
