@@ -77,6 +77,13 @@ async def _auth_for(email: str, password: str, source: str = "status"):
     return auth
 
 
+# Cloud run_status / tou_mode that means a VPP dispatch is running.
+_VPP_ID = 9
+#: Cloud reads older than this are treated as stale — the UI falls back to the live Modbus
+#: FORCE signal rather than trusting a minutes-old cloud VPP state.
+STALE_AFTER_S = 900
+
+
 async def _client_for(email: str, password: str, gateway: str | None, source: str = "status"):
     """A franklinwh-cloud ``Client`` on the shared login, bound to the aGate the library's
     ``resolve_gateway`` chooses: the given serial (verified on the account) or the account's
