@@ -236,7 +236,9 @@ def test_the_card_shows_the_hold_and_offers_an_explicit_clear():
     assert "get cloudBlocked() { return !!this.cfg?.cloud?.hold?.active; }" in js
     assert "api/cloud/hold/clear" in js and "clearCloudHold()" in html
     assert "cfg.cloud?.hold?.message" in html
+    import re
     card = html[html.index("FranklinWH Cloud API"):html.index("Integration → Mapping")]
+    card = re.sub(r"<!--.*?-->", "", card, flags=re.S)       # judge markup, not comments
     assert "text-right" not in card, "cloud card fields must be left-aligned"
     # Not a password input: Safari autofilled one, and generated a "Strong Password" into
     # autocomplete=new-password, both spending FranklinWH lockout attempts (2026-10-21).
