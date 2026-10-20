@@ -30,6 +30,8 @@ LAST_ERROR: str | None = None
 #: pass creates, so every pass builds a fresh Client on the shared auth.
 _AUTH: dict[tuple[str, str], object] = {}
 LOGINS = 0          # logins made by this process, for tests and diagnostics
+#: (login, requested serial) -> the serial resolve_gateway chose for it.
+_SERIAL: dict[tuple, str] = {}
 
 
 #: The longest wait between failed passes, in seconds.
@@ -50,15 +52,6 @@ class _LoginFailed(Exception):
     def __init__(self, original: BaseException):
         super().__init__(str(original))
         self.original = original
-
-
-class GatewayChoiceNeeded(RuntimeError):
-    """The account has several aGates and no serial is set: never guess one (#248)."""
-
-    def __init__(self, serials: list[str]):
-        self.serials = serials
-        super().__init__("This FranklinWH account has more than one aGate ("
-                         + ", ".join(serials) + "). Enter the gateway serial to use.")
 
 
 async def _auth_for(email: str, password: str, source: str = "status"):
@@ -84,42 +77,23 @@ async def _auth_for(email: str, password: str, source: str = "status"):
     return auth
 
 
-async def resolve_gateway(auth, gateway: str | None) -> str:
-    """The serial to call: the configured one (UPPERCASE — the cloud is case-sensitive), or
-    the account's only aGate. Several aGates and no serial -> GatewayChoiceNeeded."""
-    if gateway:
-        return gateway.upper()
-    from franklinwh_cloud.client import Client
-    raw = await Client(auth, "placeholder").get_home_gateway_list()
-    gws = (raw.get("result") or []) if isinstance(raw, dict) else (raw or [])
-    serials = [str(g.get("id", "")) for g in gws if isinstance(g, dict) and g.get("id")]
-    if len(serials) == 1:
-        return serials[0].upper()
-    if not serials:
-        raise RuntimeError("This FranklinWH account has no aGate.")
-    raise GatewayChoiceNeeded(serials)
-
-
-async def _close(cloud) -> None:
-    """Close the pass's httpx session; it belongs to this pass's event loop."""
-    sess = getattr(cloud, "session", None)
-    if sess is not None:
-        try:
-            await sess.aclose()
-        except Exception:  # noqa: BLE001
-            pass
-
-
-async def cloud_client(email: str, password: str, gateway: str | None, source: str = "status"):
-    """A cloud Client bound to the right aGate, on the shared login (#233, #248)."""
+async def _client_for(email: str, password: str, gateway: str | None, source: str = "status"):
+    """A franklinwh-cloud ``Client`` on the shared login, bound to the aGate the library's
+    ``resolve_gateway`` chooses: the given serial (verified on the account) or the account's
+    only aGate. Several and no serial -> ``GatewaySelectionError``; it never guesses (#248).
+    Use as ``async with``; the library closes its httpx session on exit."""
+    from franklinwh_cloud import resolve_gateway
     from franklinwh_cloud.client import Client
     auth = await _auth_for(email, password, source)
-    return Client(auth, await resolve_gateway(auth, gateway))
-
-_VPP_ID = 9
-#: Cloud reads older than this are treated as stale — the UI falls back to the live Modbus
-#: FORCE signal rather than trusting a minutes-old cloud VPP state.
-STALE_AFTER_S = 900
+    # resolve_gateway lists the account's aGates on every call; the answer cannot change
+    # under one login, so ask once per login rather than adding a request to every pass.
+    key = (id(auth), (gateway or "").strip().upper())
+    serial = _SERIAL.get(key)
+    if serial is None:
+        serial = await resolve_gateway(auth, gateway)
+        _SERIAL.clear()
+        _SERIAL[key] = serial
+    return Client(auth, serial)
 
 
 def _read_sync(email: str, password: str, gateway: str | None) -> tuple:
@@ -128,8 +102,7 @@ def _read_sync(email: str, password: str, gateway: str | None) -> tuple:
     import asyncio
 
     async def _run():
-        cloud = await cloud_client(email, password, gateway)
-        try:
+        async with await _client_for(email, password, gateway) as cloud:
             stats = await cloud.get_stats()
             prog = []
             try:
@@ -142,8 +115,6 @@ def _read_sync(email: str, password: str, gateway: str | None) -> tuple:
             except Exception:  # noqa: BLE001 — edge metrics are a nice-to-have
                 edge = None
             return stats.current, prog, edge
-        finally:
-            await _close(cloud)
 
     return asyncio.run(_run())
 
@@ -166,13 +137,14 @@ def verify_credentials(email: str, password: str, gateway: str | None = None) ->
     try:
         import asyncio
 
+        from franklinwh_cloud import resolve_gateway
         from franklinwh_cloud.auth import PasswordAuth
-        from franklinwh_cloud.client import Client
+        from franklinwh_cloud.exceptions import GatewaySelectionError
     except ImportError:
         return {"ok": False,
                 "detail": "The franklinwh-cloud library is not installed in this build, "
                           "so cloud features are unavailable regardless of credentials."}
-    want = gateway.strip().upper() if gateway else None
+    want = gateway.strip() if gateway else None
 
     try:
         providers.guard_login(email, "credential check")
@@ -189,20 +161,14 @@ def verify_credentials(email: str, password: str, gateway: str | None = None) ->
             providers.note_login_result(email, "credential check", e)
             raise _LoginFailed(e) from e
         providers.note_login_result(email, "credential check", None)
-        probe = Client(auth, "placeholder")
-        try:
-            raw = await probe.get_home_gateway_list()
-        finally:
-            await _close(probe)
-        gws = (raw.get("result") or []) if isinstance(raw, dict) else (raw or [])
-        serials = [str(g.get("id", "")).upper() for g in gws
-                   if isinstance(g, dict) and g.get("id")]
         _AUTH.clear()
         _AUTH[(email, password)] = auth              # the poller reuses this login
-        return serials
+        # The library chooses the aGate: the typed serial if the account has it, or the
+        # account's only one; never one of several (#248).
+        return await resolve_gateway(auth, want)
 
     try:
-        serials = asyncio.run(_run())
+        chosen = asyncio.run(_run())
     except _LoginFailed as lf:
         e = lf.original
         # FranklinWH's own words, unedited: "Incorrect password, you still have 2 chances",
@@ -213,26 +179,15 @@ def verify_credentials(email: str, password: str, gateway: str | None = None) ->
         return {"ok": False, "rejected": providers._is_auth_rejection(e), "held": held,
                 "detail": f"FranklinWH: {msg}" + (" — cloud sign-in is now on hold; check "
                           "the password in the FranklinWH app before clearing it." if held else "")}
-    except Exception as e:  # noqa: BLE001 — after the login: listing the account's aGates
+    except GatewaySelectionError as e:
+        return {"ok": False, "gateways": list(getattr(e, "serials", []) or []), "gateway": None,
+                "detail": f"Signed in. {e}"}
+    except Exception as e:  # noqa: BLE001 — after the login: choosing the aGate
         log.info("cloud credential check failed after login: %s: %s", type(e).__name__, e)
         return {"ok": False, "detail": f"{type(e).__name__}: {e}"}
-    if want:
-        if serials and want not in serials:
-            return {"ok": False, "gateways": serials, "gateway": None,
-                    "detail": f"Signed in, but aGate {want} is not on this account. "
-                              f"This account has: {', '.join(serials)}."}
-        chosen = want
-    elif len(serials) == 1:
-        chosen = serials[0]
-    elif not serials:
-        return {"ok": False, "gateways": [], "gateway": None,
-                "detail": "Signed in, but this account has no aGate."}
-    else:
-        return {"ok": False, "gateways": serials, "gateway": None,
-                "detail": "Signed in. This account has more than one aGate "
-                          f"({', '.join(serials)}): enter the gateway serial to use."}
-    return {"ok": True, "gateways": serials, "gateway": chosen,
+    return {"ok": True, "gateways": [chosen], "gateway": chosen,
             "detail": f"Signed in to the FranklinWH cloud; using aGate {chosen}."}
+
 
 def read_power_control(email: str, password: str, gateway: str | None) -> dict:
     """One authenticated cloud read of the GLOBAL grid power-control caps
@@ -243,11 +198,8 @@ def read_power_control(email: str, password: str, gateway: str | None) -> dict:
     import asyncio
 
     async def _run():
-        cloud = await cloud_client(email, password, gateway, "power-control read")
-        try:
+        async with await _client_for(email, password, gateway, "power-control read") as cloud:
             return await cloud.get_power_control_settings()
-        finally:
-            await _close(cloud)
 
     return asyncio.run(_run())
 

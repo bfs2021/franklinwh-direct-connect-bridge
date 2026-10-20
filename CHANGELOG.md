@@ -11,6 +11,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Changed
+
+- **franklinwh-cloud is pinned to 0.6.0** (#254). It was an open range, so each new library
+  release went into the image untested. 0.6.0 adds the library features the bridge now uses
+  instead of its own: clear sign-in errors (no more `TypeError` on an unexpected reply), a
+  distinct rate-limit error, `resolve_gateway()` (never guesses among several aGates), and
+  closing each session properly.
+
 ### Fixed
 
 - **Settings → Integrations → Save mappings works** (#247). It failed every time since the

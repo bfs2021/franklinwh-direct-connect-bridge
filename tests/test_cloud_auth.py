@@ -233,12 +233,19 @@ def test_network_failure_does_not_count_toward_lockout(monkeypatch):
 
 
 def test_rejected_credentials_do_count(monkeypatch):
+    """One rejection puts the account on hold (2026-10-21): FranklinWH itself locks the
+    account after a few wrong passwords, so the bridge must not spend the rest of them."""
+    calls = []
+
     def _boom(*a):
+        calls.append(1)
         raise RuntimeError("401 unauthorized")
     monkeypatch.setattr(providers, "_cloud_login_check", _boom)
     for _ in range(providers._MAX_AUTH_FAILS):
         st = providers.validate_cloud(_creds())
-    assert st["state"] == "locked"
+    assert calls == [1], "only the first validate may reach FranklinWH"
+    assert providers.cloud_hold()["active"] is True
+    assert "on hold" in (st.get("error") or "")
 
 
 def test_rejection_is_recognised_by_exception_name():

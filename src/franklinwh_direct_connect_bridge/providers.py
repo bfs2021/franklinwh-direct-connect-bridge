@@ -320,7 +320,14 @@ def _note_auth_success() -> None:
 _AUTH_REJECTION_NAMES = frozenset({
     "InvalidCredentialsException", "AccountLockedException", "UauthorizedRequest",
     "TokenExpiredException",
+    # franklinwh-cloud 0.6.0: the base of every login refusal (unknown code, no account in
+    # the reply). Any refusal stops further logins (account hold).
+    "LoginError",
 })
+
+#: franklinwh-cloud 0.6.0: HTTP 429 / code 429 at login. Deliberately NOT a LoginError —
+#: being rate limited is not a rejected password, and must never hold or lock anything.
+_NOT_A_REJECTION = frozenset({"RateLimitedError"})
 
 
 def _is_auth_rejection(exc: BaseException) -> bool:
@@ -329,6 +336,8 @@ def _is_auth_rejection(exc: BaseException) -> bool:
     Falls back to inspecting the message for an explicit 401/403/unauthorized,
     since the library also raises bare exceptions in places.
     """
+    if type(exc).__name__ in _NOT_A_REJECTION:
+        return False
     if type(exc).__name__ in _AUTH_REJECTION_NAMES:
         return True
     text = str(exc).lower()

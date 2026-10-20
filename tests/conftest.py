@@ -36,6 +36,12 @@ def _isolate_data_dir(request, tmp_path, monkeypatch):
     db.reset_store()
     logbuffer.set_store(None)
     logbuffer.clear()
+    # The cloud sign-in hold is process state persisted under DATA_DIR: start every test
+    # with it off and unloaded, so one test's rejection can't hold the next test's logins.
+    from franklinwh_direct_connect_bridge import providers
+    monkeypatch.setattr(providers, "_hold", {"active": False, "message": "", "since": 0.0,
+                                             "account": ""})
+    monkeypatch.setattr(providers, "_hold_loaded", True)
     yield
     db.reset_store()
     logbuffer.set_store(None)

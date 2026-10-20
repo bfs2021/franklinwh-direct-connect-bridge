@@ -41,9 +41,18 @@ class _Client:
     gateways = ["10060006A02F00000001"]
     bound: list = []
 
+    closed = 0
+
     def __init__(self, auth, gateway, **kw):
         self.auth, self.gateway, self.session = auth, gateway, None
         _Client.bound.append(gateway)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        _Client.closed += 1
+        return False
 
     async def get_home_gateway_list(self):
         return {"result": [{"id": g} for g in _Client.gateways]}
@@ -64,12 +73,14 @@ def fakes(monkeypatch):
     _Auth.logins = 0
     _Client.gateways = ["10060006A02F00000001"]
     _Client.bound = []
+    _Client.closed = 0
     monkeypatch.setattr(fauth, "PasswordAuth", _Auth)
     monkeypatch.setattr(fclient, "Client", _Client)
     # The library's facade imports both by name; patch it too, so no test reaches the network.
     monkeypatch.setattr(fwrapper, "PasswordAuth", _Auth)
     monkeypatch.setattr(fwrapper, "Client", _Client)
     monkeypatch.setattr(cs, "_AUTH", {}, raising=False)
+    monkeypatch.setattr(cs, "_SERIAL", {}, raising=False)
     from franklinwh_direct_connect_bridge import config, providers
     store: dict = {}
     monkeypatch.setattr(config, "load_overrides", lambda: dict(store))
@@ -88,12 +99,14 @@ def test_twelve_passes_make_one_login():
     for _ in range(12):
         cs._read_sync("a@example.com", "pw", "10060006a02f00000001")
     assert _Auth.logins == 1
-    assert set(_Client.bound) == {"10060006A02F00000001"}       # uppercased
+    # The account's aGates are listed once per login, not once per pass.
+    assert _Client.bound.count("placeholder") == 1
+    assert set(_Client.bound) == {"placeholder", "10060006A02F00000001"}
 
 
 def test_new_credentials_log_in_again():
-    cs._read_sync("a@example.com", "pw", "SN1")
-    cs._read_sync("a@example.com", "pw2", "SN1")
+    cs._read_sync("a@example.com", "pw", None)
+    cs._read_sync("a@example.com", "pw2", None)
     assert _Auth.logins == 2
 
 
@@ -117,8 +130,9 @@ def test_no_serial_and_one_agate_uses_it():
 
 
 def test_no_serial_and_several_agates_never_guesses():
+    from franklinwh_cloud.exceptions import GatewaySelectionError
     _Client.gateways = ["SN1", "SN2"]
-    with pytest.raises(cs.GatewayChoiceNeeded) as e:
+    with pytest.raises(GatewaySelectionError) as e:
         cs._read_sync("a@example.com", "pw", None)
     assert e.value.serials == ["SN1", "SN2"]
     assert _Client.bound == ["placeholder"]                     # only the account-level list
@@ -225,3 +239,35 @@ def test_the_card_shows_the_hold_and_offers_an_explicit_clear():
     card = html[html.index("FranklinWH Cloud API"):html.index("Integration → Mapping")]
     assert "text-right" not in card, "cloud card fields must be left-aligned"
     assert "cloudShowPw ? 'text' : 'password'" in card and 'autocomplete="new-password"' in card
+
+
+
+def test_every_pass_closes_its_client_session():
+    for _ in range(3):
+        cs._read_sync("a@example.com", "pw", None)
+    assert _Client.closed >= 3          # the library closes the gateway-list client too
+
+
+def test_rate_limiting_never_holds_the_account(monkeypatch):
+    """franklinwh-cloud 0.6.0: RateLimitedError (HTTP/code 429) is not a rejected password."""
+    from franklinwh_cloud.exceptions import RateLimitedError
+    from franklinwh_direct_connect_bridge import providers
+
+    async def _limited(self, force_refresh=False):
+        raise RateLimitedError("Too Many Requests")
+    monkeypatch.setattr(_Auth, "get_token", _limited)
+    v = cs.verify_credentials("a@example.com", "pw")
+    assert v["ok"] is False and v["held"] is False
+    assert providers.cloud_hold()["active"] is False
+
+
+def test_an_unknown_login_refusal_also_holds(monkeypatch):
+    """0.6.0's LoginError (unknown code / no account in the reply) is still a refusal."""
+    from franklinwh_cloud.exceptions import LoginError
+    from franklinwh_direct_connect_bridge import providers
+
+    async def _refused(self, force_refresh=False):
+        raise LoginError("refused")
+    monkeypatch.setattr(_Auth, "get_token", _refused)
+    assert cs.verify_credentials("a@example.com", "pw")["held"] is True
+    assert providers.cloud_hold()["active"] is True

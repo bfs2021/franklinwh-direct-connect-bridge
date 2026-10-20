@@ -22,3 +22,9 @@ def test_franklinwh_modbus_is_pinned_exactly():
 def test_the_suite_runs_on_the_pinned_version():
     """G0 is only evidence for the version it ran on."""
     assert version("franklinwh-modbus") == _spec("franklinwh-modbus")[2:]
+
+
+def test_franklinwh_cloud_is_pinned_exactly():
+    """#254: the cloud extra was an open range (>=0.4.9)."""
+    m = re.search(r'"franklinwh-cloud([^"]*)"', PYPROJECT.read_text())
+    assert m and re.fullmatch(r"==\d+\.\d+\.\d+", m.group(1)), m and m.group(1)
