@@ -31,6 +31,51 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   published.
 - **No connection warnings before a gateway is set up** (#265). A fresh install logged
   "Name does not resolve" on every page load.
+- **Editing a schedule through the API no longer switches it back on** (#168). A
+  `PUT /api/schedules/{id}` that left out `enabled` turned a disabled schedule on; it now keeps
+  its on/off state unless `enabled` is sent.
+- **The scheduler sensor `grid.connected` follows the off-grid state** (#206). It was worked
+  out from grid power and read 0 (disconnected) whenever grid power was exactly 0 W while on
+  grid. It now reads 1 on grid and 0 off grid, and has no value when the off-grid state is
+  not known.
+- **A stale AEMO NEM price is no longer used forever** (#207). When AEMO could not be reached,
+  `tariff.spot_price` (and a dynamic NEM tariff) kept the last price however old it was, so a
+  price-gated schedule could act on a price from hours earlier. The last price is now kept for
+  30 minutes, as on the Modbus Bridge, and then the sensor has no value until AEMO answers.
+- **Next fire is right for Every N minutes of 24 hours or more** (#208). The card showed the
+  anchor plus N, but the schedule runs daily at the anchor; it now shows the next anchor. The
+  same applies to the last slot of a day when N does not divide 24 hours.
+- **A force charge or discharge with no power set is refused** (#209). Sent through the API
+  with an empty `power`, it ran as a 0 W force; it is now skipped with the reason "no power
+  set". **Always** and zero-duration schedules no longer give a failed write only 1 second to
+  retry: they use the normal retry time limit.
+- **An Always schedule fires every time its conditions start to hold** (#190). It fired once,
+  ever: its single stored run stayed finished, across restarts, so every later rising edge
+  sent nothing. Each rising edge is now its own run. The release on the falling edge is
+  unchanged.
+- **A schedule with its key setting missing no longer fires every day** (#198). **Weekly** with
+  no days, **Monthly** with no day of the month and **One-off** with no date now never fire, and
+  a **Recurring window** whose start equals its end is empty instead of open all day. Saving or
+  importing one of these is refused with the reason (HTTP 422 on save); schedules already
+  saved this way stop firing.
+- **Schedules are checked when they are saved or imported** (#202). A schedule whose action,
+  Home Assistant actions, conditions, cron expression, interval, days, months, day of the month
+  or dates the engine cannot use is refused with the reason (HTTP 422 on save; listed as an
+  error per entry on import), instead of failing or being skipped when it runs. Import also
+  warns about a condition on a sensor this bridge does not know, or on a Home Assistant entity
+  that is not exposed. An imported Modbus Bridge entry whose Home Assistant action this bridge
+  cannot run is now reported as an error rather than saved.
+- **Scheduler history names the gateway** (#205). Each row written by a gateway's scheduler run
+  now records that gateway, and History shows its name beside the schedule, so the rows of a
+  rule that runs on every gateway can be told apart. `GET /api/schedules/log` returns it as
+  `gateway_id`. The history table gains a `gateway_id` column; older rows have none.
+- **Next fire, the timeline and Test follow the site's clock** (#161). They used the bridge
+  container's clock while schedules fire on the aGate's, so when the two zones differed the
+  card's **Next:**, **● active**, the timeline and **Test** were off by the difference. They now
+  use the clock of the schedule's gateway (the default gateway for an unbound schedule), and
+  **Test** evaluates that gateway's values instead of always the default gateway's. When the
+  aGate's clock cannot be read, the scheduler keeps using the zone it last read, and logs it,
+  instead of silently switching to the container's.
 
 ## [0.5.13] — 2026-10-21
 

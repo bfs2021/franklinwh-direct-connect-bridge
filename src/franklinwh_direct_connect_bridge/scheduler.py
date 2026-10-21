@@ -300,12 +300,16 @@ def _windows_for(entry: dict) -> list[tuple[int, int]]:
     trigger is a single fire_at + duration window."""
     if (entry.get("trigger_type") or "daily") == "window":
         out: list[tuple[int, int]] = []
+        empty = False
         for w in entry.get("windows") or []:
             s, e = _minutes(w.get("start", "")), _minutes(w.get("end", ""))
             if s is None or e is None:
                 continue
+            if s == e:              # start = end is an empty window, not 24 h (#198)
+                empty = True
+                continue
             out.append((s, (e - s) if e > s else (e + 24 * 60 - s)))   # wrap
-        if out:
+        if out or empty:
             return out
     s = _minutes(entry.get("fire_at", "")) or 0
     return [(s, int(entry.get("duration_min") or 0))]
@@ -426,7 +430,17 @@ def _window_anchor_date(entry: dict, now: dt.datetime) -> dt.date:
 def _calendar_ok(entry: dict, d: dt.date) -> tuple[bool, str]:
     """Does the entry's recurrence permit firing on date ``d``? Every recurrence field is
     a RESTRICTION; absent/empty means 'no restriction' (fires every day, as before).
-    Returns ``(ok, reason)``."""
+    Returns ``(ok, reason)``.
+
+    The exception is a trigger whose restriction IS the trigger (#198): Weekly with no days,
+    Monthly with no day of month and One-off with no date never fire, rather than every day."""
+    tt = entry.get("trigger_type") or "daily"
+    if tt == "weekly" and not entry.get("days"):
+        return False, "weekly with no days of the week"
+    if tt == "monthly" and not entry.get("day_of_month"):
+        return False, "monthly with no day of the month"
+    if tt == "once" and not entry.get("start_date"):
+        return False, "one-off with no date"
     sd, ed = entry.get("start_date"), entry.get("end_date")
     if sd:
         try:
@@ -473,7 +487,11 @@ def next_fire_ts(entry: dict, now: dt.datetime, last_fired_day: str | None = Non
         if now < anchor_dt:
             anchor_dt -= dt.timedelta(days=1)
         k = int((now - anchor_dt).total_seconds() // 60 // iv) + 1
-        return (anchor_dt + dt.timedelta(minutes=k * iv)).timestamp()
+        # The series restarts at the anchor every day (_interval_window), so the next slot
+        # is never later than tomorrow's anchor. Without this, 24 h or more showed
+        # anchor + N while the engine fired at the anchor (#208).
+        return min(anchor_dt + dt.timedelta(minutes=k * iv),
+                   anchor_dt + dt.timedelta(days=1)).timestamp()
     if tt == "cron":
         try:
             from croniter import croniter
@@ -821,7 +839,207 @@ def to_automations(entry: dict) -> dict:
     }
 
 
-def validate_import(entry: dict, *, gateway_ids: set, device_ids: set) -> dict:
+def validate_spec(entry: dict) -> list[str]:
+    """What makes a schedule unable to run as written, as readable errors. Empty = valid.
+
+    Used on save and on import, so a schedule that would fire when the user expects nothing
+    (or never fire when they expect it to) is refused up front rather than "fixed" (#198)."""
+    errors: list[str] = []
+    tt = entry.get("trigger_type") or "daily"
+    if tt not in TRIGGER_TYPES:
+        errors.append(f"unknown trigger_type '{tt}'")
+    if tt == "weekly" and not entry.get("days"):
+        errors.append("weekly needs at least one day of the week")
+    if tt == "monthly" and not entry.get("day_of_month"):
+        errors.append("monthly needs a day of the month")
+    if tt == "once" and not entry.get("start_date"):
+        errors.append("one-off needs a date")
+    if tt == "window":
+        wins = entry.get("windows") or []
+        if not wins:
+            errors.append("recurring windows needs at least one window")
+        for i, w in enumerate(wins, 1):
+            w = w if isinstance(w, dict) else {}
+            s, e = _minutes(w.get("start", "")), _minutes(w.get("end", ""))
+            if s is None or e is None:
+                errors.append(f"window {i}: start and end must be HH:MM")
+            elif s == e:
+                errors.append(f"window {i}: start and end are the same time")
+    # The rest of what the engine would otherwise discover only at run time (#202).
+    if tt in ("daily", "weekly", "monthly", "once") and not _HHMM.match(str(entry.get("fire_at", ""))):
+        errors.append(f"fire_at '{entry.get('fire_at')}' is not HH:MM")
+    for k in ("duration_min", "entry_hold_s"):
+        if not _is_int(entry.get(k, 0), lo=0):
+            errors.append(f"{k} must be a whole number of 0 or more")
+    if any(not _is_int(d, 0, 6) for d in entry.get("days") or []):
+        errors.append("days must be 0 (Mon) to 6 (Sun)")
+    if any(not _is_int(m, 1, 12) for m in entry.get("months") or []):
+        errors.append("months must be 1 to 12")
+    if entry.get("day_of_month") is not None and not _is_int(entry["day_of_month"], 1, 31):
+        errors.append("day_of_month must be 1 to 31")
+    dates = {}
+    for dk in ("start_date", "end_date"):
+        if entry.get(dk):
+            try:
+                dates[dk] = dt.date.fromisoformat(str(entry[dk]))
+            except ValueError:
+                errors.append(f"{dk} '{entry[dk]}' is not YYYY-MM-DD")
+    if len(dates) == 2 and dates["end_date"] < dates["start_date"]:
+        errors.append("end_date is before start_date")
+    if tt == "interval":
+        if not _is_int(entry.get("interval_min"), lo=1):
+            errors.append("interval_min must be 1 or more")
+        if entry.get("anchor") and not _HHMM.match(str(entry["anchor"])):
+            errors.append(f"anchor '{entry['anchor']}' is not HH:MM")
+    if tt == "cron":
+        expr = str(entry.get("cron") or "").strip()
+        if not cron_available():
+            errors.append("custom cron needs the croniter package, which is not installed")
+        else:
+            from croniter import croniter
+            if not expr or not croniter.is_valid(expr):
+                errors.append(f"cron '{expr}' is not a valid cron expression")
+    for label, key in (("condition", "conditions"), ("exit condition", "exit_conditions")):
+        errors += _condition_errors(entry.get(key) or [], label)
+    errors += _action_errors(entry.get("action") or {})
+    for i, ha in enumerate(entry.get("ha_actions") or [], 1):
+        errors += [f"HA action {i}: {e}" for e in _ha_action_errors(ha)]
+    return errors
+
+
+_HHMM = re.compile(r"^([01]?\d|2[0-3]):[0-5]\d$")
+
+
+def _is_int(v: Any, lo: int | None = None, hi: int | None = None) -> bool:
+    if isinstance(v, bool) or not isinstance(v, int):
+        return False
+    return (lo is None or v >= lo) and (hi is None or v <= hi)
+
+
+def _num(v: Any) -> float | None:
+    return None if v in (None, "") else _coerce_number(v)
+
+
+def _condition_errors(nodes: Any, label: str) -> list[str]:
+    """A condition tree the evaluator can read: known operators, a sensor on every row,
+    a second value for ``between``, a sensor to look up for a Lookup row."""
+    if not isinstance(nodes, list):
+        return [f"{label}s must be a list"]
+    out: list[str] = []
+    for n in nodes:
+        if not isinstance(n, dict):
+            out.append(f"{label} {n!r} is not an object")
+        elif _is_tree(n):
+            if str(n.get("match", MATCH_ALL)).lower() not in (MATCH_ALL, MATCH_ANY):
+                out.append(f"{label} group match '{n.get('match')}' is not all or any")
+            out += _condition_errors(n.get("conditions") or [], label)
+        else:
+            op = n.get("op", "==")
+            if not n.get("sensor"):
+                out.append(f"{label} has no sensor")
+            if op not in OPERATORS:
+                out.append(f"{label} operator '{op}' is not one of {', '.join(OPERATORS)}")
+            if n.get("value_kind") == "sensor":
+                if not n.get("value_sensor"):
+                    out.append(f"{label} on {n.get('sensor')} looks up no sensor")
+            elif op == "between" and n.get("value2") in (None, ""):
+                out.append(f"{label} on {n.get('sensor')}: between needs two values")
+    return out
+
+
+def _action_errors(action: dict) -> list[str]:
+    """The parameters each action needs, checked before it is saved rather than when it
+    fails at run time (#202)."""
+    if not isinstance(action, dict):
+        return ["action must be an object"]
+    kind = action.get("kind") or ""
+    if not kind:
+        return []
+    if kind not in ACTIONS:
+        return [f"unknown action '{kind}'"
+                + (f" — {UNAVAILABLE[kind]}" if kind in UNAVAILABLE else "")]
+    out: list[str] = []
+    if kind == "set_mode" and not str(action.get("mode") or "").strip():
+        out.append("set_mode needs a mode")
+    if kind in ("smart_circuit", "offgrid"):
+        try:
+            on_value(action.get("on"))
+        except ValueError as e:
+            out.append(f"{kind}: {e}")
+    if kind == "smart_circuit":
+        c = _num(action.get("circuit"))
+        if c is None or c < 1 or c != int(c):
+            out.append("smart_circuit needs a circuit number")
+    if kind == "notify" and not action.get("device_id"):
+        out.append("notify needs a device")
+    if kind == "force":
+        direction = (action.get("direction") or "").lower()
+        unit = (action.get("unit") or "pct").lower()
+        if direction not in _FORCE_SLUG:
+            out.append(f"force direction '{direction}' is not charge, discharge or standby")
+        if unit not in ("pct", "w", "kw"):
+            out.append(f"force unit '{unit}' is not pct, w or kw")
+        if direction in ("charge", "discharge"):
+            p = _num(action.get("power"))
+            if p is None:
+                out.append(f"force {direction} needs a power")
+            elif p < 0 or (unit == "pct" and p > 100):
+                out.append(f"force power {action.get('power')} is out of range")
+    for k in ("target_soc", "soc"):
+        v = _num(action.get(k))
+        if action.get(k) not in (None, "") and (v is None or not 0 <= v <= 100):
+            out.append(f"{k} must be 0 to 100")
+    return out
+
+
+def _ha_action_errors(ha: Any) -> list[str]:
+    if not isinstance(ha, dict):
+        return ["is not an object"]
+    out: list[str] = []
+    if (ha.get("when") or "fire") not in ("fire", "exit", "both"):
+        out.append(f"when '{ha.get('when')}' is not fire, exit or both")
+    if ha.get("ha_kind") == "service":
+        for k in ("instance_id", "domain", "service"):
+            if not str(ha.get(k) or "").strip():
+                out.append(f"service call needs {k}")
+        data = ha.get("data")
+        if isinstance(data, str) and data.strip():
+            import json as _json
+            try:
+                _json.loads(data)
+            except ValueError:
+                out.append("data is not valid JSON")
+    elif not ha.get("device_id"):
+        out.append("notify needs a device")
+    guard = ha.get("guard")
+    if guard:
+        nodes = [guard] if not (isinstance(guard, dict) and "conditions" in guard) \
+            else guard.get("conditions") or []
+        out += _condition_errors(nodes, "guard")
+    return out
+
+
+def known_sensor_ids() -> set[str]:
+    """Every built-in sensor id the editor offers (HA entities are ``ha:…`` on top)."""
+    return {i for group in (SENSORS, SOLAR_SENSORS, TARIFF_SENSORS, BILLING_WINDOW_SENSORS,
+                            DEMAND_SENSORS, ENERGY_SENSORS, BONUS_SENSORS,
+                            EXPORT_CHARGE_SENSORS, FIXED_SENSORS, SYSTEM_SENSORS,
+                            CONST_SENSORS, DERIVED_SENSORS) for i, _ in group}
+
+
+def _sensor_ids_in(nodes: Any) -> list[str]:
+    out: list[str] = []
+    for n in nodes if isinstance(nodes, list) else []:
+        if isinstance(n, dict):
+            if _is_tree(n):
+                out += _sensor_ids_in(n.get("conditions") or [])
+            else:
+                out += [s for s in (n.get("sensor"), n.get("value_sensor")) if s]
+    return out
+
+
+def validate_import(entry: dict, *, gateway_ids: set, device_ids: set,
+                    exposed_ha: set | None = None) -> dict:
     """Check one imported entry. Returns ``{name, ok, errors, warnings}`` — never
     raises, so a whole bundle is reported at once rather than failing on the first
     bad row."""
@@ -835,19 +1053,20 @@ def validate_import(entry: dict, *, gateway_ids: set, device_ids: set) -> dict:
     if not re.match(r"^([01]?\d|2[0-3]):[0-5]\d$", str(at)):
         errors.append(f"fire_at '{at}' is not HH:MM")
 
-    for dk in ("start_date", "end_date"):
-        dv = entry.get(dk)
-        if dv:
-            try:
-                dt.date.fromisoformat(str(dv))
-            except ValueError:
-                errors.append(f"{dk} '{dv}' is not YYYY-MM-DD")
+    # validate_spec checks the dates again for every trigger; keep one message each.
+    errors += [e for e in validate_spec(entry) if e not in errors and "fire_at" not in e]
 
-    action = entry.get("action") or {}
-    kind = action.get("kind")
-    if kind and kind not in ACTIONS:
-        errors.append(f"unknown action '{kind}'"
-                      + (f" — {UNAVAILABLE[kind]}" if kind in UNAVAILABLE else ""))
+    # A sensor this bridge does not know reads as missing, so its condition never passes.
+    # Flagged, not refused: an HA entity can be exposed after the import (CND-02, CND-35).
+    known = known_sensor_ids()
+    for sid in dict.fromkeys(_sensor_ids_in(entry.get("conditions"))
+                             + _sensor_ids_in(entry.get("exit_conditions"))):
+        if sid.startswith("ha:"):
+            if exposed_ha is not None and sid.split(":", 1)[1] not in exposed_ha:
+                warnings.append(f"HA entity '{sid}' is not exposed — its conditions read "
+                                f"as missing until it is")
+        elif sid not in known:
+            warnings.append(f"unknown sensor '{sid}' — its conditions will never pass")
 
     gid = entry.get("gateway_id")
     if gid and gid not in gateway_ids:
@@ -908,9 +1127,11 @@ def snapshot_from_state(state: dict, power: dict | None = None) -> dict[str, Any
         "status.programme_id": st.get("programme_id"),
         "bridge.latency_ms": st.get("latency_ms"),
     }
-    # grid.connected is derived, so say so rather than implying a device field.
-    grid = st.get("grid_w")
-    snap["grid.connected"] = None if grid is None else int(grid != 0)
+    # grid.connected is derived from the off-grid state, not from grid power: 0 W is a
+    # normal reading on grid, and `grid_w != 0` read it as disconnected (#206). No
+    # off-grid reading is no reading (None), never a guess.
+    og = st.get("off_grid")
+    snap["grid.connected"] = None if og is None else int(not og)
     # Booleans as 1/0 so they compare with `== 1` like every other boolean sensor
     # here, rather than needing a separate true/false vocabulary in the editor.
     for key, src in (("status.vpp", "vpp"), ("status.off_grid", "off_grid"),
@@ -1549,6 +1770,9 @@ def _force_dispatch(action: dict, *, host: str | None, window_min: int,
     if not slug:
         return f"force skipped: unknown direction '{direction}'"
     unit = (action.get("unit") or "pct").lower()
+    # No power is not 0 W (#209): a charge or discharge with none set is refused, not sent.
+    if direction != "standby" and action.get("power") in (None, ""):
+        return f"force skipped: no power set for {direction}"
     power = float(action.get("power") or 0)
     if unit == "kw":
         power_w, power_pct, mode = int(power * 1000), 100, "w"
@@ -1566,7 +1790,8 @@ def _force_dispatch(action: dict, *, host: str | None, window_min: int,
 
     def _log(status, detail):
         try:
-            store.log_schedule_event("_batt", "Battery dispatch (schedule)", status, detail)
+            store.log_schedule_event("_batt", "Battery dispatch (schedule)", status, detail,
+                                     gateway_id=gateway_id or "")
             # A clean end (watchdog duration/target, or supersede) closes the persisted
             # row so the boot reconcile does not later see it as interrupted.
             if status == "dispatch-end" and hasattr(store, "end_active_dispatches"):
@@ -1650,7 +1875,10 @@ def run_action_outcome(action: dict, *, settings, client, store, snapshot: dict,
         # dispatch into conditions the rule no longer describes.
         policy = resilience.DISPATCH if kind == "force" else resilience.WRITE
         deadline = None
-        if window_end_ts:
+        # Only a window end still ahead bounds the retries. Always and zero-duration
+        # schedules pass an end that is already past, which made it 1 second (#209);
+        # they keep the policy's own deadline instead.
+        if window_end_ts and float(window_end_ts) > time.time():
             deadline = max(1.0, float(window_end_ts) - time.time())
         def _attempt():
             """Raise on a reported failure so resilience can classify and retry it;
@@ -1668,7 +1896,7 @@ def run_action_outcome(action: dict, *, settings, client, store, snapshot: dict,
 
         out = resilience.call(
             _attempt, action=kind, target=target, policy=policy, write=True,
-            audit=_audit_action(store, schedule_id, schedule_name),
+            audit=_audit_action(store, schedule_id, schedule_name, gateway_id),
             notifier=notifier, deadline_s=deadline)
         # Carry the body's own words through, and honour a SKIPPED that came back
         # as a clean return rather than being mistaken for a successful write.
@@ -1696,7 +1924,7 @@ def run_action_outcome(action: dict, *, settings, client, store, snapshot: dict,
     return resilience.Outcome(verdict=v, action=kind, target=target, detail=str(detail))
 
 
-def _audit_action(store, schedule_id, schedule_name):
+def _audit_action(store, schedule_id, schedule_name, gateway_id=None):
     """An audit sink for resilience.call that writes to the schedule log. None when
     there is nothing to write to, so a dry run or a unit test stays silent."""
     if store is None or not schedule_id:
@@ -1708,7 +1936,7 @@ def _audit_action(store, schedule_id, schedule_name):
             status = v if v in ("unknown", "failed") else ("fired" if v == "ok" else "error")
             store.log_schedule_event(
                 schedule_id, schedule_name or "", status,
-                kw.get("detail") or kw.get("error") or v)
+                kw.get("detail") or kw.get("error") or v, gateway_id=gateway_id or "")
         except Exception:  # noqa: BLE001 — auditing must never break the call
             pass
     return _audit
@@ -2000,6 +2228,11 @@ def tick(*, settings, client, store, state: dict, host: str | None = None,
             # No time window — the entry conditions ARE the window (continuous).
             time_inside = bool(entry.get("enabled") and cal_ok and evaluate(
                 entry.get("conditions") or [], snapshot, entry.get("match", "all")))
+            # Each activation is its own occurrence (#190). The fixed key 'always' was
+            # finished by the first run, so no later rising edge ever fired again.
+            if time_inside:
+                wkey = (_window_key.get(dkey) if was_inside else None) \
+                    or f"always:{int(now.timestamp())}"
         else:
             time_inside = bool(entry.get("enabled") and cal_ok and state == "inside")
         entry["_wkey"], entry["_wend"] = wkey, wend
@@ -2035,7 +2268,8 @@ def tick(*, settings, client, store, state: dict, host: str | None = None,
                    else "window closed")
             if exit_res or exit_now:
                 store.log_schedule_event(entry["id"], entry["name"], "exit",
-                                         (f"{why}: " + "; ".join(exit_res)) if exit_res else why)
+                                         (f"{why}: " + "; ".join(exit_res)) if exit_res else why,
+                                         gateway_id=gateway_id or "")
         _window_inside[dkey] = effective_inside
         if effective_inside:
             _window_key[dkey] = wkey or now.date().isoformat()
@@ -2057,7 +2291,8 @@ def tick(*, settings, client, store, state: dict, host: str | None = None,
                 if _gated_day.get(dkey) != day:
                     _gated_day[dkey] = day
                     store.log_schedule_event(entry["id"], entry["name"], "gated",
-                                             gate_reason(entry, snapshot))
+                                             gate_reason(entry, snapshot),
+                                             gateway_id=gateway_id or "")
             continue
         # Duration hold: conditions must stay true continuously for entry_hold_s.
         hold = int(entry.get("entry_hold_s") or 0)
@@ -2067,7 +2302,8 @@ def tick(*, settings, client, store, state: dict, host: str | None = None,
                 started = _dwell_since[dkey] = now
                 store.log_schedule_event(
                     entry["id"], entry["name"], "waiting",
-                    f"conditions met — holding {hold}s before firing")
+                    f"conditions met — holding {hold}s before firing",
+                    gateway_id=gateway_id or "")
             if (now - started).total_seconds() < hold:
                 continue
             _dwell_since.pop(dkey, None)
@@ -2114,7 +2350,8 @@ def tick(*, settings, client, store, state: dict, host: str | None = None,
                 # loser is `skipped`, not `failed` — nothing went wrong, it was outranked.
                 _settle_loser(loser, store=store, gateway_id=gateway_id, now=now,
                               reason=detail)
-                store.log_schedule_event(loser["id"], loser["name"], "deferred", detail)
+                store.log_schedule_event(loser["id"], loser["name"], "deferred", detail,
+                                         gateway_id=gateway_id or "")
         winners.append(group[0])
     # (2) conflict with an ACTIVE dispatch already held by ANOTHER schedule (a force
     # dispatch from a previous tick still running). Only force actions hold control.
@@ -2130,11 +2367,13 @@ def tick(*, settings, client, store, state: dict, host: str | None = None,
             if pol == "defer":
                 store.mark_schedule_fired(w["id"], now.date().isoformat(), "deferred")
                 store.log_schedule_event(w["id"], w["name"], "deferred",
-                    "deferred — the battery is already under another dispatch (conflict=defer)")
+                    "deferred — the battery is already under another dispatch (conflict=defer)",
+                    gateway_id=gateway_id or "")
                 continue
             if pol == "wait":
                 store.log_schedule_event(w["id"], w["name"], "waiting",
-                    "waiting — battery busy with another dispatch (conflict=wait); will retry")
+                    "waiting — battery busy with another dispatch (conflict=wait); will retry",
+                    gateway_id=gateway_id or "")
                 continue                             # not marked fired -> retries next tick
             # override: fall through and take control
         to_fire.append(w)
@@ -2341,7 +2580,8 @@ def _claim_run(entry: dict, *, store, gateway_id: str | None, now: dt.datetime):
                     store.log_schedule_event(
                         entry["id"], entry.get("name") or "", "coalesced",
                         f"run {old.get('occurrence_key')} was still open and was "
-                        f"collapsed into {occ.get('occurrence_key')}")
+                        f"collapsed into {occ.get('occurrence_key')}",
+                        gateway_id=gateway_id or "")
                 except Exception:  # noqa: BLE001
                     pass
         return occ
@@ -2445,7 +2685,8 @@ def _fire_entry(entry: dict, *, settings, client, store, snapshot: dict,
                                   or now.date().isoformat(), summary)
         # Severity comes from the store's status map (LOG_SEVERITY), so the
         # classification lives in one place rather than at every call site.
-        store.log_schedule_event(entry["id"], entry["name"], "unknown", summary)
+        store.log_schedule_event(entry["id"], entry["name"], "unknown", summary,
+                                 gateway_id=gateway_id or "")
         log.warning("[%s] schedule %r outcome UNKNOWN — the write may have landed; "
                     "NOT retrying: %s", gateway_id or "-", entry.get("name"), summary)
         return {"id": entry["id"], "name": entry["name"], "result": summary,
@@ -2455,7 +2696,8 @@ def _fire_entry(entry: dict, *, settings, client, store, snapshot: dict,
             entry["id"], entry.get("_wkey") or now.date().isoformat(), summary)
         if occ_id is not None:
             store.finish_occurrence(occ_id, status="ok", outcome=summary)
-        store.log_schedule_event(entry["id"], entry["name"], "fired", summary)
+        store.log_schedule_event(entry["id"], entry["name"], "fired", summary,
+                                 gateway_id=gateway_id or "")
     else:
         if occ_id is not None:
             store.finish_occurrence(occ_id, status="failed", reason=summary)
@@ -2463,6 +2705,7 @@ def _fire_entry(entry: dict, *, settings, client, store, snapshot: dict,
         store.log_schedule_event(
             entry["id"], entry["name"], "error",
             f"{summary} — attempt {attempts}; retrying in "
-            f"{retry_delay_s(attempts):.0f}s while the window is open")
+            f"{retry_delay_s(attempts):.0f}s while the window is open",
+            gateway_id=gateway_id or "")
     return {"id": entry["id"], "name": entry["name"], "result": summary,
             "ok": ok_all}

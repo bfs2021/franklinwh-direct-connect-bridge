@@ -3054,15 +3054,28 @@ def create_app() -> FastAPI:
             raise HTTPException(422, "constants must be numeric")
         return {"values": vals, "spec": constants.spec()}
 
+    def _sched_gateway(gateway_id: str | None) -> GatewayState | None:
+        """The gateway a schedule runs on: its own, else the default (as the tick decides)."""
+        return (state.get_gateway(gateway_id) if gateway_id else None) \
+            or state.default_gateway()
+
+    def _site_now(gateway_id: str | None) -> _dt.datetime:
+        """Now on that gateway's site clock — the clock the tick fires on (#161). Read from
+        the offset the scheduler last saw for its host, so a page load never asks the aGate."""
+        from . import site_time
+        gw = _sched_gateway(gateway_id)
+        host = (gw.active_host or gw.configured_host) if gw is not None else None
+        return site_time.now_known(host)
+
     @app.get("/api/schedules")
     def api_schedules():
         """Schedules plus the action catalogue — including what is NOT available
         and why, so the UI never offers a control that does nothing."""
         from . import battery_control
         _force_ok, _force_why = battery_control.available()
-        _now = _dt.datetime.now()
         _scheds = _ha_store().schedules()
         for _e in _scheds:
+            _now = _site_now(_e.get("gateway_id"))
             _lfd = _e.get("last_fired_day")
             _e["next_fire"] = scheduler.next_fire_ts(_e, _now, _lfd)
             _e["active_now"] = scheduler.active_now(_e, _now, _lfd)
@@ -3115,6 +3128,13 @@ def create_app() -> FastAPI:
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
 
+    def _valid_spec(spec: dict) -> None:
+        """Refuse a schedule that cannot run as written (#198) — never quietly fix it."""
+        errors = scheduler.validate_spec(spec)
+        if errors:
+            raise HTTPException(status_code=422,
+                                detail="schedule not saved: " + "; ".join(errors))
+
     @app.post("/api/schedules", status_code=201)
     def api_schedule_create(req: ScheduleReq):
         _guard_writes()
@@ -3122,6 +3142,7 @@ def create_app() -> FastAPI:
         st = _ha_store()
         spec = req.model_dump(exclude={"name", "enabled"})
         spec["action"] = _normalized_action(spec.get("action"))
+        _valid_spec(spec)
         sid = uuid.uuid4().hex[:12]
         row = st.create_schedule(sid=sid, name=req.name, spec=spec, enabled=req.enabled)
         try:
@@ -3150,11 +3171,15 @@ def create_app() -> FastAPI:
         sent = req.model_dump(exclude_unset=True, exclude={"name", "enabled"})
         spec = {**req.model_dump(exclude={"name", "enabled"}), **prior_spec, **sent}
         spec["action"] = _normalized_action(spec.get("action"))
-        row = st.update_schedule(sid, name=req.name, enabled=req.enabled, spec=spec)
+        _valid_spec(spec)
+        # `enabled` merges like every other field (#168): left out, the schedule keeps its
+        # state. Its model default (True) used to apply and turned a disabled one back on.
+        enabled = req.enabled if "enabled" in req.model_fields_set else bool(prior.get("enabled"))
+        row = st.update_schedule(sid, name=req.name, enabled=enabled, spec=spec)
         try:
-            if prior.get("enabled") != req.enabled:
+            if bool(prior.get("enabled")) != enabled:
                 st.log_schedule_event(sid, req.name,
-                                      "enabled" if req.enabled else "disabled", "toggled")
+                                      "enabled" if enabled else "disabled", "toggled")
             else:
                 st.log_schedule_event(sid, req.name, "updated", "settings changed")
         except Exception:  # noqa: BLE001
@@ -3311,7 +3336,9 @@ def create_app() -> FastAPI:
         st = _ha_store()
         gw_ids = {g.id for g in get_gateways()}
         dev_ids = {d["id"] for d in st.notify_devices()}
-        reports = [scheduler.validate_import(e, gateway_ids=gw_ids, device_ids=dev_ids)
+        exposed = st.ha_exposed_ids()
+        reports = [scheduler.validate_import(e, gateway_ids=gw_ids, device_ids=dev_ids,
+                                             exposed_ha=exposed)
                    for e in entries]
         if dry_run:
             return {"entries": reports, "count": len(reports),
@@ -3360,8 +3387,7 @@ def create_app() -> FastAPI:
         work-mode band, the SoC % line, and fire markers from the activity log — all
         in minutes-from-midnight. (No VPP-override band: the local channel has no
         force provider, so only the actual work mode is shown.)"""
-        import datetime as _d
-        now = _d.datetime.now()
+        now = _site_now(gateway)
         base = scheduler.timeline_segments(_ha_store().schedules(), now)
         midnight = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
         now_ts = int(now.timestamp())
@@ -3394,7 +3420,11 @@ def create_app() -> FastAPI:
         entry = st.schedule(sid)
         if entry is None:
             raise HTTPException(status_code=404, detail=f"no schedule '{sid}'")
-        gw = get_state()
+        # The schedule's own gateway (or the one asked for): its values and its clock, as
+        # the tick would see them, not always the default gateway's (#161).
+        bound = entry.get("gateway_id") or ""
+        gateway = gateway or (bound if state.get_gateway(bound) is not None else None)
+        gw = _sched_gateway(gateway) or get_state()
         snap = scheduler.snapshot_from_state(getattr(gw, "last_state", {}) or {})
         snap.update(scheduler.ha_snapshot(st))
         snap.update(scheduler.solar_snapshot(get_settings()))
@@ -3412,8 +3442,7 @@ def create_app() -> FastAPI:
         snap.update(scheduler.const_snapshot(st))
         snap.update(scheduler.ratings_snapshot(_gw_host(gateway)))
         snap.update(scheduler.derived_snapshot(snap))
-        import datetime as _d
-        now = _d.datetime.now()
+        now = _site_now(gateway)
         would, reason = scheduler.due(entry, now, snap, entry.get("last_fired_day"))
         rows = []
         for row in entry.get("conditions") or []:

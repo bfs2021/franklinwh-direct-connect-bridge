@@ -128,7 +128,13 @@ def test_action_failure_is_captured_not_raised():
 def test_snapshot_marks_derived_values():
     snap = sch.snapshot_from_state({"soc": 50, "grid_w": 0})
     assert snap["battery.soc_pct"] == 50
-    assert snap["grid.connected"] == 0, "derived from grid power, not a device field"
+    assert snap["grid.connected"] is None, "no off-grid reading is no reading"
+
+
+def test_grid_connected_follows_off_grid_not_zero_watts():
+    """#206: 0 W on grid is connected; an island with grid power still reading is not."""
+    assert sch.snapshot_from_state({"grid_w": 0, "off_grid": False})["grid.connected"] == 1
+    assert sch.snapshot_from_state({"grid_w": 120, "off_grid": True})["grid.connected"] == 0
 
 
 def test_operating_mode_is_a_picker_not_a_text_box():
@@ -683,11 +689,11 @@ def test_exit_condition_nested_group_ends_window(tmp_path, monkeypatch):
             {"sensor": "grid.connected", "op": "==", "value": 1}]}]})
     sch._window_inside.clear(); sch._dwell_since.clear()
     now = _d.datetime(2026, 9, 22, 14, 0)
-    sch.tick(settings=None, client=None, store=st, state={"soc": 50, "grid_w": 100}, host="h",
+    sch.tick(settings=None, client=None, store=st, state={"soc": 50, "grid_w": 100, "off_grid": False}, host="h",
              gateway_id=None, now=now)                          # fires (group false: soc high)
     seen.clear()
     # SoC≤20 AND grid connected → nested group true → exit
-    sch.tick(settings=None, client=None, store=st, state={"soc": 15, "grid_w": 100}, host="h",
+    sch.tick(settings=None, client=None, store=st, state={"soc": 15, "grid_w": 100, "off_grid": False}, host="h",
              gateway_id=None, now=now + _d.timedelta(minutes=5))
     assert "Release" in seen
 
@@ -755,6 +761,36 @@ def test_trigger_always_fires_on_rising_edge(tmp_path, monkeypatch):
     # falling edge → release
     sch.tick(settings=None, client=None, store=st, state={"soc": 50}, host="h", gateway_id=None, now=now + _d.timedelta(minutes=3))
     assert "Release" in seen
+
+
+def test_trigger_always_fires_on_every_rising_edge(tmp_path, monkeypatch):
+    """#190: each rising edge is its own run. The fixed occurrence key 'always' was finished
+    by the first run, so every later rising edge sent nothing — across restarts too."""
+    import datetime as _d
+    from franklinwh_direct_connect_bridge import battery_control as bc
+    from franklinwh_direct_connect_bridge.db import MetricsStore
+    seen = []
+    monkeypatch.setattr(bc, "execute", lambda cmd, **kw: (seen.append(cmd), {"ok": True, "result": "ok", "active": cmd})[1])
+    monkeypatch.setattr(bc, "current", lambda: {"active": "Force Discharge"})
+    st = MetricsStore(str(tmp_path / "m.db"))
+    st.create_schedule(sid="al2", name="always high soc", spec={
+        "trigger_type": "always", "enabled": True,
+        "conditions": [{"sensor": "battery.soc_pct", "op": ">=", "value": 90}],
+        "action": {"kind": "force", "direction": "discharge", "unit": "pct", "power": 50}})
+    sch._window_inside.clear(); sch._window_key.clear(); sch._dwell_since.clear()
+    now = _d.datetime(2026, 9, 22, 12, 0)
+    for i, soc in enumerate((95, 95, 50, 95)):
+        sch.tick(settings=None, client=None, store=st, state={"soc": soc}, host="h",
+                 gateway_id=None, now=now + _d.timedelta(minutes=i))
+    assert seen == ["Force Discharge", "Release", "Force Discharge"]
+    # A restart (fresh in-memory state, same database) does not leave it finished forever.
+    sch._window_inside.clear(); sch._window_key.clear()
+    seen.clear()
+    sch.tick(settings=None, client=None, store=st, state={"soc": 50}, host="h",
+             gateway_id=None, now=now + _d.timedelta(minutes=10))
+    sch.tick(settings=None, client=None, store=st, state={"soc": 95}, host="h",
+             gateway_id=None, now=now + _d.timedelta(minutes=11))
+    assert seen == ["Force Discharge"]
 
 
 def test_ha_guided_entity_action_calls_domain_service(monkeypatch):
@@ -835,7 +871,13 @@ def test_import_maps_modbus_automations_bundle(tmp_path, monkeypatch):
     assert mapped["ha_actions"][0]["entity_id"] == "switch.pv"
     assert mapped["gateway_id"] == ""      # "default" → our default gateway
 
-    # end-to-end: dry-run importable, then create disabled
+    # The mapped HA action has no ha_kind, so this engine would run it as a notify with no
+    # device and skip it. Since #202 the import says so instead of saving it.
+    rep = c.post("/api/schedules/import?dry_run=true", json=bundle).json()["entries"][0]
+    assert rep["ok"] is False and any("HA action 1" in e for e in rep["errors"])
+
+    # end-to-end without it: dry-run importable, then create disabled
+    bundle["entries"][0]["ha_actions"] = []
     dry = c.post("/api/schedules/import?dry_run=true", json=bundle).json()
     assert dry["count"] == 1 and dry["importable"] == 1 and dry["mapped_from"] == "franklinwh-automations"
     done = c.post("/api/schedules/import?dry_run=false", json=bundle).json()
@@ -1062,3 +1104,18 @@ def test_unavailable_or_unknown_ha_entity_never_satisfies_a_condition(tmp_path, 
                             (f"ha:{iid}:sensor.amber_price", "==", 0),
                             (f"ha:{iid}:sensor.amber_price", "!=", 99)):
         assert sch.evaluate([{"sensor": sensor, "op": op, "value": val}], snap) is False, (sensor, op)
+
+
+def test_next_fire_for_long_intervals_matches_the_engine():
+    """#208: an interval of 24 h or more opens daily at the anchor; Next must say so."""
+    import datetime as _d
+    e = {"enabled": True, "trigger_type": "interval", "interval_min": 1500, "anchor": "06:00",
+         "duration_min": 0}
+    now = _d.datetime(2026, 10, 20, 7, 0)
+    nxt = _d.datetime.fromtimestamp(sch.next_fire_ts(e, now))
+    assert nxt == _d.datetime(2026, 10, 21, 6, 0)
+    assert sch.window_now(e, nxt)[0] == "inside"           # the engine fires then
+    # a period that does not divide the day: the slot after 23:45 is the 00:00 anchor
+    e25 = {"enabled": True, "trigger_type": "interval", "interval_min": 25, "anchor": ""}
+    nxt = _d.datetime.fromtimestamp(sch.next_fire_ts(e25, _d.datetime(2026, 10, 20, 23, 50)))
+    assert nxt == _d.datetime(2026, 10, 21, 0, 0)
