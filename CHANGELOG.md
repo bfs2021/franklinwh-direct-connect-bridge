@@ -72,6 +72,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ### Fixed
 
+- **No false OFF-GRID after the aGate restarts** (#288, #44). For a minute after a reboot
+  the aGate reports every value as 0, which read as "off-grid, SoC 0%" and could send an
+  off-grid notification. That start-up frame now counts as no reading, and SoC shows as
+  unknown rather than 0. Off-grid is decided by the aGate's own off-grid state (1723) when
+  it's read; the relays only corroborate it.
 - **An unreachable gateway no longer stalls the scheduler** (#284). Each tick read the dead
   gateway's clock and waited about a minute for it, delaying every other gateway's
   schedules and raising "Background worker stalled". Only a poll that reads the gateway

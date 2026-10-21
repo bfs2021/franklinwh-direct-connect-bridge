@@ -830,6 +830,19 @@ def _modbus_last(host: str, *, mock: bool = False) -> dict | None:
 OFF_GRID_RUN_STATUS = (5, 6, 7)
 
 
+def _agate_starting(p: dict) -> bool:
+    """An all-zero 1301 frame: the aGate's EMS still starting after a reboot (#288).
+
+    Seen on HA Live 2026-10-21, a minute after a reboot: soc 0, every power flow 0,
+    run_status 0 and main_sw [0,0,0] — while the aPower itself reported 99% and the grid
+    voltage was present. Read literally it says "off-grid, battery empty". It is neither:
+    it is no reading yet."""
+    keys = ("soc", "grid_w", "solar_w", "battery_w", "load_w")
+    vals = [p.get(k) for k in keys]
+    return (all(v is not None for v in vals) and all(float(v) == 0 for v in vals)
+            and p.get("run_status") in (0, None))
+
+
 def _apply_off_grid(out: dict[str, Any]) -> None:
     """Decide off-grid from EVERY signal, and record which ones fired.
 
@@ -871,7 +884,19 @@ def _apply_off_grid(out: dict[str, Any]) -> None:
         sig["main_relays"] = bool(int(m1) == 0 and int(m2) == 0)
 
     if sig:
-        p["off_grid"] = any(sig.values())
+        # 1723 offgridState decides when it was read: it was the one signal that was simply
+        # correct during the real island. The relays and the run statuses CORROBORATE —
+        # on their own an all-zero start-up frame reads as "relays open" (#288, 2026-10-21).
+        if "offgrid_state" in sig:
+            p["off_grid"] = sig["offgrid_state"]
+        else:
+            p["off_grid"] = bool(sig.get("run_status") or sig.get("dsp_run_status")
+                                 or (sig.get("grid_relay") and sig.get("main_relays")))
+        if _agate_starting(p):
+            # No evidence either way: not off-grid, and not a 0% battery.
+            p["off_grid"] = False
+            p["agate_starting"] = True
+            p["soc"] = None
         p["off_grid_signals"] = sig
         p["off_grid_disagreement"] = bool(any(sig.values()) and not all(sig.values()))
         p["off_grid_kind"] = _off_grid_kind(p)

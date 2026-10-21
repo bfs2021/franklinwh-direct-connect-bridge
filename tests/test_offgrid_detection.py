@@ -139,3 +139,36 @@ def test_one_live_leg_still_counts_as_grid_present():
 def test_grid_presence_unknown_when_not_measured():
     from franklinwh_direct_connect_bridge.client import grid_present
     assert grid_present({}) is None
+
+
+# --- the start-up frame after a reboot (#288, HA Live 2026-10-21) -------------------------
+
+def _starting_frame():
+    """What the aGate reported about a minute after a reboot: every 1301 value 0, while the
+    aPower said 99% and the grid voltage was present."""
+    return {"power": {"soc": 0, "grid_w": 0, "solar_w": 0, "battery_w": 0, "load_w": 0,
+                      "run_status": 0, "dsp_run_status": 0, "main_sw": [0, 0, 0]},
+            "relays": {"mainRelay1Status": 0, "mainRelay2Status": 0}}
+
+
+def test_a_start_up_frame_is_not_off_grid_and_not_an_empty_battery():
+    out = _starting_frame()
+    _apply_off_grid(out)
+    p = out["power"]
+    assert p["off_grid"] is False and p["agate_starting"] is True and p["soc"] is None
+    assert p["off_grid_signals"]["grid_relay"] is True      # still recorded, for diagnosis
+
+
+def test_offgrid_state_decides_over_open_relays():
+    out = _starting_frame()
+    out["power"].update(soc=55, offgrid_state=0)
+    _apply_off_grid(out)
+    assert out["power"]["off_grid"] is False
+    assert out["power"]["off_grid_disagreement"] is True
+
+
+def test_relays_alone_need_both_to_agree_without_1723():
+    out = {"power": {"soc": 60, "grid_w": 0, "main_sw": [0, 0, 1]},
+           "relays": {"mainRelay1Status": 1, "mainRelay2Status": 1}}
+    _apply_off_grid(out)
+    assert out["power"]["off_grid"] is False
