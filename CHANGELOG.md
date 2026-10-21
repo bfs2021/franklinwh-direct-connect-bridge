@@ -62,6 +62,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ### Changed
 
+- **franklinwh-cloud is pinned to 0.6.1.** Its debug logging no longer writes the FranklinWH
+  sign-in token, passwords or full serials, which it did before at debug level. Turning
+  debug logging on also no longer starts a new cloud session.
 - **Guide opens this bridge's published docs** (#257). The sidebar, the More sheet and
   Settings → Help link straight to **Docs** and **User Guide** on the bridge's own site, in a
   new window. The in-app panel that said the docs weren't bundled, and pointed at the
