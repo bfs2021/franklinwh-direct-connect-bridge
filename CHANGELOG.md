@@ -11,6 +11,51 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Added
+
+- **Alerts are stored records** (#271, the shared alert spec agreed with the Modbus
+  Bridge). A new `alerts` table in the bridge's database keeps each fault, how often it
+  repeated, when it cleared and who acknowledged it, across restarts. Closed alerts are
+  kept 90 days; open ones are never removed.
+- **Alert API** (#271). `GET /api/alerts` lists alerts (filters `open`, `kind`, `since`),
+  `POST /api/alerts/{id}/ack` acknowledges one and records where it came from
+  (`source:ui`, `source:api` or `source:ha`), and the new `GET /api/status` gives the summary
+  `alerts: {level, open, latest_id, changed_ts}`; `changed_ts` moves whenever an alert
+  opens, resolves or is acknowledged. An alert monitor runs in the background as a listed
+  worker; if it stops, `/api/status` says so and the bridge's health check is unaffected.
+- **What raises an alert** (#271). The aGate unreachable for 5 minutes, or no live data for
+  2 minutes (critical); the MQTT broker disconnected for 5 minutes (warning); a background
+  worker that stopped responding or crashed (critical); any control the Audit Trail records
+  as failed, such as a refused worker restart (critical, "Command refused"); a scheduled
+  action that failed or missed its window (critical). Each clears or is counted by the
+  shared spec's rules: a condition resolves after 2 minutes good (1 for live data), and
+  repeats of the same event within 10 minutes add to one alert rather than making new ones.
+- **Critical alerts reach Home Assistant even with no phone set up** (#271). Each critical
+  alert creates a Home Assistant persistent notification (`fwh_dc_alert_<id>`) whenever the
+  bridge can reach Home Assistant, whether or not any notification device is configured.
+  It is retried until delivered, and dismissed when the alert is acknowledged in the bridge.
+  Dismissing it in Home Assistant does not acknowledge the alert.
+- **Switching Home Assistant notifications off keeps alerts in the bridge** (#271). With
+  the Push notifications switch (`ha_notify`) off, critical alerts create no Home Assistant
+  notification; each skipped one is recorded as "skipped: HA channel off". The bridge's
+  alert window still opens, and Settings → Notifications shows "Critical alerts reach only
+  the bridge UI" for as long as the switch is off.
+- **"Bridge problem" and "Bridge heartbeat" in Home Assistant** (#271). Each gateway's
+  device gets a `problem` binary sensor that is on while an alert is open, with the open
+  alerts as attributes; it stays available while the aGate is offline, so automations can
+  react without any `notify` service. A separate "FranklinWH Direct Connect Bridge" device
+  has one "Bridge heartbeat" timestamp, sent every minute by the alert monitor while MQTT
+  is on and connected, whatever any gateway is doing. A heartbeat that stops moving means
+  the bridge itself has stopped.
+- **Critical alerts open a window that stays until acknowledged** (#271). It says what
+  happened, when (in the site's time), what it means and what to do, with a link. Each alert
+  has its own "I understand" box, and OK is enabled once every box is ticked; Escape and
+  clicking outside do not close it. Alerts raised while no browser was open, for example by a
+  schedule, show on the next visit, and a condition that clears while unacknowledged updates
+  to "…–13:27, resolved" without waiting for another alert. A condition that has been acknowledged but is still
+  active shows as a red bar under the top bar until it clears, and a badge in the top bar
+  counts open alerts and opens the list, where warnings are acknowledged.
+
 ### Changed
 
 - **Guide opens this bridge's published docs** (#257). The sidebar, the More sheet and

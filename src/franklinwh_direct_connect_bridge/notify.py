@@ -16,6 +16,10 @@ from .config import Settings
 
 log = logging.getLogger("franklinwh_direct_connect_bridge.notify")
 
+#: The outbox record for a delivery not made because ha_notify is off (#271; the wording
+#: is fixed by the owner's decision on franklinwh-modbus-bridge#324).
+SKIPPED_CHANNEL_OFF = "skipped: HA channel off"
+
 
 class Notifier:
     def __init__(self, settings: Settings):
@@ -68,6 +72,27 @@ class Notifier:
             urllib.request.urlopen(req, timeout=10)
         except Exception as e:  # noqa: BLE001 — a failed notify must never break the poll
             log.warning("HA notify failed: %s", e)
+
+    def call_service(self, domain: str, service: str, data: dict) -> str:
+        """Call one HA service on the same target as notify(), and SAY what happened —
+        the alert outbox (#271) needs to know whether to retry. Returns "" on success,
+        "skipped: …" when there is nothing to call (no HA target, or ha_notify off),
+        otherwise the error. Never raises."""
+        enabled, token, base = self._target()
+        if not enabled:
+            return SKIPPED_CHANNEL_OFF
+        if not (token and base):
+            return "skipped: no Home Assistant API configured"
+        try:
+            req = urllib.request.Request(
+                f"{base}/services/{domain}/{service}",
+                data=json.dumps(data).encode(), method="POST",
+                headers={"Authorization": f"Bearer {token}",
+                         "Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=10)
+            return ""
+        except Exception as e:  # noqa: BLE001
+            return str(e) or type(e).__name__
 
 
 def transitions(prev: dict | None, cur: dict) -> list[tuple[str, str]]:

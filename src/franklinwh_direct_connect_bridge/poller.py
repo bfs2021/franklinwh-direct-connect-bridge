@@ -12,6 +12,7 @@ import asyncio
 import logging
 import time
 
+from . import alerts
 from . import client
 from . import providers
 from .config import Settings, metrics_active
@@ -185,6 +186,8 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
     last_fw = fw
     inserts = 0
     fail_streak = 0   # consecutive failed polls (DEF-POLLER-STALL fix 1)
+    alerts_sig: tuple | None = None   # last alert summary published to MQTT (#271)
+    alerts_pub_ts = 0.0
     _wname = f"poller:{gw.id}"
     try:
         while not stop.is_set():
@@ -241,6 +244,31 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                 except Exception as e:  # noqa: BLE001
                     log.warning("[%s] discovery (re/un)publish failed: %s", gw.id, e)
                 gw.mqtt_connected = pub.is_connected()
+            # MQTT_DOWN (#271): only where this gateway is meant to publish and has an
+            # identity to publish under; a deferred or switched-off publisher is not down.
+            _want_mqtt = bool(settings.mqtt_enabled and getattr(gw, 'publish_ha', True)
+                              and serial)
+            alerts.set_condition(
+                gw.id, "MQTT_DOWN", _want_mqtt and not (pub and pub.is_connected()),
+                detail=f"Not connected to the MQTT broker {settings.mqtt_host}:"
+                       f"{settings.mqtt_port}; Home Assistant entities are not updating")
+            # Bridge problem (#271): on a change of the alert summary, and at least every
+            # HEARTBEAT_EVERY_S (checked once per poll cycle). The heartbeat itself is the
+            # alert monitor's, bridge-level, not this gateway's.
+            if pub:
+                try:
+                    _ast = get_store(settings)
+                    _asum = _ast.alert_summary() if _ast is not None else {}
+                    _asig = (_asum.get("level"), _asum.get("open"), _asum.get("latest_id"),
+                             _asum.get("changed_ts"))
+                    if _asig != alerts_sig or \
+                            time.time() - alerts_pub_ts >= entities.HEARTBEAT_EVERY_S:
+                        _open = _ast.alerts(open_only=True) if _ast is not None else []
+                        await asyncio.to_thread(pub.publish_alerts, entities.alerts_payload(
+                            _asum, _open, gw.id))
+                        alerts_sig, alerts_pub_ts = _asig, time.time()
+                except Exception as e:  # noqa: BLE001 — never break the poll loop
+                    log.debug("[%s] bridge problem not published: %s", gw.id, e)
             try:
                 # One-session read; power already has entity keys + canonical mode label.
                 # Bound the cycle (DEF-POLLER-STALL fix 2): a full summary is ping+Modbus
@@ -289,6 +317,20 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                     outcome = "unknown"
                 else:
                     outcome = "failed"
+                # Alert facts (#271), recorded whether or not metrics are on; the alert
+                # monitor applies the thresholds. No address means not set up yet (#265),
+                # which is not an outage.
+                if gw.active_host:
+                    alerts.set_condition(
+                        gw.id, "GATEWAY_UNREACHABLE", outcome != "ok",
+                        detail=f"{gw.label or gw.id} is not answering on the LAN: "
+                               f"{err or 'unreachable'}")
+                    # Only while the gateway ANSWERS: unreachable is GATEWAY_UNREACHABLE,
+                    # and raising both for one fault doubled the modal (G1, 2026-10-21).
+                    alerts.set_condition(
+                        gw.id, "LIVE_DATA_MISSING", outcome == "ok" and not summ.get("power"),
+                        detail=f"No live data from {gw.label or gw.id}: "
+                               f"{err or 'the power read failed'}")
                 if store is not None:
                     try:
                         # All THREE legs the cycle already measured. Recording one and
