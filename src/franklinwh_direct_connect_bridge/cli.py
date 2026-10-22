@@ -23,9 +23,22 @@ def main(argv: list[str] | None = None) -> int:
         level=getattr(logging, s.log_level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
     )
+    quiet_transport_loggers()
     uvicorn.run("franklinwh_direct_connect_bridge.app:create_app", factory=True,
                 host=s.http_host, port=s.http_port, log_level=s.log_level)
     return 0
+
+
+#: The HTTP client's own loggers. At DEBUG, hpack and httpcore print every request header
+#: in clear — the FranklinWH cloud loginToken and cookie among them — and httpx logs each
+#: request URL at INFO, the gateway serial included. The bridge's log level must never
+#: reach them: DEBUG is what a user turns on to send us a log.
+TRANSPORT_LOGGERS = ("httpx", "httpcore", "hpack")
+
+
+def quiet_transport_loggers() -> None:
+    for name in TRANSPORT_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def _ping(host: str) -> int:
