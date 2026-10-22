@@ -13,6 +13,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ### Added
 - **A bridge-wide "Bridge problem" sensor in Home Assistant** (#286), on the bridge's own
+- **The terminal has a Copy button,** next to clear. It copies everything on screen, and
+  works over plain http (HA ingress) too.
   device next to "Bridge heartbeat". It carries every open alert, including those of a
   gateway that has never answered and so has no device of its own. The per-gateway
   sensors stay.

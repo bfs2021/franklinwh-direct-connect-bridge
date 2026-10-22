@@ -120,6 +120,27 @@ function terminalConsole() {
       if (e.key === '`' && !this.open && !this._isEditable(e.target)) { e.preventDefault(); this.toggle(); }
     },
 
+    // Copy the whole screen (owner, 2026-10-21). HA ingress is often plain http, where
+    // navigator.clipboard does not exist, so fall back to a hidden textarea + execCommand.
+    copied: '',
+    async copyAll() {
+      const text = this.lines.map(l => l.text).join('\n');
+      const done = (msg) => { this.copied = msg; setTimeout(() => this.copied = '', 2000); };
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text); return done('copied');
+        }
+      } catch (e) { /* fall through to the textarea path */ }
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      done(ok ? 'copied' : 'copy blocked — select and press Ctrl/Cmd+C');
+    },
+
     // ── output helpers ────────────────────────────────────────────────────
     _push(kind, text) {
       this.lines.push({ kind, text });

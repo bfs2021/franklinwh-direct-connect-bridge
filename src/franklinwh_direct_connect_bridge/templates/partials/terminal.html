@@ -26,6 +26,9 @@
         <button @click="cfgOpen=!cfgOpen" class="chip muted" :class="cfgOpen ? '' : ''" style="font-size:.6rem" title="Theme & accent">
           <svg class="w-3 h-3 inline-block align-[-1px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
+        <span x-show="copied" x-cloak class="text-[11px]" style="color:var(--accent)" x-text="copied"></span>
+        <button @click="copyAll()" :disabled="!lines.length" class="chip muted" style="font-size:.6rem"
+                title="Copy everything on screen">copy</button>
         <button @click="lines=[]" class="chip muted" style="font-size:.6rem" title="Clear screen (Ctrl-L)">clear</button>
         <button @click="open=false" class="chip muted" style="font-size:.6rem" title="Close (Esc)">&times; close</button>
       </div>
