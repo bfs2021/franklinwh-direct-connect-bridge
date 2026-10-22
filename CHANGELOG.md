@@ -60,6 +60,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   active shows as a red bar under the top bar until it clears, and a badge in the top bar
   counts open alerts and opens the list, where warnings are acknowledged.
 
+### Security
+- **Logs no longer carry the FranklinWH cloud sign-in token or the gateway serial** (#295).
+  At log level DEBUG, the HTTP client's own loggers wrote every request header to the log,
+  the cloud login token and cookie included. At the normal level they wrote each cloud request
+  address, which contains the gateway serial. Those loggers now show warnings only,
+  whatever the bridge's log level. If you ran at DEBUG with the cloud signed in, sign in
+  again (Settings → Integrations → FranklinWH Cloud API) to get a new token.
+
 ### Changed
 
 - **Guide opens this bridge's published docs** (#257). The sidebar, the More sheet and
