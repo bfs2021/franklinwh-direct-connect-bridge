@@ -11,6 +11,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+## [0.5.14] — 2026-10-23
+
 ### Added
 - **A bridge-wide "Bridge problem" sensor in Home Assistant** (#286), on the bridge's own
 - **The terminal has a Copy button,** next to clear. It copies everything on screen, and
