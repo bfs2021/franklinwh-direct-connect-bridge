@@ -44,7 +44,7 @@ function settingsTab() {
     notif: {
       loaded: false, master: false, busy: false,
       instances: [], devices: [],
-      addDev: null,
+      addDev: null, addDevMsg: null,   // {kind: danger|warn|ok, text}: shown in the dialog
       targets: null, discovered: [], pickerOpen: false, pickerSearch: '',
       addInst: null,
       bc: null,
@@ -1158,27 +1158,27 @@ function settingsTab() {
     },
     openAddDevice() {
       this.notif.addDev = { alias: '', instance_id: (this.notif.instances[0] || {}).id || '', service: '' };
-      this.notif.discovered = []; this.notif.pickerOpen = false;
+      this.notif.discovered = []; this.notif.pickerOpen = false; this.notif.addDevMsg = null;
     },
     editDevice(dev) {   // rename / re-target an existing device
       this.notif.addDev = { id: dev.id, alias: dev.alias, instance_id: dev.instance_id, service: dev.service };
-      this.notif.discovered = []; this.notif.pickerOpen = false;
+      this.notif.discovered = []; this.notif.pickerOpen = false; this.notif.addDevMsg = null;
     },
     // Ask the CHOSEN instance, not every instance. A bridge can read several Home
     // Assistants and a notification goes to exactly one — mixing their targets in one
     // list is how a message ends up on the wrong house's phone.
     async discover() {
-      this.notif.busy = true;
+      this.notif.busy = true; this.notif.addDevMsg = null;
       const inst = this.notif.addDev.instance_id;
       try {
         const url = 'api/ha/notify-targets' + (inst ? '?instance=' + encodeURIComponent(inst) : '');
         const d = await (await fetch(url)).json();
         this.notif.discovered = d.targets || [];
         const err = (d.errors || {})[inst];
-        if (err) { Alpine.store('app').toast('Could not read that instance: ' + err, 'error'); return; }
-        if (!this.notif.discovered.length) { Alpine.store('app').toast('No notify services found on that instance', 'warning'); return; }
+        if (err) { this.addDevSay('danger', 'Could not read that instance: ' + err); return; }
+        if (!this.notif.discovered.length) { this.addDevSay('warn', 'No notify services found on that instance'); return; }
         this.notif.pickerSearch = ''; this.notif.pickerOpen = true;
-      } catch (e) { Alpine.store('app').toast('Discover failed: ' + e.message, 'error'); }
+      } catch (e) { this.addDevSay('danger', 'Discover failed: ' + e.message); }
       finally { this.notif.busy = false; }
     },
     get notifyPicker() {
@@ -1233,27 +1233,31 @@ function settingsTab() {
           'success');
       } catch (e) { Alpine.store('app').toast('Could not change it: ' + e.message, 'error'); }
     },
+    addDevSay(kind, text) { this.notif.addDevMsg = { kind, text }; },
     async testNewDevice() {
       const f = this.notif.addDev;
-      if (!f.instance_id || !f.service) { Alpine.store('app').toast('Pick an instance and service first', 'warning'); return; }
-      this.notif.busy = true;
+      if (!f.instance_id || !f.service) { this.addDevSay('warn', 'Pick an instance and a notify service first'); return; }
+      this.notif.busy = true; this.notif.addDevMsg = null;
       try {
         const r = await fetch('api/ha/notify-devices/test', { method: 'POST',
           headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instance_id: f.instance_id, service: f.service }) });
-        const j = await r.json();
-        Alpine.store('app').toast(j.ok ? 'Test sent — check your device' : ('Failed: ' + (j.error || j.detail || 'error')), j.ok ? 'success' : 'error');
-      } finally { this.notif.busy = false; }
+        const j = await r.json().catch(() => ({}));
+        if (j.ok) this.addDevSay('ok', 'Test sent to ' + f.service + ' — check your device');
+        else this.addDevSay('danger', 'Test failed: ' + (j.error || j.detail || 'HTTP ' + r.status));
+      } catch (e) { this.addDevSay('danger', 'Test failed: ' + e.message); }
+      finally { this.notif.busy = false; }
     },
     async saveDevice() {
       const f = this.notif.addDev;
-      if (!f.alias || !f.instance_id || !f.service) { Alpine.store('app').toast('Alias, instance and service are required', 'warning'); return; }
+      if (!f.alias || !f.instance_id || !f.service) { this.addDevSay('warn', 'Alias, HA instance and notify service are all required'); return; }
+      this.notif.addDevMsg = null;
       const editing = !!f.id;
       const url = editing ? 'api/ha/notify-devices/' + f.id : 'api/ha/notify-devices';
       const body = { alias: f.alias, instance_id: f.instance_id, service: f.service };
       const r = await fetch(url, { method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (r.ok) { this.notif.addDev = null; await this.loadNotify(); Alpine.store('app').toast(editing ? 'Device updated' : 'Device added', 'success'); }
-      else { const j = await r.json().catch(() => ({})); Alpine.store('app').toast('Failed: ' + (j.detail || r.status), 'error'); }
+      else { const j = await r.json().catch(() => ({})); this.addDevSay('danger', 'Not saved: ' + (j.detail || 'HTTP ' + r.status)); }
     },
     openAddInstance() { this.notif.addInst = { name: '', base_url: '', token: '', is_default: this.notif.instances.length === 0 }; },
     async saveInstance() {

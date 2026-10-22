@@ -271,3 +271,31 @@ def test_call_service_builds_url_and_guards_token(monkeypatch):
     assert seen["auth"] == "Bearer TOK"
     import json
     assert json.loads(seen["data"]) == {"entity_id": "climate.lounge", "temperature": 21}
+
+
+def _method_body(js: str, name: str) -> str:
+    start = js.index(f"async {name}(")
+    i = js.index("{", start)
+    depth = 0
+    for j in range(i, len(js)):
+        depth += {"{": 1, "}": -1}.get(js[j], 0)
+        if depth == 0:
+            return js[i:j + 1]
+    raise AssertionError(name)
+
+
+def test_companion_dialog_reports_inside_the_dialog_not_in_a_toast():
+    """Owner, 2026-10-22: a dialog must not answer with a toast. It shows behind the
+    dialog, nobody is looking there, and it fades. Discover, Send test and a failed Save
+    put their result in the dialog, where it stays until the next action."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[1] / "src/franklinwh_direct_connect_bridge"
+    js = (root / "static/js/settings_tab.js").read_text()
+    for name in ("discover", "testNewDevice"):
+        assert "toast(" not in _method_body(js, name), f"{name} still toasts"
+    save = _method_body(js, "saveDevice")
+    # the one toast left is the confirmation AFTER the dialog has closed
+    assert save.count("toast(") == 1
+    assert save.index("this.notif.addDev = null") < save.index("toast(")
+    html = (root / "templates/tabs/settings.html").read_text()
+    assert 'x-text="notif.addDevMsg && notif.addDevMsg.text"' in html

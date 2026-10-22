@@ -1791,6 +1791,12 @@
             </template>
           </div>
         </div>
+        <!-- Results of Discover, Send test and Save stay HERE, in the dialog the user is
+             looking at, until their next action — never a toast behind it that fades. -->
+        <div x-show="notif.addDevMsg" x-cloak role="alert" aria-live="polite"
+             class="text-xs rounded px-3 py-2 border"
+             :style="notif.addDevMsg && ('color:var(--' + notif.addDevMsg.kind + ');border-color:var(--' + notif.addDevMsg.kind + ')')"
+             x-text="notif.addDevMsg && notif.addDevMsg.text"></div>
         <div class="flex justify-between gap-2 pt-1">
           <button @click="testNewDevice()" :disabled="notif.busy" class="btn btn-secondary btn-sm">Send test</button>
           <div class="flex gap-2">
