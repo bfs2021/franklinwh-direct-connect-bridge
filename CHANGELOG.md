@@ -73,6 +73,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   value, and the column now shows on phones.
 
 ### Fixed
+- **The companion device dialog shows its own results** (#293). Discover, Send test and a
+  failed Save now answer inside the dialog, and the message stays until your next action.
+  Before, they went to a toast behind the dialog that faded away unseen.
 
 - **No false OFF-GRID after the aGate restarts** (#288, #44). For a minute after a reboot
   the aGate reports every value as 0, which read as "off-grid, SoC 0%" and could send an
