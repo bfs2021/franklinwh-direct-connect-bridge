@@ -12,6 +12,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 ## [Unreleased]
 
 ### Fixed
+- **The Battery tab's charts refresh again** (#317). The Trend chart, the Watch-live
+  chart and the per-aPower cell charts stopped redrawing after their first draw: each
+  refresh failed silently, so the chart froze while samples kept arriving. Switching metric
+  redrew it once. The "updated" time above the cells now uses the site's time zone, like
+  the chart.
 - **Battery Control forces through the Modbus client (this bridge) use franklinwh-modbus
   0.10.1.** The library now writes the force in watts (WSetMod=1 + WSet) and reads it back,
   instead of a percentage of 5000 W. On aGate firmware V12R02B60D00 the percentage form was
