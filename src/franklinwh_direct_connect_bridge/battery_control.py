@@ -506,9 +506,13 @@ def status(host: str) -> dict:
         cs = c.read_control_status()
         active = "Not Active"
         if cs.get("wset_enabled"):
-            pct = cs.get("wset_pct") or 0
-            active = ("Force Charge" if pct < 0
-                      else "Force Discharge" if pct > 0 else "Force Standby")
+            # franklinwh-modbus 0.10.1 writes the force as watts (WSetMod=1 + WSet) and no
+            # longer sets WSetPct, which then reads 0 and made a running discharge show as
+            # "Force Standby". Read the field the active mode uses; same sign either way
+            # (negative = charge).
+            val = (cs.get("wset_watts") if cs.get("wset_mode") == 1 else cs.get("wset_pct")) or 0
+            active = ("Force Charge" if val < 0
+                      else "Force Discharge" if val > 0 else "Force Standby")
         rated = _ratings(c)
         _record(host, "ready", "status")
         return {"available": True, "reason": "", "active": active,
