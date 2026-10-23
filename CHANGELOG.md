@@ -11,6 +11,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Fixed
+- **Battery Control forces through the Modbus client (this bridge) use franklinwh-modbus
+  0.10.1.** The library now writes the force in watts (WSetMod=1 + WSet) and reads it back,
+  instead of a percentage of 5000 W. On aGate firmware V12R02B60D00 the percentage form was
+  refused above 10 % (500 W), as reported by the library. A refused write now says
+  "Rejected by the aGate" at once. Charging is still refused on V12 (a firmware limit).
+
 ## [0.5.15] — 2026-10-24
 
 ### Added

@@ -23,7 +23,7 @@ dependencies = [
     # Pinned (#219): an unpinned >=0.9 put every new library release into users' builds
     # untested (0.9.6 and 0.10.0 in two days). 0.9.6 is the version G2 ran on (0.5.9,
     # reference aGate, 2026-10-18). Move the pin only after G0 + G1 (+ G2 for force paths).
-    "franklinwh-modbus==0.9.6",      # direct-Modbus WSet force control (Battery Control widget)
+    "franklinwh-modbus==0.10.1",      # direct-Modbus WSet force control (Battery Control widget)
     "fastapi>=0.111",
     "uvicorn>=0.29",
     "jinja2>=3.1",
