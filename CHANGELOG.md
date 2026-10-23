@@ -11,6 +11,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Security
+- **franklinwh-cloud is pinned to 0.6.2.** Its debug log no longer shows the gateway serial
+  in the gateway-list response, the one line 0.6.1 still missed.
+
 ## [0.5.14] — 2026-10-23
 
 ### Added
