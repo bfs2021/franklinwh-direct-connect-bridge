@@ -132,7 +132,9 @@ function batteryTab() {
         const d = await r.json();
         if (!d.ok) throw new Error(d.error || 'device did not return cell data');
         this.data = d;
-        this.lastAt = new Date().toLocaleTimeString();
+        // Site time, like the chart's axis (#317): the browser's own zone put the header and
+        // the chart hours apart for a viewer in another time zone.
+        this.lastAt = this.$store.app._fmtSiteTime(Date.now() / 1000);
         this.record(d);                                  // primary aPower
         // Multi-battery site: gather every aPower once — build the per-aPower table
         // row from each, and record the charted ones for the overlay. Sequential:
@@ -332,14 +334,19 @@ function batteryTab() {
       // In-place update when the dataset shape is unchanged — recreating a Chart every ~2s
       // poll churns canvas backing stores and leaks over long sessions (DEF-BROWSER-MEMORY).
       // drawLive() already does this; mirror it. Only recreate on a real structure change.
-      const same = this._chart && this._chart.canvas === el
-        && this._chart.data.datasets.length === datasets.length
-        && this._chart.data.datasets.every((d, i) => d.label === datasets[i].label);
+      // Work on the raw Chart, never through Alpine's reactive proxy: update() on the proxied
+      // instance recurses ("Maximum call stack size exceeded"), draw()'s catch swallows it,
+      // and the chart freezes while samples keep arriving (#317). A recreate (switching
+      // metric and back) worked, which is why it looked fixed until the next tick.
+      const ch = this._chart && Alpine.raw(this._chart);
+      const same = ch && ch.canvas === el
+        && ch.data.datasets.length === datasets.length
+        && ch.data.datasets.every((d, i) => d.label === datasets[i].label);
       if (same) {
-        this._chart.data.labels = labels;
-        datasets.forEach((d, i) => { this._chart.data.datasets[i].data = d.data; });
-        if (scales) this._chart.options.scales = scales;
-        this._chart.update('none');
+        ch.data.labels = labels;
+        datasets.forEach((d, i) => { ch.data.datasets[i].data = d.data; });
+        if (scales) ch.options.scales = scales;
+        ch.update('none');
         return;
       }
       datasets.forEach((d) => { if (self._hidden[d.label]) d.hidden = true; });
@@ -405,7 +412,9 @@ function batteryTab() {
             plugins: { legend: { display: false } },   // 16 cells × N units — legend off
           },
         };
-        const existing = this._stackCharts[u];
+        // Alpine.raw: a Chart reached through Alpine's reactive proxy recurses in update()
+        // ("Maximum call stack size exceeded") and never redraws (#317).
+        const existing = this._stackCharts[u] && Alpine.raw(this._stackCharts[u]);
         if (existing && existing.canvas === el && existing.data.datasets.length === datasets.length) {
           existing.data.labels = labels;                       // in-place — no per-poll recreate
           datasets.forEach((d, i) => { existing.data.datasets[i].data = d.data; });
@@ -578,11 +587,13 @@ function batteryTab() {
           },
         });
       } else {
-        // Update in place — smoother than destroy/recreate at the poll cadence.
-        this._liveChart.data.labels = labels;
+        // Update in place — smoother than destroy/recreate at the poll cadence. On the raw
+        // Chart: through Alpine's proxy, update() recurses and never redraws (#317).
+        const live = Alpine.raw(this._liveChart);
+        live.data.labels = labels;
         const keys = ['spread', 'soc', 'tmax'];
-        keys.forEach((k, i) => { this._liveChart.data.datasets[i].data = rows.map(s => s[k]); });
-        this._liveChart.update('none');
+        keys.forEach((k, i) => { live.data.datasets[i].data = rows.map(s => s[k]); });
+        live.update('none');
       }
     },
 
