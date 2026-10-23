@@ -1556,6 +1556,18 @@ class MetricsStore:
         except Exception:  # pragma: no cover
             pass
 
+    def disclaimer_agreed_by_anyone(self) -> bool:
+        """Has the disclaimer been accepted on this installation at all? (#303)
+
+        The question is asked once per installation, not per browser: a per-browser key
+        lives in browser storage, which every new device, address or storage clear loses."""
+        try:
+            with self._lock:
+                return self._conn.execute(
+                    "SELECT 1 FROM disclaimer_acks LIMIT 1").fetchone() is not None
+        except Exception:  # pragma: no cover
+            return False
+
     def disclaimer_agreed(self, client_id: str) -> bool:
         """Has this client already agreed? (DB is authoritative — survives a localStorage clear.)"""
         if not client_id:

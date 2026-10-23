@@ -5756,15 +5756,14 @@ def create_app() -> FastAPI:
     @app.get("/api/disclaimer")
     def api_disclaimer(client_id: str | None = Query(None)):
         """Text + links for the first-connection legal-disclaimer modal (unofficial app).
-        ``agreed`` reflects the DB record for this client_id (authoritative don't-show-again,
-        survives a localStorage clear)."""
-        agreed = False
-        if client_id:
-            try:
-                st = db.get_store(get_settings())
-                agreed = bool(st and st.disclaimer_agreed(client_id))
-            except Exception:  # noqa: BLE001
-                agreed = False
+        ``agreed`` is true once anyone has accepted on this installation (#303): asked once
+        per install, not per browser. Until then, every load asks again. ``client_id`` is
+        kept for the audit record that /api/disclaimer/ack writes."""
+        try:
+            st = db.get_store(get_settings())
+            agreed = bool(st and st.disclaimer_agreed_by_anyone())
+        except Exception:  # noqa: BLE001
+            agreed = False
         return {
             "agreed": agreed,
             "title": "Unofficial software",
