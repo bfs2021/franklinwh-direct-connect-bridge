@@ -1698,6 +1698,11 @@
     <div class="space-y-2 pt-1">
       <div class="flex items-center justify-between">
         <span class="metric-label">Companion Devices</span>
+        <!-- #306: the set-up this card needs is in the guide; link straight to it -->
+        <span class="flex gap-3 ml-3 mr-auto">
+          <a :href="$store.app.guideUrl('phone-and-remote-access/#1-alerts-on-your-phone-the-home-assistant-companion-app')" target="_blank" rel="noopener" class="text-xs underline" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Get the Companion app</a>
+          <a :href="$store.app.guideUrl('ha-setup-and-notifications/#3-add-a-notification-device')" target="_blank" rel="noopener" class="text-xs underline" style="color:var(--text-secondary)" title="Opens the user guide at this topic">How to add a device</a>
+        </span>
         <div class="flex gap-2">
           <button @click="openBroadcast()" :disabled="!notif.devices.some(d=>d.enabled)"
                   class="btn btn-secondary btn-sm" title="Send a message to all enabled devices">Broadcast</button>
@@ -2118,7 +2123,7 @@
 
     <div class="flex items-center justify-between gap-3 flex-wrap">
       <div>
-        <div class="text-[10px] uppercase tracking-widest text-slate-500">Mapping</div>
+        <div class="text-[10px] uppercase tracking-widest text-slate-500">Mapping <a :href="$store.app.guideUrl('tour/#integration-mapping-and-the-probe')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
         <p class="text-sm text-slate-500">
           Where each value comes from, and a <span class="font-medium">Probe</span> that reads it live.
           Probe before you trust a mapping — a field's name does not tell you which frame carries it.

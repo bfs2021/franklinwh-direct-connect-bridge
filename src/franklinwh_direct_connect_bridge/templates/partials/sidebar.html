@@ -70,7 +70,8 @@
       </svg>
       <span x-show="!$store.app.sidebarCollapsed" x-transition.opacity.duration.200ms>Docs</span>
     </a>
-    <a href="{{ guide_url }}" target="_blank" rel="noopener"
+    <a :href="$store.app.guideUrl()" href="{{ guide_url }}" target="_blank" rel="noopener"
+       title="User guide (opens the page for this tab)"
        @mouseenter="if ($store.app.sidebarCollapsed) { clearTimeout(hoverTimer); hoverText = 'User Guide'; hoverTop = Math.round($el.getBoundingClientRect().top + ($el.offsetHeight / 2) - 12); hoverTimer = setTimeout(() => hoverText = '', 1500) }"
        @mouseleave="clearTimeout(hoverTimer); hoverText = ''"
        class="nav-item w-full border-l-2 border-transparent"

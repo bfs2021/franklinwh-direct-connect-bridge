@@ -64,7 +64,7 @@
         </svg>
         <span>Docs</span>
       </a>
-      <a href="{{ guide_url }}" target="_blank" rel="noopener" @click="$store.app.moreOpen = false"
+      <a :href="$store.app.guideUrl()" href="{{ guide_url }}" target="_blank" rel="noopener" @click="$store.app.moreOpen = false"
          class="flex items-center justify-center gap-2 text-center px-2 py-3 rounded-lg text-sm min-h-[48px] transition border"
          style="color:var(--text-secondary);background:var(--surface-1);border-color:var(--border)">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

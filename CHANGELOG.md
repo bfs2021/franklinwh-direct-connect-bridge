@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Added
+- **Guide opens the page for the tab you're on** (#306), in the sidebar and the phone
+  menu, instead of the guide's front page. Sections link to their topic: Companion Devices
+  to getting the Companion app and adding a device, Mapping to the Probe, and the Home
+  Assistant Instances list to its guide section.
+
 ## [0.5.14] — 2026-10-23
 
 ### Added

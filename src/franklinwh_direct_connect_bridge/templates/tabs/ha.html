@@ -80,7 +80,7 @@
         </div>
         <div class="card px-3 py-2 text-center" style="min-width:90px">
           <div class="text-lg font-semibold" style="color:var(--text-primary)" x-text="ents.instances ?? instances.length"></div>
-          <div class="text-[10px] uppercase tracking-wide" style="color:var(--text-secondary)">Instances</div>
+          <div class="text-[10px] uppercase tracking-wide" style="color:var(--text-secondary)">Instances <a :href="$store.app.guideUrl('home-assistant/#instances')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
         </div>
       </div>
     </template>
