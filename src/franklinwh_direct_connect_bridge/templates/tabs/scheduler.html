@@ -2,7 +2,7 @@
 
   <div class="flex flex-wrap items-start justify-between gap-3">
     <div>
-      <h2 class="page-title">Scheduler</h2>
+      <h2 class="page-title">Scheduler <a :href="$store.app.guideUrl('scheduler/')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></h2>
       <p class="text-sm" style="color:var(--text-secondary)">
         Time windows that run a gateway action and optional Home Assistant actions
       </p>
@@ -227,7 +227,7 @@
 
         <!-- planned schedule windows -->
         <div class="space-y-2 pt-2 border-t" style="border-color:var(--border)">
-          <div class="text-[10px] uppercase tracking-wide" style="color:var(--text-secondary)">Planned windows</div>
+          <div class="text-[10px] uppercase tracking-wide" style="color:var(--text-secondary)">Planned windows <a :href="$store.app.guideUrl('scheduler/#visual-timeline')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
           <template x-for="seg in timeline.segments" :key="seg.schedule_id">
             <div>
               <div class="flex items-center justify-between text-xs mb-0.5">
@@ -318,7 +318,7 @@
        style="background:rgba(0,0,0,.6)" @click.self="presetOpen = false">
     <div class="card w-full max-w-lg p-5 space-y-3">
       <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold" style="color:var(--text-primary)">Templates</h3>
+        <h3 class="text-lg font-semibold" style="color:var(--text-primary)">Templates <a :href="$store.app.guideUrl('scheduler/#templates-export-and-import')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></h3>
         <button class="btn btn-secondary btn-sm" @click="presetOpen = false">Close</button>
       </div>
       <p class="text-xs" style="color:var(--text-secondary)">
@@ -349,7 +349,7 @@
   <div x-show="importReport" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4"
        style="background:rgba(0,0,0,.6)" @click.self="importReport = null">
     <div class="card w-full max-w-lg p-5 space-y-3">
-      <h3 class="text-lg font-semibold" style="color:var(--text-primary)">Import schedules</h3>
+      <h3 class="text-lg font-semibold" style="color:var(--text-primary)">Import schedules <a :href="$store.app.guideUrl('scheduler/#templates-export-and-import')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></h3>
       <div class="text-xs" style="color:var(--text-secondary)"
            x-text="importReport ? `${importReport.importable} of ${importReport.count} can be imported (disabled for review)` : ''"></div>
       <div x-show="importReport && importReport.mapped_from" x-cloak
@@ -402,7 +402,7 @@
 
       <!-- Trigger type + quick preset -->
       <div class="grid grid-cols-2 gap-3">
-        <label class="block text-xs" style="color:var(--text-secondary)">Trigger type
+        <label class="block text-xs" style="color:var(--text-secondary)">Trigger type <a :href="$store.app.guideUrl('scheduler/triggers/#editing-a-trigger-in-the-form')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a>
           <select class="form-control form-control-sm w-full mt-1" x-model="form.trigger_type"
                   @change="onTriggerType()">
             <option value="window">Recurring windows</option>
@@ -438,7 +438,7 @@
       <!-- Time windows (recurring windows / one-off) -->
       <div x-show="showWindows">
         <div class="flex items-center justify-between mb-1">
-          <span class="text-xs font-semibold" style="color:var(--text-secondary)">Time windows</span>
+          <span class="text-xs font-semibold" style="color:var(--text-secondary)">Time windows <a :href="$store.app.guideUrl('scheduler/triggers/#recurring-windows')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
           <button type="button" class="btn btn-secondary btn-sm" @click="addWindow()">+ add window</button>
         </div>
         <template x-for="(w, wi) in form.windows" :key="wi">
@@ -527,7 +527,7 @@
       <!-- gateway action -->
       <div class="rounded-lg border p-3 space-y-2" style="border-color:var(--border)">
         <div class="flex items-center justify-between flex-wrap gap-2">
-          <div class="text-xs font-semibold" style="color:var(--text-secondary)">Battery action</div>
+          <div class="text-xs font-semibold" style="color:var(--text-secondary)">Battery action <a :href="$store.app.guideUrl('scheduler/actions/#battery-actions-force-charge-and-force-discharge')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
           <div class="flex items-center gap-2 flex-wrap">
             <!-- Priority: higher wins when several schedules fire the same tick for the
                  same gateway; the rest are deferred for the day. -->
@@ -597,7 +597,7 @@
       <div class="rounded-lg border p-3 space-y-2" style="border-color:var(--border)">
         <div class="flex items-center justify-between flex-wrap gap-2">
           <span class="text-xs font-semibold" style="color:var(--text-secondary)">
-            Entry conditions (must hold to fire)</span>
+            Entry conditions (must hold to fire) <a :href="$store.app.guideUrl('scheduler/conditions/#rules-for-every-condition')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
           <span class="flex items-center gap-2">
             <select class="form-control form-control-sm" style="width:auto" x-model="form.match">
               <option value="all">Match ALL</option>
@@ -714,7 +714,7 @@
       <div class="rounded-lg border p-3 space-y-2" style="border-color:var(--border)">
         <div class="flex items-center justify-between flex-wrap gap-2">
           <span class="text-xs font-semibold" style="color:var(--text-secondary)">
-            End early when… <span style="color:var(--text-faint)">(optional exit conditions)</span></span>
+            End early when… <span style="color:var(--text-faint)">(optional exit conditions)</span> <a :href="$store.app.guideUrl('scheduler/exit-and-conflicts/#exit-conditions')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
           <span class="flex items-center gap-2">
             <select class="form-control form-control-sm" style="width:auto" x-model="form.exit_match">
               <option value="all">Match ALL</option>
@@ -815,7 +815,7 @@
       <div class="rounded-lg border p-3 space-y-2" style="border-color:var(--border)">
         <div class="flex items-center justify-between">
           <span class="text-xs font-semibold" style="color:var(--text-secondary)">
-            Home Assistant actions (optional)</span>
+            Home Assistant actions (optional) <a :href="$store.app.guideUrl('scheduler/actions/#home-assistant-actions')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
           <span class="flex gap-2">
             <button class="btn btn-secondary btn-sm" :disabled="!devices.length"
                     :title="devices.length ? '' : 'Add a notification device first'"

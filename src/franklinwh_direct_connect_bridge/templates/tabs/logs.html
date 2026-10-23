@@ -15,7 +15,7 @@
   <!-- Header -->
   <div class="flex items-start justify-between gap-3 flex-wrap">
     <div class="min-w-0">
-      <h2 class="page-title">Logs</h2>
+      <h2 class="page-title">Logs <a :href="$store.app.guideUrl('tour/#logs')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></h2>
       <p class="text-xs text-slate-500 mt-1">
         Bridge log lines (newest first). Stored in the metrics <span class="font-mono">database</span>
         (durable, queryable), so history survives reboots — selectable by time range below.

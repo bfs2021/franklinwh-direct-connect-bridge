@@ -68,6 +68,20 @@ function powerColour(watts, type) {
 }
 
 // ── Main Alpine App ──────────────────────────────────────────
+/** The guide page for each tab, relative to the published guide (#306). A tab with no
+ *  page of its own opens its place in the Tour. Anchors are the published headings' ids;
+ *  tests/test_guide_links.py checks each one against the Markdown source. */
+const GUIDE_PAGES = {
+  dashboard: 'tour/#the-tabs', battery: 'battery-dispatch/',
+  analytics: 'energy-and-costs/#analytics', energy_costs: 'energy-and-costs/#energy-costs',
+  solar: 'energy-and-costs/#solar-forecast', scheduler: 'scheduler/',
+  circuits: 'tour/#the-tabs', generator: 'generator/', health: 'tour/#the-tabs',
+  ha: 'ha-setup-and-notifications/', mqtt: 'home-assistant/', network: 'tour/#the-tabs',
+  grid: 'control/#grid-inverter-limits-are-unverified', device: 'tour/#the-tabs',
+  control: 'control/', logs: 'tour/#logs', terminal: 'tour/#terminal',
+  settings: 'tour/#settings-by-sub-tab',
+};
+
 document.addEventListener('alpine:init', () => {
 
   Alpine.store('app', {
@@ -106,6 +120,15 @@ document.addEventListener('alpine:init', () => {
     // it for the session.
     selectedGateway: '',
     activeTab: localStorage.getItem('fwh-tab') || 'dashboard',
+
+    // The guide page for the tab on screen, so Guide opens what the user is looking at
+    // rather than the guide's front page (#306, as the Modbus Bridge). Paths are relative
+    // to the published guide; anchors are the published headings' ids.
+    guideBase: document.body.dataset.guideUrl || '',
+    guideUrl(page) {
+      const p = page !== undefined ? page : (GUIDE_PAGES[this.activeTab] || '');
+      return this.guideBase + p;
+    },
 
     // Title shown in the topbar. A map, not a ternary chain — the chain it
     // replaced had no arm for battery/device/logs and fell through to a

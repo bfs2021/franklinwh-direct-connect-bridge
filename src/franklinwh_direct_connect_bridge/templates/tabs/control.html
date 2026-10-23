@@ -35,7 +35,7 @@
   <!-- Battery Control — Force Charge/Discharge/Standby via direct Modbus (WSet) -->
   <div class="card space-y-4" x-data="batteryControl()" x-init="init()">
     <div class="flex items-center justify-between">
-      <div class="card-label inline-flex items-center gap-2" style="margin-bottom:0">Battery Control
+      <div class="card-label inline-flex items-center gap-2" style="margin-bottom:0">Battery Control <a :href="$store.app.guideUrl('control/#battery-force-two-paths-and-which-one-you-are-on')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a> <a :href="$store.app.guideUrl('battery-dispatch/#releasing-a-force')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Releasing a force</a>
         {% with kind='modbus', label='Modbus' %}{% include 'partials/cap-marker.html' %}{% endwith %}
       </div>
     </div>
@@ -436,7 +436,7 @@
   <!-- Modbus (SunSpec 502) -->
   <div class="card" style="padding:0;overflow:hidden" x-init="$store.app.loadModbus()">
     <div class="px-5 py-3 border-b border-white/[0.06]">
-      <div class="card-label" style="margin-bottom:0">Modbus client (this bridge)</div>
+      <div class="card-label" style="margin-bottom:0">Modbus client (this bridge) <a :href="$store.app.guideUrl('control/#battery-force-two-paths-and-which-one-you-are-on')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
     </div>
     <div class="p-5">
       <div class="flex items-center justify-between gap-3">
@@ -567,7 +567,7 @@
   <div class="card" style="padding:0;overflow:hidden" x-init="$store.app.loadControlLog()">
     <div class="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between gap-2">
       <div class="flex items-baseline gap-2">
-        <div class="card-label" style="margin-bottom:0">Audit trail</div>
+        <div class="card-label" style="margin-bottom:0">Audit trail <a :href="$store.app.guideUrl('control/#the-control-tab')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
         <span x-show="$store.app.hostTzLabel" x-cloak class="text-[10px]" style="color:var(--text-faint)">host time · <span x-text="$store.app.hostTzLabel"></span></span>
       </div>
       <button @click="$store.app.loadControlLog()"

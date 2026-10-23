@@ -4,7 +4,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between gap-3 flex-wrap">
     <div class="flex items-center gap-3">
-      <h2 class="page-title">MQTT Entities</h2>
+      <h2 class="page-title">MQTT Entities <a :href="$store.app.guideUrl('home-assistant/#the-entities')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></h2>
       <!-- Connection pill -->
       <span class="chip" :class="connected ? 'ok' : 'muted'">
         <span class="w-1.5 h-1.5 rounded-full"
@@ -32,7 +32,7 @@
         </svg>
         Scan conflicts
       </button>
-      <button @click="republish()" class="btn btn-primary btn-sm">Republish</button>
+      <button @click="republish()" class="btn btn-primary btn-sm">Republish</button> <a :href="$store.app.guideUrl('home-assistant/#republish-and-unpublish')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a>
       <button @click="unpublish()" class="btn btn-secondary btn-sm"
               style="color: var(--danger); border-color: var(--border)">Unpublish</button>
     </div>
@@ -68,7 +68,7 @@
   <template x-if="conflicts">
     <div class="card" style="padding:12px 16px" x-cloak>
       <div class="flex items-center justify-between mb-2">
-        <div class="card-label" style="margin-bottom:0">Broker producers</div>
+        <div class="card-label" style="margin-bottom:0">Broker producers <a :href="$store.app.guideUrl('home-assistant/#sharing-a-broker-with-other-franklinwh-software')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
         <span class="text-[11px]" style="color:var(--text-faint)"
               x-text="conflicts.ok ? (conflicts.discovery_prefix + ' · ' + (conflicts.producers ? conflicts.producers.length : 0) + ' device(s)') : ''"></span>
       </div>
@@ -119,7 +119,7 @@
 
   <!-- Published groups (opt in/out) -->
   <div class="card" style="padding:10px 14px">
-    <div class="text-xs font-medium mb-2" style="color:var(--text-secondary)">Published groups <span style="color:var(--text-faint)">(opt in/out — turning heavy groups off cuts MQTT/HA load)</span></div>
+    <div class="text-xs font-medium mb-2" style="color:var(--text-secondary)">Published groups <span style="color:var(--text-faint)">(opt in/out — turning heavy groups off cuts MQTT/HA load)</span> <a :href="$store.app.guideUrl('home-assistant/#entity-groups')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
     <div class="flex flex-wrap gap-x-5 gap-y-2">
       <template x-for="(g, key) in groupCatalogue" :key="key">
         <div class="flex items-center gap-2 text-xs"><span style="color:var(--text-secondary)" x-text="g.label"></span>
