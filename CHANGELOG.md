@@ -15,7 +15,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 - **Guide opens the page for the tab you're on** (#306), in the sidebar and the phone
   menu, instead of the guide's front page. Sections link to their topic: Companion Devices
   to getting the Companion app and adding a device, Mapping to the Probe, and the Home
-  Assistant Instances list to its guide section.
+  Assistant Instances list to its guide section. About 40 more sections now carry a
+  **Guide** link to their topic: alerts and notification settings; MQTT entities, groups,
+  republish and the broker; the scheduler and each part of the schedule editor; battery
+  control and the Modbus client; tariffs, solar forecast, analytics and costs; gateways
+  and sites; generator, grid limits, logs and setup.
 
 ## [0.5.14] — 2026-10-23
 

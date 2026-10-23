@@ -16,7 +16,7 @@
     <div class="card p-4">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div class="card-label" style="margin-bottom:.25rem">Setup</div>
+          <div class="card-label" style="margin-bottom:.25rem">Setup <a :href="$store.app.guideUrl('tour/#first-run-the-setup-wizard')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
           <p class="text-sm" style="color:var(--text-secondary)">
             What this bridge could read from the gateway, and what still needs you.
             Everything here can be changed later.
@@ -278,7 +278,7 @@
   <div x-show="sub==='billing'" x-cloak class="space-y-6">
   <!-- ══ Sites &amp; Meters ══ -->
   <div class="flex items-center gap-3">
-    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Sites &amp; Meters</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Sites &amp; Meters <a :href="$store.app.guideUrl('multi-gateway/#sites-meters-utilities-and-tariffs')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
     <div class="flex-1 border-t border-white/[0.08]"></div>
     <button class="btn btn-secondary btn-sm" :disabled="!canWrite()" @click="newSite()">+ Add Site</button>
   </div>
@@ -398,7 +398,7 @@
   <div x-show="sub==='billing'" x-cloak class="space-y-6">
   <!-- ══ Utilities &amp; Tariffs ══ -->
   <div class="flex items-center gap-3">
-    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Utilities &amp; Tariffs</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Utilities &amp; Tariffs <a :href="$store.app.guideUrl('energy-and-costs/#tariffs')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
     <div class="flex-1 border-t border-white/[0.08]"></div>
     <input type="file" accept="application/json,.json" class="hidden" x-ref="tariffImportFile" @change="importTariffProfile($event)">
     <button class="btn btn-secondary btn-sm" :disabled="!canWrite()" @click="$refs.tariffImportFile.click()"
@@ -995,7 +995,7 @@
   <div x-show="sub==='gateways'" x-cloak class="space-y-6">
   <!-- ══ Gateways ══ -->
   <div class="flex items-center gap-3">
-    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Gateways</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Gateways <a :href="$store.app.guideUrl('multi-gateway/#registering-gateways')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
     <div class="flex-1 border-t border-white/[0.08]"></div>
     <button class="btn btn-secondary btn-sm" @click="openAddGateway()">+ Add Gateway</button>
   </div>
@@ -1321,7 +1321,7 @@
   <div x-show="sub==='integrations'" x-cloak class="space-y-6">
   <!-- ══ MQTT ══ -->
   <div class="flex items-center gap-3">
-    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">MQTT</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">MQTT <a :href="$store.app.guideUrl('home-assistant/#setting-up-the-broker')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
     <div class="flex-1 border-t border-white/[0.08]"></div>
   </div>
   <div class="card space-y-2.5">
@@ -1396,7 +1396,7 @@
 
   <!-- ══ Metrics / history ══ -->
   <div class="flex items-center gap-3">
-    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Local history</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Local history <a :href="$store.app.guideUrl('energy-and-costs/#what-is-stored-and-for-how-long')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
     <div class="flex-1 border-t border-white/[0.08]"></div>
   </div>
   <div class="card space-y-2.5">
@@ -1418,7 +1418,7 @@
   <div x-show="sub==='admin'" x-cloak class="space-y-6">
   <!-- ══ Storage & Admin ══ -->
   <div class="flex items-center gap-3" x-init="loadAdmin()">
-    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Storage &amp; Admin</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Storage &amp; Admin <a :href="$store.app.guideUrl('energy-and-costs/#storage-and-backups')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
     <div class="flex-1 border-t border-white/[0.08]"></div>
   </div>
 
@@ -1523,7 +1523,7 @@
   <div x-show="sub==='automation'" x-cloak class="space-y-6">
   <!-- ══ Control ══ -->
   <div class="flex items-center gap-3">
-    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Control</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Control <a :href="$store.app.guideUrl('control/#the-three-gates')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
     <div class="flex-1 border-t border-white/[0.08]"></div>
   </div>
   <div class="card space-y-2.5">
@@ -1562,7 +1562,7 @@
     <!-- Master push toggle -->
     <div class="flex items-center justify-between gap-3">
       <div class="min-w-0">
-        <div class="card-label">Push notifications</div>
+        <div class="card-label">Push notifications <a :href="$store.app.guideUrl('ha-setup-and-notifications/#4-what-the-bridge-notifies-you-about')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
         <div class="text-xs text-slate-500"
              x-text="notif.master ? 'On — enabled devices below receive alerts' : 'Off — no notifications are sent'"></div>
       </div>
@@ -1580,13 +1580,13 @@
     <div x-show="notif.loaded && !notif.master" x-cloak data-testid="ha-channel-off"
          class="text-xs rounded px-2 py-1.5 font-semibold"
          style="background:var(--danger, #dc2626);color:#fff">
-      Critical alerts reach only the bridge UI
+      Critical alerts reach only the bridge UI <a :href="$store.app.guideUrl('ha-setup-and-notifications/#alerts')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a>
     </div>
 
     <!-- ── Auto-notify triggers ── -->
     <div class="space-y-1.5 pt-1 border-t border-white/[0.06]" x-init="loadTriggers()">
       <div class="flex items-center justify-between">
-        <span class="metric-label">Auto-notify triggers</span>
+        <span class="metric-label">Auto-notify triggers <a :href="$store.app.guideUrl('ha-setup-and-notifications/#push-to-your-notification-devices')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
         <div class="flex gap-2">
           <button class="btn btn-secondary btn-sm" @click="testTrigger()">Send test</button>
           <button class="btn btn-secondary btn-sm" @click="loadTriggers()">Refresh</button>
@@ -1846,7 +1846,7 @@
   <div x-show="sub==='integrations'" x-cloak class="space-y-6">
   <!-- ══ Location & Solar ══ -->
   <div class="flex items-center gap-3">
-    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Location &amp; Solar</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Location &amp; Solar <a :href="$store.app.guideUrl('energy-and-costs/#solar-forecast')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
     <div class="flex-1 border-t border-white/[0.08]"></div>
   </div>
   <div class="card space-y-3">
@@ -1915,7 +1915,7 @@
 
   <!-- ══ Dynamic price (wholesale) ══ -->
   <div class="flex items-center gap-3">
-    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Dynamic price (wholesale)</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Dynamic price (wholesale) <a :href="$store.app.guideUrl('energy-and-costs/#static-or-dynamic')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
     <div class="flex-1 border-t border-white/[0.08]"></div>
   </div>
   <div class="card space-y-3">
@@ -1994,7 +1994,7 @@
   <div x-show="sub==='automation'" x-cloak class="space-y-6">
   <!-- ══ Battery dispatch ══ -->
   <div class="flex items-center gap-3">
-    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Battery dispatch</span>
+    <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Battery dispatch <a :href="$store.app.guideUrl('control/#after-a-bridge-restart-mid-dispatch')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></span>
     <div class="flex-1 border-t border-white/[0.08]"></div>
   </div>
   <div class="card space-y-3">

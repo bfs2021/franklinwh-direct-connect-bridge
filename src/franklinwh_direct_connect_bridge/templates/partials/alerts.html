@@ -54,7 +54,7 @@
   <div class="relative w-full max-w-2xl rounded-xl border shadow-2xl flex flex-col"
        style="background:var(--surface-0, #0f172a);border-color:var(--border);max-height:calc(100dvh - 2rem)">
     <div class="px-5 py-3 border-b flex items-center justify-between shrink-0" style="border-color:var(--border)">
-      <div class="text-sm font-semibold" style="color:var(--text-primary)">Open alerts</div>
+      <div class="text-sm font-semibold" style="color:var(--text-primary)">Open alerts <a :href="$store.app.guideUrl('ha-setup-and-notifications/#alerts')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
       <button class="btn btn-secondary btn-sm" @click="$store.alerts.listOpen = false">Close</button>
     </div>
     <div class="px-5 py-3 overflow-y-auto min-h-0 space-y-1">

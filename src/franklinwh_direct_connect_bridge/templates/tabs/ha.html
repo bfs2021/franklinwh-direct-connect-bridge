@@ -76,7 +76,7 @@
         </div>
         <div class="card px-3 py-2 text-center" style="min-width:90px">
           <div class="text-lg font-semibold" style="color:#34d399" x-text="ents.exposed_count ?? 0"></div>
-          <div class="text-[10px] uppercase tracking-wide" style="color:var(--text-secondary)">Exposed</div>
+          <div class="text-[10px] uppercase tracking-wide" style="color:var(--text-secondary)">Exposed <a :href="$store.app.guideUrl('home-assistant/#exposing-entities')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
         </div>
         <div class="card px-3 py-2 text-center" style="min-width:90px">
           <div class="text-lg font-semibold" style="color:var(--text-primary)" x-text="ents.instances ?? instances.length"></div>
@@ -156,7 +156,7 @@
     <div class="card p-4 space-y-3">
       <div class="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <div class="card-label" style="margin-bottom:.25rem">Dashboard card</div>
+          <div class="card-label" style="margin-bottom:.25rem">Dashboard card <a :href="$store.app.guideUrl('home-assistant/#dashboard-card')" target="_blank" rel="noopener" class="text-xs underline normal-case tracking-normal font-normal ml-2" style="color:var(--text-secondary)" title="Opens the user guide at this topic">Guide</a></div>
           <p class="text-xs" style="color:var(--text-secondary)">
             Paste into Home Assistant: any dashboard &rarr; Edit &rarr; Add card &rarr;
             Manual.
