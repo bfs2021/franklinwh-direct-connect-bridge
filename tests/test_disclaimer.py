@@ -13,7 +13,7 @@ def test_disclaimer_text_and_links():
     assert "franklinwh-direct-connect-bridge" in d["issues_url"]
     # the published bridge guide, never the relative guide/ that 404s outside ingress (#231)
     assert d["docs_url"] == "https://david2069.github.io/franklinwh-direct-connect-bridge/guide/"
-    assert d["agreed"] is False   # no client_id -> not agreed
+    assert d["agreed"] is False   # nobody has accepted on this installation yet
 
 
 def test_disclaimer_ack_persists_and_gates(monkeypatch):
@@ -33,3 +33,22 @@ def test_disclaimer_ack_persists_and_gates(monkeypatch):
     # the agreement was written to the durable log
     msgs = [e["message"] for e in store.logs(limit=50)]
     assert any("AGREED to the unofficial-app disclaimer" in m for m in msgs)
+
+
+def test_one_acceptance_covers_the_installation():
+    """#303: asked once per installation. Another browser, device or address, or a
+    cleared browser storage (a new client id), is not asked again."""
+    c = TestClient(app_module.create_app())
+    db.get_store(get_settings())
+    assert c.get("/api/disclaimer?client_id=phone").json()["agreed"] is False
+    c.post("/api/disclaimer/ack", json={"client_id": "laptop"})
+    assert c.get("/api/disclaimer?client_id=phone").json()["agreed"] is True
+    assert c.get("/api/disclaimer").json()["agreed"] is True
+
+
+def test_not_accepting_keeps_asking():
+    """No ack is sent unless "I agree" is ticked, so a decline records nothing."""
+    c = TestClient(app_module.create_app())
+    db.get_store(get_settings())
+    for _ in range(3):
+        assert c.get("/api/disclaimer?client_id=phone").json()["agreed"] is False

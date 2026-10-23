@@ -407,8 +407,8 @@ document.addEventListener('alpine:init', () => {
       return id;
     },
     async _loadDisclaimer() {
-      // The DB is the source of truth for don't-show-again (survives a localStorage clear),
-      // keyed by a stable per-browser client id.
+      // The DB is the source of truth: once anyone on this installation has agreed, nobody
+      // is asked again (#303). The client id only labels the acceptance in the audit record.
       try {
         const cid = encodeURIComponent(this._clientId());
         this.disclaimer = await (await fetch('api/disclaimer?client_id=' + cid)).json();
