@@ -16,15 +16,29 @@ top-nav Release button.
 from __future__ import annotations
 
 import logging
+import time
 
 log = logging.getLogger(__name__)
 
-# Last observed VPP state, so we only fire on transitions (None = not yet observed).
-_last: dict = {"vpp": None}
+# Last observed VPP state, so we only fire on transitions (None = not yet observed), and
+# when the current dispatch was first seen, for its duration.
+_last: dict = {"vpp": None, "since": None}
 
 
 def reset() -> None:
     _last["vpp"] = None
+    _last["since"] = None
+
+
+def _metrics(snap: dict) -> str:
+    """What the site was doing at the transition, from the poller's snapshot (#300).
+    A value the poll did not carry is left out, not shown as 0."""
+    parts = [f"{label} {snap[k]:.0f} W" for k, label in (
+        ("battery_w", "battery"), ("grid_w", "grid"), ("solar_w", "solar"), ("load_w", "load"))
+        if isinstance(snap.get(k), (int, float))]
+    if isinstance(snap.get("soc"), (int, float)):
+        parts.append(f"SoC {snap['soc']:.1f}%")
+    return ", ".join(parts) or "no power reading"
 
 
 def _notify_devices(store, title: str, message: str) -> int:
@@ -82,16 +96,18 @@ def check(host: str, store, *, boot: bool = False, notify: bool = True,
     ours = battery_control.current().get("active") not in (None, "Not Active")
     # Actual battery power, which is what is HAPPENING — better than the commanded
     # WSet percentage this used to report, which was only what was asked for.
-    pct = snap.get("battery_w")
     prev = _last["vpp"]
     _last["vpp"] = vpp
+    now = time.time()
+    if vpp and prev is False:          # a start we saw; one already running has no known start
+        _last["since"] = now
 
     # VPP active at startup, not started by us. This is NORMAL when enrolled in a VPP
     # (the utility programme, the app, or the Modbus bridge dispatches on its own); it is
     # only an "orphan" if a prior run of THIS bridge left it — which we cannot distinguish
     # here (our in-memory 'current' is cleared on restart). So: WARNING, not CRITICAL.
     if boot and vpp and not ours:
-        msg = (f"VPP (force) dispatch active at startup (battery {pct} W) — started externally "
+        msg = (f"VPP (force) dispatch active at startup ({_metrics(snap)}) — started externally "
                f"(a utility VPP programme, the app, the Modbus bridge, or a prior run), not by "
                f"this bridge. This bridge will not auto-release it; use the Release button to "
                f"override if you want to clear it.")
@@ -106,7 +122,7 @@ def check(host: str, store, *, boot: bool = False, notify: bool = True,
 
     if vpp and not prev:
         src = "this bridge" if ours else "an external controller (Modbus bridge / app / cloud VPP)"
-        msg = f"Battery dispatch STARTED — VPP mode active (source: {src}, battery {pct} W)."
+        msg = f"Battery dispatch STARTED — VPP mode active (source: {src}; {_metrics(snap)})."
         log.warning(msg)
         _log_event(store, "vpp-start", msg)
         # Only alert for dispatches WE did not start (ours already show in the widget/log).
@@ -115,7 +131,10 @@ def check(host: str, store, *, boot: bool = False, notify: bool = True,
         return {"vpp": vpp, "changed": True, "event": "start"}
 
     if prev and not vpp:
-        msg = "Battery dispatch ENDED — VPP mode cleared, battery back to normal."
+        since, _last["since"] = _last["since"], None
+        took = f" after {now - since:.0f} s" if since else ""
+        msg = (f"Battery dispatch ENDED{took} — VPP mode cleared, battery back to normal "
+               f"({_metrics(snap)}).")
         log.info(msg)
         _log_event(store, "vpp-stop", msg)
         return {"vpp": vpp, "changed": True, "event": "stop"}
