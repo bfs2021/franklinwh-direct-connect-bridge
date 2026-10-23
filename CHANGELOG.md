@@ -17,6 +17,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   instead of a percentage of 5000 W. On aGate firmware V12R02B60D00 the percentage form was
   refused above 10 % (500 W), as reported by the library. A refused write now says
   "Rejected by the aGate" at once. Charging is still refused on V12 (a firmware limit).
+- **A running force no longer shows as "Force Standby".** With franklinwh-modbus 0.10.1 the
+  force is held in watts (WSetMod=1 + WSet) and the percentage reads 0, which the bridge took
+  for "standby". It now reads the field the aGate is using.
 
 ## [0.5.15] — 2026-10-24
 
