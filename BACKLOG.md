@@ -408,6 +408,13 @@ it into v1.
 modbus, schedules, gateways) — enforce role there. Audit trail should record the acting user once users
 exist. Keep OFF by default so single-user LAN installs are unaffected.
 
+**Align with the Modbus Bridge (owner, 2026-10-23; low priority, stays queued).** Same users and
+roles model (admin, user, viewer). Its disclaimer acceptance is per user account and per notice
+version; under HA ingress every HA user maps to one shared "ingress" user (as the Modbus Bridge
+session reported, 2026-10-23, not verified here). Until users exist, this bridge asks once per
+installation (#303). When users land, acceptance moves to per user, and whether a wording change
+asks again follows whatever the owner decides for both bridges.
+
 ---
 
 ## FEAT-SECURE-API — HTTPS + auth (tokens / mTLS): reverse-proxy first, native token auth in-app (queued)
