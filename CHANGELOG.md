@@ -11,11 +11,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Changed
+- **The battery dispatch (VPP) log lines and notifications say what the site was doing**
+  (#300). "Battery dispatch STARTED" and "ENDED" now carry battery, grid, solar and load power
+  and the SoC at that moment. ENDED also says how long the dispatch lasted when the bridge
+  saw it start.
+
 ### Fixed
 - **The unofficial-software disclaimer is asked once per installation** (#303). One
   acceptance now covers every browser, device and address. Before, each one asked again,
   and so did clearing the browser's storage, because the acceptance was tied to an id kept
   there. Until someone accepts, every visit still asks.
+
+### Security
+- **franklinwh-cloud is pinned to 0.6.4.** Its logs no longer show the gateway serial in
+  the gateway-list debug response (the one line 0.6.1 still missed), in the rate-limit
+  warning, or in its timeout and gateway-selection error messages. Debug responses also mask
+  e-mail, names, addresses, coordinates, site and device names and Wi-Fi names.
 
 ## [0.5.14] — 2026-10-23
 
