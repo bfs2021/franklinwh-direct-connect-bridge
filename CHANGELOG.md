@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Fixed
+- **The unofficial-software disclaimer is asked once per installation** (#303). One
+  acceptance now covers every browser, device and address. Before, each one asked again,
+  and so did clearing the browser's storage, because the acceptance was tied to an id kept
+  there. Until someone accepts, every visit still asks.
+
 ## [0.5.14] — 2026-10-23
 
 ### Added
