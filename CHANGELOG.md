@@ -11,6 +11,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+## [0.5.15] — 2026-10-24
+
 ### Added
 - **Guide opens the page for the tab you're on** (#306), in the sidebar and the phone
   menu, instead of the guide's front page. Sections link to their topic: Companion Devices
