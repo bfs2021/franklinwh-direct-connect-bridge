@@ -12,8 +12,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 ## [Unreleased]
 
 ### Security
-- **franklinwh-cloud is pinned to 0.6.2.** Its debug log no longer shows the gateway serial
-  in the gateway-list response, the one line 0.6.1 still missed.
+- **franklinwh-cloud is pinned to 0.6.4.** Its logs no longer show the gateway serial in
+  the gateway-list debug response (the one line 0.6.1 still missed), in the rate-limit
+  warning, or in its timeout and gateway-selection error messages. Debug responses also mask
+  e-mail, names, addresses, coordinates, site and device names and Wi-Fi names.
 
 ## [0.5.14] — 2026-10-23
 
