@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Added
+- **User guide: shorter names in Home Assistant** (#320). How to rename the bridge's
+  device in Home Assistant so friendly names stop being cut to "FranklinWH Dir…" in
+  history graphs and on phones. Entity IDs, history and automations are unchanged. With
+  screenshots.
+
 ### Fixed
 - **Network tab: missing link data reads "not reported"** (#302). When the aGate's answer
   had no network fields (as with the library Emulator), the tab showed every link as off,
