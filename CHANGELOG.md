@@ -12,6 +12,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 ## [Unreleased]
 
 ### Fixed
+- **Grid & Inverter: the limits are shown and entered in kW** (#312). `1701` stores them in
+  watts, so a stored 2000 showed as "2000 kW", and the dialog's "Custom kW" box wrote its
+  number unchanged (2 would have set 2 W). The dialog no longer says the write is
+  "confirmed ignored": with Debug Mode on (firmware V12R02B60D00, one test) it is stored;
+  with it off, earlier firmware ignored it; enforcement is not yet tested.
+
 - **The worker-restart guard for an active force works** (#175). It read a field the force
   status never returns, and it named a module it never imported, so it refused every
   guarded restart with "cannot determine dispatch state". It now refuses only while this
