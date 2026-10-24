@@ -12,6 +12,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 ## [Unreleased]
 
 ### Fixed
+- **Network tab: missing link data reads "not reported"** (#302). When the aGate's answer
+  had no network fields (as with the library Emulator), the tab showed every link as off,
+  every interface as disabled and down, and Write safety as "single link". It now says
+  "not reported", and Write safety says "unknown".
 - **The Battery tab's charts refresh again** (#317). The Trend chart, the Watch-live
   chart and the per-aPower cell charts stopped redrawing after their first draw: each
   refresh failed silently, so the chart froze while samples kept arriving. Switching metric
