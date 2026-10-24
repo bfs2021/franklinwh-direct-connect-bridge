@@ -5158,11 +5158,13 @@ def create_app() -> FastAPI:
         drop the force's owner — a safety regression wearing a convenience button.
         """
         try:
+            from . import battery_control
             cur = battery_control.current()
         except Exception:  # noqa: BLE001 — never let the guard itself fail open
             return "cannot determine dispatch state — refusing"
-        if cur and cur.get("command"):
-            return (f"force active ({cur.get('command')}) — release it first, or restart "
+        active = (cur or {}).get("active")
+        if active not in (None, "Not Active"):
+            return (f"force active ({active}) — release it first, or restart "
                     "the bridge so boot reconcile re-adopts it")
         return ""
 
