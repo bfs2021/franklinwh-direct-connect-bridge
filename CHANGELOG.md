@@ -12,6 +12,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 ## [Unreleased]
 
 ### Fixed
+- **Network tab: missing link data reads "not reported"** (#302). When the aGate's answer
+  had no network fields (as with the library Emulator), the tab showed every link as off,
+  every interface as disabled and down, and Write safety as "single link". It now says
+  "not reported", and Write safety says "unknown".
+
 - **Grid & Inverter: the limits are shown and entered in kW** (#312). `1701` stores them in
   watts, so a stored 2000 showed as "2000 kW", and the dialog's "Custom kW" box wrote its
   number unchanged (2 would have set 2 W). The dialog no longer says the write is
