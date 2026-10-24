@@ -197,6 +197,54 @@ install one gateway's purge cannot delete another's entities.
 
 ---
 
+## Shorter names in Home Assistant
+
+![Before: every history row starts with the full device name](../images/home-assistant/17-names-history-before.png)
+
+Home Assistant builds each entity's friendly name from **the device name + the entity
+name**: *FranklinWH Direct 634EDA0C* + *Battery State*. On a phone, or in a history graph
+with many rows, the device part fills the space. Every row is cut to the same
+"FranklinWH Dir…", and you can't tell the rows apart.
+
+You can shorten the device name in Home Assistant yourself. It takes a minute, and
+nothing else changes.
+
+**Steps**
+
+1. In Home Assistant, open **Settings → Devices & services → Devices** and select the
+   bridge's device (*FranklinWH Direct …*).
+2. Select the **pencil** (Edit settings) at the top right.
+
+   ![The device's Edit settings dialog in Home Assistant](../images/home-assistant/18-names-edit-device.png)
+
+3. Type a short **Name**. Keep part of the serial (for example the last 4 characters,
+   `aGate DA0C`) so that two aGates never share a name.
+4. Select **Update**.
+
+   ![The device after renaming: the page title shows the new name](../images/home-assistant/19-names-device-renamed.png)
+
+Every entity's friendly name now starts with the new name:
+
+![After: the history rows read "aGate DA0C ▸ Battery State"](../images/home-assistant/20-names-history-after.png)
+
+**What stays the same**
+
+- **Entity IDs** (`sensor.franklinwh_direct_…`), so automations, dashboards and scripts
+  keep working.
+- **History and long-term statistics**, which follow the entity ID.
+- **Your name survives republishing.** When the bridge republishes its devices (for
+  example **Republish** on the MQTT tab), Home Assistant keeps a name you set yourself.
+  The bridge's own name doesn't override it. To go back, open the dialog again and clear
+  the name.
+
+If Home Assistant offers to rename the **entity IDs** as well, choose **no**, unless you're
+ready to update every automation and dashboard that uses them.
+
+A setting in the bridge to choose this name before publishing, with a preview, is planned
+([#320](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/320)).
+
+---
+
 ## Reinstalling, and keeping your history
 
 ![Home Assistant's Settings → Entities page, where an entity id is changed](../images/home-assistant/11-reinstalling-entity-ids.png)
