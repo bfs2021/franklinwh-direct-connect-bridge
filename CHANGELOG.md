@@ -17,6 +17,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   number unchanged (2 would have set 2 W). The dialog no longer says the write is
   "confirmed ignored": with Debug Mode on (firmware V12R02B60D00, one test) it is stored;
   with it off, earlier firmware ignored it; enforcement is not yet tested.
+
+- **The worker-restart guard for an active force works** (#175). It read a field the force
+  status never returns, and it named a module it never imported, so it refused every
+  guarded restart with "cannot determine dispatch state". It now refuses only while this
+  bridge holds a force, and says which one. No worker uses this path yet; the dispatch
+  watchdog is still thread-based.
 - **The Battery tab's charts refresh again** (#317). The Trend chart, the Watch-live
   chart and the per-aPower cell charts stopped redrawing after their first draw: each
   refresh failed silently, so the chart froze while samples kept arriving. Switching metric
