@@ -11,6 +11,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+## [0.5.16] — 2026-10-26
+
 ### Added
 - **User guide: shorter names in Home Assistant** (#320). How to rename the bridge's
   device in Home Assistant so friendly names stop being cut to "FranklinWH Dir…" in
