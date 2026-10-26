@@ -843,6 +843,35 @@ def _agate_starting(p: dict) -> bool:
             and p.get("run_status") in (0, None))
 
 
+#: 1301 values a start-up frame reports as 0 that are not readings (#309).
+_STARTING_BLANK_POWER = ("soc", "grid_w", "solar_w", "battery_w", "load_w", "generator_w",
+                         "run_status_desc", "kwh_sun", "kwh_load", "kwh_uti_in",
+                         "kwh_uti_out", "kwh_fhp_chg", "kwh_fhp_di", "kwh_gen")
+
+
+def _blank_starting_frame(out: dict[str, Any]) -> None:
+    """Blank every value an all-zero start-up frame carries (#309).
+
+    Seen on HA Live 2026-10-23 after a Wi-Fi outage: for two minutes after the reconnect
+    1301 read 0 for SoC and every flow, and the dashboard and history showed 0 W. None is
+    "no reading", which the UI shows as "--" and the history does not record. The
+    per-aPower values come from the same read but were real (91 %, 180-198 W), so they
+    are kept."""
+    p = out.get("power") or {}
+    for k in _STARTING_BLANK_POWER:
+        if k in p:
+            p[k] = None
+    b = out.get("battery")
+    if isinstance(b, dict):
+        for k in ("soc", "t_amb", "run_status_desc"):
+            if k in b:
+                b[k] = None
+    if isinstance(out.get("energy_today"), dict):
+        out["energy_today"] = {k: None for k in out["energy_today"]}
+    if "tou_tiers" in out:
+        out["tou_tiers"] = None
+
+
 def _apply_off_grid(out: dict[str, Any]) -> None:
     """Decide off-grid from EVERY signal, and record which ones fired.
 
@@ -896,7 +925,7 @@ def _apply_off_grid(out: dict[str, Any]) -> None:
             # No evidence either way: not off-grid, and not a 0% battery.
             p["off_grid"] = False
             p["agate_starting"] = True
-            p["soc"] = None
+            _blank_starting_frame(out)
         p["off_grid_signals"] = sig
         p["off_grid_disagreement"] = bool(any(sig.values()) and not all(sig.values()))
         p["off_grid_kind"] = _off_grid_kind(p)
