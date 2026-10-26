@@ -68,7 +68,7 @@
                     title="Islanded. Whether it was requested could not be read (1723 unavailable)."
                     style="padding:0 6px;font-size:.6rem">OFF-GRID</span>
               <span x-show="g.vpp_kind === 'vpp' && !g.off_grid" class="chip vpp" style="padding:0 6px;font-size:.6rem">VPP</span>
-              <span x-show="g.vpp && g.vpp_kind !== 'vpp' && !g.off_grid" class="chip vpp" style="padding:0 6px;font-size:.6rem">FORCE</span>
+              <span x-show="g.vpp && g.vpp_kind !== 'vpp' && !g.off_grid" class="chip vpp" style="padding:0 6px;font-size:.6rem">VPP</span>
 
               <!-- Operating mode + battery direction, per gateway. On a multi-gateway site
                    these differ, and the switcher is where you choose between them — so it
@@ -159,10 +159,10 @@
          above VPP and is never silently rendered as a bare number. -->
     <div class="chip warn inline-flex items-center gap-1" :style="{order: $store.app.topbarOrder('status')}"
          x-show="$store.app.isDebugMode && $store.app.topbarShow('status')" x-cloak
-         title="Debug Mode — a FranklinWH remote-support session is active on this gateway">
+         title="Debug Mode — 1301 run_status 8">
       <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5M12 16h.01"/></svg>
-      <span>SUPPORT SESSION</span>
+      <span>DEBUG MODE</span>
     </div>
     <div class="chip vpp inline-flex items-center gap-1" :style="{order: $store.app.topbarOrder('status')}"
          x-show="$store.app.isVpp && !$store.app.isOffGrid && !$store.app.isDebugMode && $store.app.topbarShow('status')" x-cloak
@@ -171,8 +171,8 @@
     </div>
     <div class="chip vpp inline-flex items-center gap-1" :style="{order: $store.app.topbarOrder('status')}"
          x-show="$store.app.isForced && !$store.app.isVpp && !$store.app.isOffGrid && $store.app.topbarShow('status')" x-cloak
-         title="A force dispatch is holding the battery. The local/Modbus API can't confirm whether it's a VPP — that needs the Cloud API.">
-      <span class="w-1.5 h-1.5 rounded-full bg-current"></span><span>FORCE</span>
+         title="VPP — 1707 programme id 9. The programme name needs the Cloud API.">
+      <span class="w-1.5 h-1.5 rounded-full bg-current"></span><span>VPP</span>
     </div>
 
     <!-- Charge / run status -->
