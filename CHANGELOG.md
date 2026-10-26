@@ -15,7 +15,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 - **Dashboard Run status shows the state that matters** (#313). It showed only the
   aGate's battery run status, so it read "Standby" in Debug Mode and kept saying
   "Discharging" during VPP. It now shows the first of these that applies: Debug Mode,
-  Off-grid, VPP, Reconnecting (no readings yet), then the battery run status. Hover it to
+  Off-grid, VPP, Reconnecting, then the battery run status. Hover it to
   see the source. In the top bar the FORCE chip is now **VPP**: the aGate reports a force
   from this bridge as VPP too, like the FranklinWH app. SUPPORT SESSION is now **DEBUG
   MODE**. Debug Mode is still recognised only from run status 8. Reading the aGate's Debug

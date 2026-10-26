@@ -66,7 +66,7 @@ def _check(out):
     assert out["offgrid_over_vpp"][0] == "Off-grid"
     assert out["vpp_local"][0] == "VPP" and "1707 programme id 9" in out["vpp_local"][1]
     assert out["vpp_cloud"][0] == "VPP mode · Prog A" and "cloud" in out["vpp_cloud"][1]
-    assert out["starting"][0] == "Reconnecting — no readings yet"
+    assert out["starting"][0] == "Reconnecting" and "all zeros" in out["starting"][1]
     assert out["starting"][2] == "Reconnecting"            # the top-bar chip agrees
     assert out["plain"][0] == "Standby" and "1301" in out["plain"][1]
     assert out["none"][0] == "--"

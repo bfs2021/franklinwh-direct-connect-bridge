@@ -1210,8 +1210,9 @@ document.addEventListener('alpine:init', () => {
         return ['VPP', 'VPP — 1707 programme id 9'];
       }
       if (this.power.agate_starting === true) {
-        return ['Reconnecting — no readings yet',
-                'The aGate answered with all zeros (start-up frame), so there is no reading yet'];
+        // Short: the row is narrow, and the dashboard banner says the rest.
+        return ['Reconnecting',
+                'aGate reconnecting — it answered with all zeros (start-up frame), so there is no reading yet'];
       }
       const d = this.battery.run_status_desc || this.power.run_status_desc;
       return [d || (this.power.run_status ?? '--'), 'Battery run status — 1301 run_status'];
