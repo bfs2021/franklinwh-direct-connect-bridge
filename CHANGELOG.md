@@ -11,6 +11,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+## [0.5.17] — 2026-10-27
+
 ### Fixed
 - **Dashboard Run status shows the state that matters** (#313). It showed only the
   aGate's battery run status, so it read "Standby" in Debug Mode and kept saying
@@ -19,7 +21,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   see the source. In the top bar the FORCE chip is now **VPP**: the aGate reports a force
   from this bridge as VPP too, like the FranklinWH app. SUPPORT SESSION is now **DEBUG
   MODE**. Debug Mode is still recognised only from run status 8. Reading the aGate's Debug
-  Mode setting comes with #311.
+  Mode setting comes with #311. Known gap: a WSet force (Model 704) is no longer
+  shown apart from VPP; they are different states, and #333 brings FORCE back.
 
 - **After a reconnect, the aGate's all-zero answers no longer show or record as 0 W** (#309).
   For a minute or two after a reboot or a lost connection the aGate reports 0 for the
