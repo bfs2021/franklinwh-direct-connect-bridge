@@ -8,6 +8,11 @@ to three TCP connections to the Modbus TCP Server (aGate :502) every 30 s just t
 
 **Version.** Read from the code at **0.5.7** (`main`, a0b875f).
 
+**Since 0.5.7.** This inventory has not been redone, and later releases changed some rows.
+In particular, #223 changed the top finding below: an open browser tab no longer makes a
+Modbus client (this bridge) session every 30 s. Re-check a row against the current code
+before relying on it.
+
 **Evidence.** Unless a row says **VM**, it comes **only from reading the code**. Nothing
 here was measured on a real aGate, and no connection to one was opened. **VM** means
 confirmed by read-only GETs against the 0.5.7 add-on on the QEMU test VM, on 2026-10-17.
