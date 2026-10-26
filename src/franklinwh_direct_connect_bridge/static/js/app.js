@@ -1175,6 +1175,7 @@ document.addEventListener('alpine:init', () => {
       // falls back to the battery_w power-sign heuristic when no run_status is reported.
       // VPP is shown separately (its own badge + the run-status line) so both read together,
       // exactly like the official app: "Discharging" + "VPP Mode".
+      if (this.power.agate_starting === true) return 'Reconnecting';
       const d = this.power.run_status_desc;
       if (d) return d;
       const w = this.power.battery_w;
@@ -1186,13 +1187,35 @@ document.addEventListener('alpine:init', () => {
     //: Operating-status label for the dashboard SoC card's "Run status". A dispatch wins over
     //  the plain direction: cloud VPP shows its mode label (+ programme), an unattributed force
     //  shows "Force dispatch". The backend sets vpp_label from the authoritative source.
+    //  The highest-priority state that is present wins (#313): 1301 run_status reads 0 in
+    //  Debug Mode and keeps the battery direction during VPP, so on its own it said
+    //  "Standby" for both. runStatusSource names where the shown state came from.
     get runStatusLabel() {
-      if (this.power.vpp_label) {
-        return this.isVpp && this.vppProgramme
-          ? `${this.power.vpp_label} · ${this.vppProgramme}` : this.power.vpp_label;
+      return this._runStatus[0];
+    },
+    get runStatusSource() {
+      return this._runStatus[1];
+    },
+    get _runStatus() {
+      if (this.isDebugMode) return ['Debug Mode', 'Debug Mode — 1301 run_status 8'];
+      if (this.isOffGrid) return ['Off-grid', 'Off-grid — 1723 offgridState and the main relays'];
+      if (this.isForced) {
+        // 1707 programme id 9 is VPP (owner, 2026-10-24: a WSet force sets it too). The
+        // cloud adds the app's mode label and the programme name when it confirms one.
+        if (this.isVpp && this.power.vpp_label) {
+          const l = this.vppProgramme ? `${this.power.vpp_label} · ${this.vppProgramme}`
+                                      : this.power.vpp_label;
+          return [l, 'VPP — FranklinWH cloud, confirmed by 1707 programme id 9'];
+        }
+        return ['VPP', 'VPP — 1707 programme id 9'];
       }
-      return this.battery.run_status_desc || this.power.run_status_desc
-             || (this.power.run_status ?? '--');
+      if (this.power.agate_starting === true) {
+        // Short: the row is narrow, and the dashboard banner says the rest.
+        return ['Reconnecting',
+                'aGate reconnecting — it answered with all zeros (start-up frame), so there is no reading yet'];
+      }
+      const d = this.battery.run_status_desc || this.power.run_status_desc;
+      return [d || (this.power.run_status ?? '--'), 'Battery run status — 1301 run_status'];
     },
     //: single | split | three, or '' when nobody has established it. Never guessed
     //  from the voltage level — that is how a US 240 V split-phase site gets labelled

@@ -133,6 +133,7 @@
                     x-text="$store.app.isVpp ? 'Cloud' : 'Modbus'"></span>
               <span class="font-mono"
                     :class="$store.app.isForced ? 'text-violet-300' : 'text-slate-400'"
+                    :title="$store.app.runStatusSource"
                     x-text="$store.app.runStatusLabel"></span>
             </span>
           </div>
