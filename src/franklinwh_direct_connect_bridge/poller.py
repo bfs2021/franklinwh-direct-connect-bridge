@@ -186,6 +186,7 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
     last_fw = fw
     inserts = 0
     fail_streak = 0   # consecutive failed polls (DEF-POLLER-STALL fix 1)
+    starting_since: float | None = None   # first all-zero start-up frame of a run (#309)
     alerts_sig: tuple | None = None   # last alert summary published to MQTT (#271)
     alerts_pub_ts = 0.0
     _wname = f"poller:{gw.id}"
@@ -282,6 +283,18 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                         timeout=_poll_timeout)
                 except asyncio.TimeoutError:
                     summ = {"ok": False, "error": f"poll timed out after {_poll_timeout}s"}
+                # An all-zero start-up frame after a reboot or reconnect (#309): client.py
+                # has blanked its values. It is neither recorded nor published, so history
+                # and Home Assistant never get a 0 W that was not a reading.
+                starting = bool(summ.get("ok") and (summ.get("power") or {}).get("agate_starting"))
+                if starting and starting_since is None:
+                    starting_since = time.time()
+                    log.warning("[%s] aGate reconnecting: it reports all zeros (start-up frame) "
+                                "— not recorded or published until real readings return", gw.id)
+                elif not starting and starting_since is not None and summ.get("ok"):
+                    log.info("[%s] aGate readings returned after %.0f s of start-up frames",
+                             gw.id, time.time() - starting_since)
+                    starting_since = None
                 st = entities.state_payload(summ)   # the keys HA's templates read (#96)
                 # aGate network (#134): a separate light read every NET_EVERY_S, never every
                 # poll (the aGate is sensitive to load, #123), and never for a mock.
@@ -394,7 +407,8 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                     else:
                         gw.last_summary = summ
                 if pub:
-                    pub.publish_state(st)
+                    if not starting:
+                        pub.publish_state(st)
                     pub.publish_availability(bool(summ.get("ok")))
                 for title, msg in transitions(prev, summ):
                     await asyncio.to_thread(notifier.notify, title, msg)
@@ -447,7 +461,7 @@ async def run_gateway(settings: Settings, gw: GatewayState, stop: asyncio.Event)
                     gw.serial = fwb2.get("IBG_SN") or gw.serial
                     # Record a history sample tagged with this gateway. A DB error must not
                     # kill the loop — log and continue.
-                    if store is not None:
+                    if store is not None and not starting:
                         try:
                             await asyncio.to_thread(
                                 store.insert, st, int(time.time()), gw.serial or gw.id,
