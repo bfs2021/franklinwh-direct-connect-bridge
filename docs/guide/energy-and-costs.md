@@ -124,9 +124,15 @@ between installs or shared.
 
 ![Settings → Integrations → Location & Solar](../images/energy-and-costs/08-solar-forecast.png)
 
-Optional, and off until you give the bridge a location. Under **Settings → Integrations →
-Location & Solar**: latitude, longitude, array size in kWp, tilt, and azimuth. The
-forecast comes from Open-Meteo.
+Optional, and off until the bridge has a location. The forecast comes from Open-Meteo.
+
+Under **Settings → Integrations → Location & Solar**, press **Sync from gateway**. The
+bridge reads the location your installer configured on the aGate, over the local API
+(`cmdType 1201`), and saves it as the latitude and longitude. No cloud account is needed,
+and nothing needs typing. If the aGate has no location configured, the sync says so and
+leaves the fields as they were. Only then type the coordinates in yourself.
+
+Then set the array: size in kWp, tilt, and azimuth.
 
 **Azimuth uses Open-Meteo's convention**, which is not the one most people assume:
 `0` is south, `-90` is east, `90` is west.
@@ -142,10 +148,6 @@ The same data becomes scheduler sensors: today's forecast kWh, today's peak kW, 
 kWh today, tomorrow's kWh, and two solar-*tracker* sensors comparing actual generation
 against the forecast (percentage of today's forecast reached, and percentage versus
 forecast-to-now, where above 100 means ahead of schedule).
-
-Rather than typing coordinates, **Sync location** reads the aGate's *own* configured
-location (`cmdType 1201`) and saves it — no cloud account needed. If the gateway has no
-location configured it says so (422) instead of guessing.
 
 ---
 

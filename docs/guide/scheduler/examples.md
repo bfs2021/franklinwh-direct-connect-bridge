@@ -105,7 +105,8 @@ How it behaves:
 
 Top the battery up when Open-Meteo reports a thunderstorm.
 
-Needs: the PV latitude and longitude under **Settings → Integrations**.
+Needs: a location under **Settings → Integrations → Location & Solar** (**Sync from gateway**
+reads it from the aGate).
 
 | Field | Value |
 |---|---|
