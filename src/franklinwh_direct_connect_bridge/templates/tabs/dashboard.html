@@ -12,6 +12,16 @@
     <button class="btn btn-primary btn-sm shrink-0" @click="$store.app.resumeDashboard()">Resume live</button>
   </div>
 
+  <!-- aGate start-up frame (#309): after a reboot or a lost connection the aGate answers
+       with all zeros for a minute or two. Those values are blanked, not shown as 0 W. -->
+  <div x-show="$store.app.power.agate_starting === true" x-cloak role="status"
+       class="px-3 py-2 rounded text-sm"
+       style="background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.35);color:var(--text)">
+    <span class="font-semibold">aGate reconnecting — no readings yet.</span>
+    Its first answers after a reboot or a lost connection are all zeros, so they are not
+    shown, recorded in history or sent to Home Assistant.
+  </div>
+
   <!-- Card customiser panel — toggled by the "Cards" button in the topbar (Topbar Preferences). -->
   <div x-show="$store.app.dashCardsOpen" x-transition.duration.200ms x-cloak class="card !p-3">
     <div class="flex items-center justify-between mb-2">

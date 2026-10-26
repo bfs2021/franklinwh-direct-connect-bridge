@@ -21,6 +21,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   MODE**. Debug Mode is still recognised only from run status 8. Reading the aGate's Debug
   Mode setting comes with #311.
 
+- **After a reconnect, the aGate's all-zero answers no longer show or record as 0 W** (#309).
+  For a minute or two after a reboot or a lost connection the aGate reports 0 for the
+  battery charge and every power flow. The dashboard showed 0 W, history recorded it and
+  Home Assistant received it. Those values now read "--", the dashboard says "aGate
+  reconnecting — no readings yet", nothing is recorded or sent to Home Assistant, and the
+  log says when the zeros start and when real readings return. Per-aPower values from the
+  same answer were real and are still shown.
+
 ## [0.5.16] — 2026-10-26
 
 ### Added
