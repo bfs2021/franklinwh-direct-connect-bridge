@@ -131,11 +131,14 @@ function deviceTab() {
     get conResponseJson() {
       return this.conResult ? JSON.stringify(this.conResult.response, null, 2) : '';
     },
-    conCopy() {
-      navigator.clipboard?.writeText(
+    //: Says 'Copied' only when it was (#327); over plain http navigator.clipboard is absent.
+    conCopied: '',
+    async conCopy() {
+      const ok = await this.$store.app.copyText(
         JSON.stringify({ request: this.conResult.request,
                          response: this.conResult.response }, null, 2));
-      this.$store.app.toast('Copied request + response', 'success');
+      this.conCopied = ok ? 'Copied' : 'Copying is blocked here — select the text and press Ctrl/Cmd+C';
+      setTimeout(() => this.conCopied = '', ok ? 2000 : 6000);
     },
 
     results: {},   // name -> parsed JSON (or {error})

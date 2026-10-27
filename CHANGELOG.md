@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Fixed
+- **Copy works over http** (#327). Settings → Support info **Copy** did nothing when the
+  bridge was opened over plain http, which is common through Home Assistant. It now
+  copies there too. If the browser blocks copying, it says so next to the button. The
+  Device console's **Copy both** no longer says "Copied" when nothing was copied.
+
 ### Changed
 - **The schedule form can be made bigger** (#337). **Default**, **Medium** and **Full**
   size it, and its corner drags to any size in between; the browser remembers the size.
