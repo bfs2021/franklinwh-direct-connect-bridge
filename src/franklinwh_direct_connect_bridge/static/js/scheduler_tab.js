@@ -11,7 +11,12 @@ document.addEventListener('alpine:init', () => {
     schedules: [], actions: {}, unavailable: {}, force_available: false, force_reason: '',
     sensors: [], ops: [], gateways: [],
     haNames: {},   // exposed HA entity_id -> friendly name (condition-label enrichment)
-    explainId: null, explainLevel: 'medium',   // per-schedule plain-language explanation
+    explainId: null,                           // per-schedule plain-language explanation
+    // The last level chosen, per browser (#336); Medium when storage is unavailable.
+    explainLevel: (() => {
+      try { return ['min', 'medium', 'full'].includes(localStorage.getItem('fwh-explain-level'))
+        ? localStorage.getItem('fwh-explain-level') : 'medium'; } catch { return 'medium'; }
+    })(),
     devices: [],
     instances: [],
     haEntities: [],   // controllable exposed HA entities for the guided picker
@@ -800,13 +805,17 @@ document.addEventListener('alpine:init', () => {
       } else if (a.kind) {
         out.push((this.actions[a.kind] || {}).label || a.kind);
       }
+      // An HA action runs at entry, at exit, or both (#335); say which, in the Modbus
+      // Bridge's words ("… when it ends").
+      const when = { exit: ' when it ends', both: ' when it starts and when it ends' };
       for (const h of (s.ha_actions || [])) {
+        const at = when[h.when] || '';
         if (h.ha_kind === 'service') {
           const ent = this.haNames[h.entity_id] || h.entity_id || 'an entity';
           const svc = (h.service || 'call').replace(/_/g, ' ');
-          out.push(`${svc} “${ent}”`);
+          out.push(`${svc} “${ent}”${at}`);
         } else {
-          out.push('notify a companion device');
+          out.push(`notify a companion device${at}`);
         }
       }
       return out.length ? out.join(', then ') : 'take no gateway action';
@@ -840,6 +849,10 @@ document.addEventListener('alpine:init', () => {
       return lines.join('\n');
     },
     toggleExplain(s) { this.explainId = (this.explainId === s.id) ? null : s.id; },
+    setExplainLevel(lv) {
+      this.explainLevel = lv;
+      try { localStorage.setItem('fwh-explain-level', lv); } catch { /* private mode */ }
+    },
     /** A history row's gateway, by name (#205). */
     gatewayName(id) { return (this.gateways.find(g => g.id === id) || {}).name || id; },
 
