@@ -20,5 +20,5 @@ def test_never_taller_than_before():
 
 def test_message_box_grows():
     i = HTML.index('x-model="ha.message"')
-    tag = HTML[HTML.rindex("<", 0, i):HTML.index(">", i)]
+    tag = HTML[HTML.rindex("<", 0, i):HTML.index("</textarea>", i)]
     assert tag.startswith("<textarea") and "fitTextarea($el)" in tag
