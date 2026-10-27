@@ -1,3 +1,4 @@
+{% from "partials/dialog_msg.html" import dialog_msg %}
 <!-- ── Settings Tab (read-only) ───────────────────────────── -->
 <div class="space-y-6 max-w-5xl" x-data="settingsTab()" x-init="init()">
 
@@ -1685,6 +1686,7 @@
           <label class="text-xs text-slate-500 block">Long-lived token
             <input type="password" class="form-control form-control-sm block mt-1 w-full" x-model="notif.addInst.token" placeholder="paste token"></label>
           <div class="flex items-center justify-between gap-2 text-xs text-slate-500"><span>Default instance</span><button type="button" @click="notif.addInst.is_default = !notif.addInst.is_default" role="switch" :aria-checked="notif.addInst.is_default" class="relative inline-flex h-6 w-11 items-center rounded-full transition shrink-0" :class="notif.addInst.is_default ? 'bg-emerald-500' : 'bg-slate-600'"><span class="inline-block h-5 w-5 rounded-full bg-white transition" :class="notif.addInst.is_default ? 'translate-x-5' : 'translate-x-0.5'"></span></button></div>
+          {{ dialog_msg('notif.instMsg') }}
           <div class="flex justify-end gap-2">
             <button @click="notif.addInst=null" class="btn btn-secondary btn-sm">Cancel</button>
             <button @click="saveInstance()" class="btn btn-primary btn-sm">Save</button>
@@ -1832,6 +1834,7 @@
           <input class="form-control form-control-sm block mt-1 w-full" x-model="notif.bc.title"></label>
         <label class="text-xs text-slate-500 block">Message
           <textarea rows="3" class="form-control form-control-sm block mt-1 w-full" x-model="notif.bc.message" placeholder="Your message…"></textarea></label>
+        {{ dialog_msg('notif.bc?.msg') }}
         <div class="flex justify-end gap-2">
           <button @click="notif.bc=null" class="btn btn-secondary btn-sm">Cancel</button>
           <button @click="sendBroadcast()" :disabled="notif.bc.sending" class="btn btn-primary btn-sm"

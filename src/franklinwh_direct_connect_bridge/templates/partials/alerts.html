@@ -1,3 +1,4 @@
+{% from "partials/dialog_msg.html" import dialog_msg %}
 <!-- ── Alerts (#271, shared alert spec v1 §5) ─────────────────────────────
      The critical-alert modal stays until it is acknowledged: no Escape handler and no
      backdrop click, on purpose. Every alert in the queue has its own "I understand";
@@ -36,6 +37,7 @@
         </div>
       </template>
     </div>
+    {{ dialog_msg('$store.alerts.ackMsg') }}
     <div class="px-5 py-3 border-t flex items-center justify-between gap-2 shrink-0" style="border-color:var(--border)">
       <span class="text-[11px]" style="color:var(--text-faint)">Acknowledging records it in the Logs, for everyone.</span>
       <button class="btn btn-primary btn-sm" :disabled="!$store.alerts.allUnderstood || $store.alerts.busy"
@@ -58,6 +60,7 @@
       <button class="btn btn-secondary btn-sm" @click="$store.alerts.listOpen = false">Close</button>
     </div>
     <div class="px-5 py-3 overflow-y-auto min-h-0 space-y-1">
+      {{ dialog_msg('$store.alerts.ackMsg') }}
       <div x-show="!$store.alerts.list.length" class="text-xs" style="color:var(--text-secondary)">No open alerts.</div>
       <template x-for="a in $store.alerts.list" :key="a.id">
         <div class="flex items-start gap-3 text-xs py-1.5 border-b border-white/[0.06]">

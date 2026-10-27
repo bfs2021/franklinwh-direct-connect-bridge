@@ -1,3 +1,4 @@
+{% from "partials/dialog_msg.html" import dialog_msg %}
 <div x-data="gridTab()" x-init="init()" class="space-y-4 max-w-4xl">
 
   <div class="flex items-center justify-between gap-3 flex-wrap">
@@ -227,6 +228,7 @@
         </div>
       </template>
 
+      {{ dialog_msg('modalMsg') }}
       <div class="flex items-center gap-2 mt-4">
         <button class="btn btn-secondary btn-sm" @click="doPreview()" :disabled="busy || !hasChanges" x-text="busy ? '…' : 'Preview frame'"></button>
         <button class="btn btn-primary btn-sm" @click="doWrite()" :disabled="busy || !hasChanges">Write &amp; verify</button>

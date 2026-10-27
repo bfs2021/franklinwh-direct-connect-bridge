@@ -13,6 +13,7 @@ document.addEventListener('alpine:init', () => {
     loading: false,
     error: '',
     busy: {},              // circuit id -> toggle in flight
+    editMsg: null,         // the schedule editor's result, shown inside it (#293)
     view: 'circuits',      // 'circuits' | 'monitor'
     meter: null,           // raw 1411 for the Monitoring sub-view
     auto: false,
@@ -161,6 +162,7 @@ document.addEventListener('alpine:init', () => {
         start: at(a) || '00:00',
         end: at(b) || '00:00',
       });
+      this.editMsg = null;
       this.edit = { id: c.id, name: c.name, windows: [win(0, 1), win(2, 3)] };
     },
 
@@ -168,7 +170,7 @@ document.addEventListener('alpine:init', () => {
 
     async saveSchedule() {
       if (this.saving) return;
-      this.saving = true;
+      this.saving = true; this.editMsg = null;
       try {
         const r = await fetch(`api/circuits/${this.edit.id}/schedule` + this.$store.app.gwQuery(), {
           method: 'PUT',
@@ -177,13 +179,16 @@ document.addEventListener('alpine:init', () => {
         });
         const out = await r.json();
         if (!r.ok) throw new Error(out.detail || r.statusText);
-        this.$store.app.toast(
-          out.confirmed ? 'Schedule saved' : 'Write sent but read-back did not confirm',
-          out.confirmed ? 'success' : 'warning');
-        this.closeEditor();
+        // Confirmed: close, then say so. Not confirmed: stay open and say so (#293).
+        if (out.confirmed) {
+          this.closeEditor();
+          this.$store.app.toast('Schedule saved', 'success');
+        } else {
+          this.editMsg = { kind: 'warn', text: 'Write sent but read-back did not confirm' };
+        }
         await this.load();
       } catch (e) {
-        this.$store.app.toast(`Save failed: ${e.message}`, 'error');
+        this.editMsg = { kind: 'danger', text: `Save failed: ${e.message}` };
       } finally { this.saving = false; }
     },
 

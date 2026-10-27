@@ -45,6 +45,7 @@ function settingsTab() {
       loaded: false, master: false, busy: false,
       instances: [], devices: [],
       addDev: null, addDevMsg: null,   // {kind: danger|warn|ok, text}: shown in the dialog
+      instMsg: null,                   // the add-instance panel's result (#293)
       targets: null, discovered: [], pickerOpen: false, pickerSearch: '',
       addInst: null,
       bc: null,
@@ -1259,14 +1260,16 @@ function settingsTab() {
       if (r.ok) { this.notif.addDev = null; await this.loadNotify(); Alpine.store('app').toast(editing ? 'Device updated' : 'Device added', 'success'); }
       else { const j = await r.json().catch(() => ({})); this.addDevSay('danger', 'Not saved: ' + (j.detail || 'HTTP ' + r.status)); }
     },
-    openAddInstance() { this.notif.addInst = { name: '', base_url: '', token: '', is_default: this.notif.instances.length === 0 }; },
+    openAddInstance() { this.notif.instMsg = null; this.notif.addInst = { name: '', base_url: '', token: '', is_default: this.notif.instances.length === 0 }; },
     async saveInstance() {
       const f = this.notif.addInst;
-      if (!f.name || !f.base_url) { Alpine.store('app').toast('Name and URL are required', 'warning'); return; }
+      // Results show in the panel, not a toast behind it (#293).
+      this.notif.instMsg = null;
+      if (!f.name || !f.base_url) { this.notif.instMsg = { kind: 'warn', text: 'Name and URL are required' }; return; }
       const r = await fetch('api/ha/instances', { method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
       if (r.ok) { this.notif.addInst = null; await this.loadNotify(); Alpine.store('app').toast('Instance added', 'success'); }
-      else { const j = await r.json().catch(() => ({})); Alpine.store('app').toast('Failed: ' + (j.detail || r.status), 'error'); }
+      else { const j = await r.json().catch(() => ({})); this.notif.instMsg = { kind: 'danger', text: 'Failed: ' + (j.detail || r.status) }; }
     },
     async deleteInstance(inst) {
       if (!await this.$store.app.confirmDialog(
@@ -1275,16 +1278,19 @@ function settingsTab() {
       await fetch('api/ha/instances/' + inst.id, { method: 'DELETE' });
       await this.loadNotify();
     },
-    openBroadcast() { this.notif.bc = { title: 'FranklinWH', message: '', sending: false }; },
+    openBroadcast() { this.notif.bc = { title: 'FranklinWH', message: '', sending: false, msg: null }; },
     async sendBroadcast() {
-      const b = this.notif.bc; if (!b.message) { Alpine.store('app').toast('Enter a message', 'warning'); return; }
+      // Results show inside the dialog (#293); a toast only once it has closed.
+      const b = this.notif.bc; b.msg = null;
+      if (!b.message) { b.msg = { kind: 'warn', text: 'Enter a message' }; return; }
       b.sending = true;
       try {
         const r = await fetch('api/ha/notify-devices/broadcast', { method: 'POST',
           headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: b.title, message: b.message }) });
         const j = await r.json();
-        if (r.ok) { Alpine.store('app').toast('Broadcast sent to ' + j.sent + ' of ' + j.total + ' device(s)', j.sent ? 'success' : 'warning'); this.notif.bc = null; }
-        else { Alpine.store('app').toast('Failed: ' + (j.detail || r.status), 'error'); }
+        if (r.ok && j.sent) { this.notif.bc = null; Alpine.store('app').toast('Broadcast sent to ' + j.sent + ' of ' + j.total + ' device(s)', 'success'); }
+        else if (r.ok) { b.msg = { kind: 'warn', text: 'Sent to 0 of ' + j.total + ' device(s)' }; }
+        else { b.msg = { kind: 'danger', text: 'Failed: ' + (j.detail || r.status) }; }
       } finally { if (this.notif.bc) b.sending = false; }
     },
   };

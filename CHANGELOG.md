@@ -11,6 +11,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Fixed
+- **Dialogs show their results inside, not in a toast behind them** (#293). Errors,
+  missing fields and test failures now stay in the dialog until your next action:
+  the schedule form and its Test buttons, schedule Import, the grid limits write,
+  Energy Costs import, smart-circuit and generator schedules, the Home Assistant
+  instance forms, Broadcast, acknowledging alerts and the history date range. A
+  "Saved" message appears only after the dialog closes. When a write is sent but the
+  read-back does not confirm it (smart circuits, generator), the dialog now stays open
+  and says so instead of closing.
+
 ### Changed
 - **The schedule form can be made bigger** (#337). **Default**, **Medium** and **Full**
   size it, and its corner drags to any size in between; the browser remembers the size.

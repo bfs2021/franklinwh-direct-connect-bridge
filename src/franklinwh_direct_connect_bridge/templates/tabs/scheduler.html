@@ -1,3 +1,4 @@
+{% from "partials/dialog_msg.html" import dialog_msg %}
 <div x-data="schedulerTab" class="space-y-4">
 
   <div class="flex flex-wrap items-start justify-between gap-3">
@@ -374,6 +375,7 @@
           </div>
         </template>
       </div>
+      {{ dialog_msg('importMsg') }}
       <div class="flex justify-end gap-2">
         <button class="btn btn-secondary btn-sm" @click="importReport = null">Cancel</button>
         <button class="btn btn-primary btn-sm"
@@ -991,6 +993,7 @@
       </div>
       </div><!-- /scroll body -->
 
+      <div x-show="formMsg" x-cloak class="shrink-0 px-5 pt-3">{{ dialog_msg('formMsg') }}</div>
       <div class="shrink-0 px-5 py-3 border-t flex items-center gap-3" style="border-color:var(--border)">
         <label class="flex items-center gap-2 text-sm" style="color:var(--text-primary)">
           <input type="checkbox" x-model="form.enabled"> Enabled</label>

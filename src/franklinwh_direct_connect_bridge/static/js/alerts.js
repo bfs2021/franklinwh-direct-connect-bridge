@@ -18,6 +18,7 @@ document.addEventListener('alpine:init', () => {
     list: [],            // GET /api/alerts?open=1, newest first
     understood: {},      // alert id -> "I understand" ticked (per alert)
     listOpen: false,     // the badge's panel
+    ackMsg: null,        // an acknowledge that failed, shown in the dialog (#293)
     busy: false,
     _sig: '',
     _timer: null,
@@ -71,7 +72,7 @@ document.addEventListener('alpine:init', () => {
     async ackOne(id) { await this._ack([id]); },
 
     async _ack(ids) {
-      this.busy = true;
+      this.busy = true; this.ackMsg = null;
       try {
         for (const id of ids) {
           const r = await fetch(`api/alerts/${id}/ack`, {
@@ -80,7 +81,7 @@ document.addEventListener('alpine:init', () => {
           });
           if (!r.ok) {
             const d = await r.json().catch(() => ({}));
-            Alpine.store('app').toast(`Could not acknowledge alert ${id}: ${d.detail || r.statusText}`, 'error');
+            this.ackMsg = { kind: 'danger', text: `Could not acknowledge alert ${id}: ${d.detail || r.statusText}` };
           }
           delete this.understood[id];
         }
