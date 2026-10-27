@@ -19,7 +19,9 @@ function gridTab() {
       try {
         this.grid = await (await fetch('api/grid' + this.$store.app.gwQuery('?'))).json();
       } catch (e) {
-        this.$store.app.toast('Grid load failed: ' + e.message, 'error');
+        // Inside the modal while it is open (a write re-reads the grid), else a toast (#293).
+        if (this.modal) this.modalMsg = { kind: 'danger', text: 'Grid load failed: ' + e.message };
+        else this.$store.app.toast('Grid load failed: ' + e.message, 'error');
       } finally { this.loading = false; }
     },
 
@@ -38,6 +40,7 @@ function gridTab() {
     },
     // ── PCS write modal (1701 grid import/export limits) — UNVERIFIED write path ──
     modal: false,
+    modalMsg: null,          // results shown inside the modal (#293)
     busy: false,
     preview: null,   // dry-run frame result
     result: null,    // write result: {ok, before, after, mismatched, cloud, ...}
@@ -53,7 +56,7 @@ function gridTab() {
         exp: 'keep', expKw: (gl.grid_hard_limit > 0 ? gl.grid_hard_limit / 1000 : 3),
         pcs: 'keep',
       };
-      this.preview = null; this.result = null; this.modal = true;
+      this.preview = null; this.result = null; this.modalMsg = null; this.modal = true;
     },
     _payload() {
       const p = {}, f = this.f, w = (kw) => Math.round(Number(kw) * 1000);   // inputs kW, 1701 W
@@ -82,9 +85,9 @@ function gridTab() {
     async doPreview() {
       const p = this._payload();
       if (!Object.keys(p).length) return;
-      this.busy = true; this.result = null;
+      this.busy = true; this.result = null; this.modalMsg = null;
       try { this.preview = await this._post({ ...p, dry_run: true }); }
-      catch (e) { this.$store.app.toast('Preview failed: ' + e.message, 'error'); }
+      catch (e) { this.modalMsg = { kind: 'danger', text: 'Preview failed: ' + e.message }; }
       finally { this.busy = false; }
     },
     async doWrite() {
@@ -94,11 +97,11 @@ function gridTab() {
         'Write to cmdType 1701. With Debug Mode on it has been stored (V12R02B60D00, one test); with it off, earlier firmware ignored it. Enforcement is not yet tested, and the enable fields can STOP grid export/discharge. A read-back re-reads 1701 to show what actually changed.\n\nProceed?',
         { title: 'Write grid limits?', danger: true });
       if (!ok) return;
-      this.busy = true; this.preview = null;
+      this.busy = true; this.preview = null; this.modalMsg = null;
       try {
         this.result = await this._post({ ...p, confirm: true });
         await this.load();
-      } catch (e) { this.$store.app.toast('Write failed: ' + e.message, 'error'); }
+      } catch (e) { this.modalMsg = { kind: 'danger', text: 'Write failed: ' + e.message }; }
       finally { this.busy = false; }
     },
     async restore() {
@@ -113,9 +116,9 @@ function gridTab() {
       const ok = await this.$store.app.confirmDialog('Restore the previous grid-limit values?',
         { title: 'Restore previous?', danger: false });
       if (!ok) return;
-      this.busy = true;
+      this.busy = true; this.modalMsg = null;
       try { this.result = await this._post({ ...p, confirm: true, cloud_crosscheck: false }); await this.load(); }
-      catch (e) { this.$store.app.toast('Restore failed: ' + e.message, 'error'); }
+      catch (e) { this.modalMsg = { kind: 'danger', text: 'Restore failed: ' + e.message }; }
       finally { this.busy = false; }
     },
     // Pretty label for a limit value in the verify table.

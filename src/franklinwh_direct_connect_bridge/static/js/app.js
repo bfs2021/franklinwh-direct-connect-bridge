@@ -682,6 +682,7 @@ document.addEventListener('alpine:init', () => {
     histExpanded: false,
     histLoading: false,
     histCustomOpen: false,          // custom "Range…" picker (matches the Modbus Bridge)
+    histCustomMsg: null,            // its validation message, shown inside it (#293)
     histCustomStart: '',
     histCustomEnd: '',
     _chart: null,
@@ -719,6 +720,7 @@ document.addEventListener('alpine:init', () => {
         this.histCustomStart = this._dtLocal(new Date(now.getTime() - 86400000));
         this.histCustomEnd = this._dtLocal(now);
       }
+      this.histCustomMsg = null;
       this.histCustomOpen = true;
     },
 
@@ -727,7 +729,9 @@ document.addEventListener('alpine:init', () => {
       if (!this.histCustomStart || !this.histCustomEnd) return;
       const start = Math.floor(new Date(this.histCustomStart).getTime() / 1000);
       const end = Math.floor(new Date(this.histCustomEnd).getTime() / 1000);
-      if (!(end > start)) { this.toast('End must be after start', 'error'); return; }
+      // Shown in the popover, which stays open to fix it (#293).
+      if (!(end > start)) { this.histCustomMsg = { kind: 'danger', text: 'End must be after start' }; return; }
+      this.histCustomMsg = null;
       this.histRange = 'custom';
       this.histCustomOpen = false;
       this.histLoading = true;
@@ -1063,7 +1067,8 @@ document.addEventListener('alpine:init', () => {
       if (wasOffline) {
         this._clearRetry();
         this._resumePoll();
-        this.toast('Reconnected to the bridge', 'success');
+        // The connection details panel shows the state itself; no toast behind it (#293).
+        if (!this.conn.detailsOpen) this.toast('Reconnected to the bridge', 'success');
       }
     },
 

@@ -15,6 +15,7 @@ document.addEventListener('alpine:init', () => {
     loading: false,
     error: '',
     busy: false,
+    formMsg: null,   // the instance dialog's result, shown inside it (#293)
 
     // copy-paste dashboard card
     dashLayout: 'grouped', dashDiagnostics: false, dashYaml: '', dashFound: 0,
@@ -135,11 +136,11 @@ document.addEventListener('alpine:init', () => {
     },
 
     newInstance() {
-      this.testResult = null;
+      this.testResult = null; this.formMsg = null;
       this.form = { id: '', name: '', base_url: '', token: '', is_default: !this.instances.length, enabled: true };
     },
     editInstance(i) {
-      this.testResult = null;
+      this.testResult = null; this.formMsg = null;
       // Token intentionally blank: it is never sent to the client. Leaving it blank
       // on save keeps the stored one.
       this.form = { id: i.id, name: i.name, base_url: i.base_url, token: '',
@@ -162,7 +163,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     async saveInstance() {
-      this.busy = true;
+      this.busy = true; this.formMsg = null;
       try {
         const body = { name: this.form.name, base_url: this.form.base_url,
                        is_default: this.form.is_default, enabled: this.form.enabled };
@@ -175,11 +176,12 @@ document.addEventListener('alpine:init', () => {
         });
         const out = await r.json();
         if (!r.ok) throw new Error(out.detail || r.statusText);
-        this.$store.app.toast(this.form.id ? 'Instance updated' : 'Instance added', 'success');
+        const said = this.form.id ? 'Instance updated' : 'Instance added';
         this.closeForm();
+        this.$store.app.toast(said, 'success');
         await this.load();
       } catch (e) {
-        this.$store.app.toast(`Save failed: ${e.message}`, 'error');
+        this.formMsg = { kind: 'danger', text: `Save failed: ${e.message}` };
       } finally { this.busy = false; }
     },
 

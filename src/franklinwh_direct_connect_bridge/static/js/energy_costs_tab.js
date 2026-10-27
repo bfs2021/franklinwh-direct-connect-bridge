@@ -10,7 +10,7 @@ function energyCostsTab() {
     loading: false,
     closing: false,
     expanded: {},
-    modbusImport: { open: false, url: 'http://host.docker.internal:8100', user: 'admin', pass: 'admin', busy: false, preview: null },
+    modbusImport: { open: false, url: 'http://host.docker.internal:8100', user: 'admin', pass: 'admin', busy: false, preview: null, msg: null },
 
     init() {
       // Loads on first SHOW, not on page load — see lazyTab().
@@ -63,24 +63,24 @@ function energyCostsTab() {
     exportCsv() { window.location = 'api/billing/history?fmt=csv' + this.$store.app.gwQuery('&'); },
 
     // One-click import of closed periods from a Modbus bridge (login → fetch → map → store).
-    openModbusImport() { this.modbusImport.open = true; this.modbusImport.preview = null; },
+    openModbusImport() { this.modbusImport.open = true; this.modbusImport.preview = null; this.modbusImport.msg = null; },
     async doModbusFetch(dry) {
       const m = this.modbusImport;
-      m.busy = true;
+      m.busy = true; m.msg = null;      // results show inside the dialog (#293)
       try {
         const r = await (await fetch('api/billing/import-modbus' + this.$store.app.gwQuery('?'), {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ source_url: m.url, username: m.user, password: m.pass, dry_run: dry }),
         })).json();
-        if (!r.ok) { this.$store.app.toast(r.reason || 'Import failed', 'error'); return; }
+        if (!r.ok) { m.msg = { kind: 'danger', text: r.reason || 'Import failed' }; return; }
         if (dry) {
           m.preview = r;
         } else {
-          this.$store.app.toast(`Imported ${r.imported} period(s)` + (r.skipped ? `, skipped ${r.skipped}` : ''), 'success');
           m.open = false;
+          this.$store.app.toast(`Imported ${r.imported} period(s)` + (r.skipped ? `, skipped ${r.skipped}` : ''), 'success');
           await this.load();
         }
-      } catch (e) { this.$store.app.toast('Import failed: ' + e.message, 'error'); }
+      } catch (e) { m.msg = { kind: 'danger', text: 'Import failed: ' + e.message }; }
       finally { m.busy = false; }
     },
 

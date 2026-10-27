@@ -11,6 +11,7 @@ document.addEventListener('alpine:init', () => {
     schedules: [], actions: {}, unavailable: {}, force_available: false, force_reason: '',
     sensors: [], ops: [], gateways: [],
     haNames: {},   // exposed HA entity_id -> friendly name (condition-label enrichment)
+    importMsg: null, formMsg: null,              // results shown inside their dialog (#293)
     explainId: null,                           // per-schedule plain-language explanation
     // The last level chosen, per browser (#336); Medium when storage is unavailable.
     explainLevel: (() => {
@@ -227,10 +228,12 @@ document.addEventListener('alpine:init', () => {
           this.importReport = null;
           return;
         }
+        this.importMsg = null;
         this.importReport = data;
       } catch (e) { this.$store.app.toast(`Import failed to read: ${e.message}`, 'error'); }
     },
     async confirmImport() {
+      this.importMsg = null;
       try {
         const r = await fetch('api/schedules/import?dry_run=false', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -238,11 +241,11 @@ document.addEventListener('alpine:init', () => {
         });
         const out = await r.json();
         if (!r.ok) throw new Error(out.detail || r.statusText);
+        this.importReport = null;         // close first: a toast is for after the dialog (#293)
         this.$store.app.toast(
           `Imported ${(out.created || []).length} (disabled for review)`, 'success');
-        this.importReport = null;
         await this.load();
-      } catch (e) { this.$store.app.toast(`Import failed: ${e.message}`, 'error'); }
+      } catch (e) { this.importMsg = { kind: 'danger', text: `Import failed: ${e.message}` }; }
     },
 
     blank() {
@@ -254,11 +257,13 @@ document.addEventListener('alpine:init', () => {
                trigger_type: 'daily', windows: [], interval_min: 30, anchor: '', cron: '0 3 * * *' };
     },
     newEntry() {
+      this.formMsg = null;
       this.testResult = null; this.traceByCid = {}; this.advRepeat = false;
       this.form = this.blank();
       this._formBaseline = JSON.stringify(this.form);
     },
     editEntry(s) {
+      this.formMsg = null;
       this.testResult = null;
       this.form = {
         id: s.id, name: s.name, enabled: s.enabled,
@@ -573,10 +578,10 @@ document.addEventListener('alpine:init', () => {
         });
         const out = await r.json();
         if (!r.ok) throw new Error(out.detail || r.statusText);
-        this.$store.app.toast('Schedule saved', 'success');
         this.closeForm(true);     // saved — there is nothing left to lose
+        this.$store.app.toast('Schedule saved', 'success');
         await this.load();
-      } catch (e) { this.$store.app.toast(`Save failed: ${e.message}`, 'error'); }
+      } catch (e) { this.formMsg = { kind: 'danger', text: `Save failed: ${e.message}` }; }
       finally { this.busy = false; }
     },
 
@@ -930,7 +935,7 @@ document.addEventListener('alpine:init', () => {
         for (const row of out.per_condition || []) if (row.cid != null) by[row.cid] = row;
         this.traceByCid = by;                          // shared: exit cids are distinct from entry
         this.exitTestResult = { result: out.result };
-      } catch (e) { this.$store.app.toast(`Test failed: ${e.message}`, 'error'); }
+      } catch (e) { this.formMsg = { kind: 'danger', text: `Test failed: ${e.message}` }; }
       finally { this.busy = false; }
     },
     async testVerify() {
@@ -949,7 +954,7 @@ document.addEventListener('alpine:init', () => {
         for (const row of out.per_condition || []) if (row.cid != null) by[row.cid] = row;
         this.traceByCid = by;
         this.testResult = { result: out.result };
-      } catch (e) { this.$store.app.toast(`Test failed: ${e.message}`, 'error'); }
+      } catch (e) { this.formMsg = { kind: 'danger', text: `Test failed: ${e.message}` }; }
       finally { this.busy = false; }
     },
 

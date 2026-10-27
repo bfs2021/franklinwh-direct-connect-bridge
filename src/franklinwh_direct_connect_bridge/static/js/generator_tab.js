@@ -7,6 +7,7 @@
 document.addEventListener('alpine:init', () => {
   Alpine.data('generatorTab', () => ({
     data: null, raw: null, loading: false, error: '', busy: false, showRaw: false,
+    editMsg: null,   // the open editor's result, shown inside it (#293)
 
     init() {
       this.$watch('$store.app.activeTab', (t) => { if (t === 'generator' && !this.data) this.load(); });
@@ -41,16 +42,19 @@ document.addEventListener('alpine:init', () => {
     editSoc: null,
 
     openWindow(w) {
+      this.editMsg = null;
       this.editWin = { index: w.index, enabled: w.enabled,
                        start: w.start || '00:00', end: w.end || '00:00' };
     },
     openExercise() {
       const m = this.data.maintenance;
+      this.editMsg = null;
       this.editEx = { enabled: m.enabled, every_days: m.every_days ?? 7,
                       day: m.day ?? 0, start: m.start || '00:00',
                       minutes: m.run_minutes ?? 5 };
     },
     openSoc() {
+      this.editMsg = null;
       this.editSoc = { start_below: this.data.soc_start_pct ?? 20,
                        stop_above: this.data.soc_stop_pct ?? 80 };
     },
@@ -59,7 +63,7 @@ document.addEventListener('alpine:init', () => {
     /** All three writes share one verdict shape: ok only when the re-read agrees. */
     async save(url, body) {
       if (this.busy) return;
-      this.busy = true;
+      this.busy = true; this.editMsg = null;
       try {
         const r = await fetch(url + this.$store.app.gwQuery(), {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -67,13 +71,16 @@ document.addEventListener('alpine:init', () => {
         });
         const out = await r.json();
         if (!r.ok) throw new Error(out.detail || r.statusText);
-        if (out.ok) this.$store.app.toast('Saved', 'success');
-        else this.$store.app.toast(
-          'Device accepted the write but the read-back disagreed', 'warning');
-        this.closeEdit();
+        // Agreed: close, then say so. Disagreed: stay open and say so (#293).
+        if (out.ok) {
+          this.closeEdit();
+          this.$store.app.toast('Saved', 'success');
+        } else {
+          this.editMsg = { kind: 'warn', text: 'Device accepted the write but the read-back disagreed' };
+        }
         await this.load();
       } catch (e) {
-        this.$store.app.toast(`Save failed: ${e.message}`, 'error');
+        this.editMsg = { kind: 'danger', text: `Save failed: ${e.message}` };
       } finally { this.busy = false; }
     },
 
@@ -86,7 +93,7 @@ document.addEventListener('alpine:init', () => {
     saveSoc() {
       const s = this.editSoc;
       if (s.stop_above <= s.start_below) {
-        this.$store.app.toast('Stop SoC must be above start SoC', 'error');
+        this.editMsg = { kind: 'danger', text: 'Stop SoC must be above start SoC' };
         return;
       }
       return this.save('api/generator/soc', s);
