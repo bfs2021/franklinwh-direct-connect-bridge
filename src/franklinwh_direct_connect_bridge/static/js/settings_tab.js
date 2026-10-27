@@ -7,7 +7,7 @@
  */
 function settingsTab() {
   return {
-    support: null, supportText: '', supportBusy: false, supportCopied: false,
+    support: null, supportText: '', supportBusy: false, supportCopied: '',
     apowerSpecs: [], apowerModel: '', apowerCount: 1,
     haPriceOpts: [],   // {id:'ha:<inst>:<eid>', label:friendly, group:instance}
     cfg: { connection: {}, mqtt: {}, control: {}, notifications: {},
@@ -67,7 +67,7 @@ function settingsTab() {
       this.toast && this.toast(`Capacity set to ${this.constants.battery_capacity_kwh} kWh (${this.apowerModel} × ${this.apowerCount})`, 'info');
     },
     async loadSupportInfo() {
-      this.supportBusy = true; this.supportCopied = false;
+      this.supportBusy = true; this.supportCopied = '';
       try {
         this.support = await (await fetch('api/support-info')).json();
         this.supportText = this._fmtSupport(this.support);
@@ -105,8 +105,10 @@ function settingsTab() {
     },
     async copySupport() {
       if (!this.supportText) await this.loadSupportInfo();
-      try { await navigator.clipboard.writeText(this.supportText); this.supportCopied = true; setTimeout(()=>this.supportCopied=false, 2000); }
-      catch (e) { this.toast && this.toast('Copy failed — select the text manually', 'error'); }
+      // The result shows next to the button (#327): 'Copied', or why it could not.
+      this.supportCopied = await Alpine.store('app').copyText(this.supportText)
+        ? 'Copied' : 'Copying is blocked here — select the text below and press Ctrl/Cmd+C';
+      if (this.supportCopied === 'Copied') setTimeout(() => this.supportCopied = '', 2000);
     },
     _dl(name, text, type) {
       try {

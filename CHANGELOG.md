@@ -11,11 +11,6 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
-### Fixed
-- **Settings → Integrations: turning a Home Assistant instance off or on no longer
-  reports an error** (#170). The change was applied, but the page then called a function
-  that does not exist and showed "Could not change it".
-
 ### Changed
 - **The schedule form can be made bigger** (#337). **Default**, **Medium** and **Full**
   size it, and its corner drags to any size in between; the browser remembers the size.
@@ -26,6 +21,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   last chose it in that browser.
 
 ### Fixed
+- **Copy works over http** (#327). Settings → Support info **Copy** did nothing when the
+  bridge was opened over plain http, which is common through Home Assistant. It now
+  copies there too. If the browser blocks copying, it says so next to the button. The
+  Device console's **Copy both** no longer says "Copied" when nothing was copied.
+
+- **Settings → Integrations: turning a Home Assistant instance off or on no longer
+  reports an error** (#170). The change was applied, but the page then called a function
+  that does not exist and showed "Could not change it".
+
 - **Scheduler Explain says when a Home Assistant action runs** (#335). An action set to
   run on exit was listed as if it ran when the schedule fired. It now reads "… when it
   ends", or "… when it starts and when it ends" for entry & exit, the same wording as the
