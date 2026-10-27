@@ -1962,6 +1962,25 @@ document.addEventListener('alpine:init', () => {
       URL.revokeObjectURL(url);
     },
 
+    // ── Copy to the clipboard ──────────────────────────────
+    //: True when the text reached the clipboard. HA ingress is often plain http, where
+    //  navigator.clipboard does not exist (#327), so fall back to execCommand on a
+    //  temporary text box, the same path as ha_tab.js copyDash() and terminal.js copyAll().
+    async copyText(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text); return true;
+        }
+      } catch (e) { /* fall through to the selection path */ }
+      const box = document.createElement('textarea');
+      box.value = text; box.setAttribute('readonly', '');
+      box.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(box);
+      try { box.select(); return document.execCommand('copy'); }
+      catch (e) { return false; }
+      finally { box.remove(); }
+    },
+
     // ── Toasts ─────────────────────────────────────────────
     toast(message, level = 'info') {
       const id = ++this._toastId;
