@@ -11,6 +11,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Fixed
+- **The version and build show on a phone** (#326). They were only in the sidebar
+  footer, which is hidden on a narrow screen. The **More** sheet now shows them.
+
 ### Changed
 - **The schedule form can be made bigger** (#337). **Default**, **Medium** and **Full**
   size it, and its corner drags to any size in between; the browser remembers the size.
