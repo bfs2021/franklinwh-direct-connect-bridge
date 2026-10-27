@@ -1227,7 +1227,7 @@ function settingsTab() {
           body: JSON.stringify({ enabled: !inst.enabled }),
         });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        await this.loadNotif();
+        await this.loadNotify();
         Alpine.store('app').toast(
           `${inst.name} ${inst.enabled ? 'disabled — its devices are suppressed' : 'enabled'}`,
           'success');
