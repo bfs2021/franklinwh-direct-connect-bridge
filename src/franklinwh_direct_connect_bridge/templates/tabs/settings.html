@@ -1387,11 +1387,12 @@
       </div>
       <div class="flex items-center gap-2 flex-wrap">
         <button class="btn btn-secondary btn-sm" @click="loadSupportInfo()" :disabled="supportBusy">Refresh</button>
-        <button class="btn btn-secondary btn-sm" @click="copySupport()" x-text="supportCopied ? 'Copied' : 'Copy'"></button>
+        <button class="btn btn-secondary btn-sm" @click="copySupport()" x-text="supportCopied === 'Copied' ? 'Copied' : 'Copy'"></button>
         <button class="btn btn-secondary btn-sm" @click="downloadSupportJson()">JSON</button>
         <button class="btn btn-secondary btn-sm" @click="downloadSupportCsv()">CSV</button>
       </div>
     </div>
+    <div x-show="supportCopied && supportCopied !== 'Copied'" x-cloak class="text-xs" style="color:var(--warn)" x-text="supportCopied"></div>
     <pre class="text-[11px] font-mono overflow-x-auto rounded-lg p-3" style="background:var(--surface-2);color:var(--text-secondary);max-height:22rem;white-space:pre-wrap" x-text="supportText || 'Loading…'"></pre>
   </div>
 

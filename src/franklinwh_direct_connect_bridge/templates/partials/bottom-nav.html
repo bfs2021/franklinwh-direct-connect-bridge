@@ -76,6 +76,10 @@
     <!-- Back is its own row, pinned to the RIGHT column so it sits directly under the
          More button that opened the sheet — the thumb returns to where it started. -->
     <div class="grid grid-cols-3 gap-2 mt-2">
+      <!-- Version and build (#326): the sidebar footer that shows them is hidden here. -->
+      <div class="col-span-2 self-center px-1 text-[11px] font-mono truncate" style="color:var(--text-faint)"
+           x-text="'v' + $store.app.version + ($store.app.buildAsset ? ' · ' + $store.app.buildAsset : '')"
+           title="Running build — changes on every deploy; if it doesn't change after a reload, you're on a cached page"></div>
       <button @click="$store.app.moreOpen = false"
               class="col-start-3 flex items-center justify-center gap-2 text-center px-2 py-3 rounded-lg text-sm min-h-[48px] transition border"
               style="color:var(--text-secondary);background:var(--surface-1);border-color:var(--border)">
