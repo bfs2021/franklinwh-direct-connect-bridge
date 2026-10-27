@@ -129,7 +129,7 @@
                 <template x-for="lv in ['min','medium','full']" :key="lv">
                   <button class="btn btn-sm" :class="explainLevel === lv ? 'btn-primary' : 'btn-secondary'"
                           style="padding:2px 10px;font-size:.7rem;text-transform:capitalize"
-                          @click="explainLevel = lv" x-text="lv"></button>
+                          @click="setExplainLevel(lv)" x-text="lv"></button>
                 </template>
               </div>
               <div class="text-xs font-mono" style="white-space:pre-line;color:var(--text-secondary);line-height:1.5"

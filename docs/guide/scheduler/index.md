@@ -106,7 +106,7 @@ HA actions; and the last result with its occurrence.
 |---|---|
 | **N active now** | Counts the cards showing **● active**. |
 | **All / Enabled / Disabled** | Filters the cards. A note says how many are hidden. |
-| **Explain** | A plain-language summary of the schedule, at three levels: **min**, **medium** and **full**. |
+| **Explain** | A plain-language summary of the schedule, at three levels: **min**, **medium** and **full**. A Home Assistant action that runs on exit reads "… when it ends". The browser remembers the level you last chose. |
 | **Edit** | Opens the form. If the schedule is **● active**, saving asks first. |
 | **Turn on** / **Turn off** | Enables or disables the schedule. |
 | **Stop** | Shown while **● active**. Releases the force this schedule started; the schedule stays enabled. See [Run now and Stop](outcomes.md#run-now-and-stop). |
