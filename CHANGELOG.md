@@ -11,6 +11,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Fixed
+- **Settings → Integrations: turning a Home Assistant instance off or on no longer
+  reports an error** (#170). The change was applied, but the page then called a function
+  that does not exist and showed "Could not change it".
+
 ### Changed
 - **The schedule form can be made bigger** (#337). **Default**, **Medium** and **Full**
   size it, and its corner drags to any size in between; the browser remembers the size.
