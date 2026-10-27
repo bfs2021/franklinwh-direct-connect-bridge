@@ -390,10 +390,19 @@
        and no undo. Cancel and Escape ask first when anything has changed. -->
   <div class="fixed inset-0 z-50 flex items-start justify-center p-2 sm:p-4 overflow-y-auto"
        style="background:rgba(0,0,0,.6)" @keydown.escape.window="closeForm()">
-    <div class="card w-full max-w-xl p-0 my-2 sm:my-8 flex flex-col" style="max-height:90dvh">
-      <div class="px-5 pt-4 pb-3 shrink-0 border-b" style="border-color:var(--border)">
+    <div x-data="dialogSize('fwh-dlg-schedule-edit')"
+         class="card w-full p-0 my-2 sm:my-8 flex flex-col" style="max-height:90dvh">
+      <div class="px-5 pt-4 pb-3 shrink-0 border-b flex items-center justify-between gap-2" style="border-color:var(--border)">
         <h3 class="text-lg font-semibold" style="color:var(--text-primary)"
             x-text="form.id ? 'Edit schedule' : 'Add schedule'"></h3>
+        <!-- Size (#337): snap to Default / Medium / Full; the corner drags in between. -->
+        <div class="flex items-center gap-1" role="group" aria-label="Dialog size">
+          <template x-for="sz in [['default','Default'],['medium','Medium'],['full','Full']]" :key="sz[0]">
+            <button type="button" class="btn btn-sm" :class="size === sz[0] ? 'btn-primary' : 'btn-secondary'"
+                    style="padding:2px 8px;font-size:.68rem" :aria-pressed="size === sz[0]"
+                    @click="setSize(sz[0])" x-text="sz[1]"></button>
+          </template>
+        </div>
       </div>
       <div class="flex-1 overflow-y-auto px-5 py-4 space-y-3" style="min-height:0">
       <label class="block text-xs" style="color:var(--text-secondary)">Name
@@ -867,9 +876,10 @@
             <div x-show="ha.ha_kind!=='service'" class="space-y-2">
               <input class="form-control form-control-sm w-full" placeholder="Title (optional)"
                      x-model="ha.title">
-              <input class="form-control form-control-sm w-full"
-                     placeholder="Message — e.g. SoC is %battery.soc_pct%%, mode %mode.name%"
-                     x-model="ha.message">
+              <textarea class="form-control form-control-sm w-full" rows="1" style="resize:vertical"
+                        placeholder="Message — e.g. SoC is %battery.soc_pct%%, mode %mode.name%"
+                        x-model="ha.message"
+                        x-init="$nextTick(() => fitTextarea($el))" @input="fitTextarea($el)"></textarea>
             </div>
             <!-- service GUIDED: domain-aware control widget -->
             <div x-show="ha.ha_kind==='service' && !ha.raw" class="space-y-2">

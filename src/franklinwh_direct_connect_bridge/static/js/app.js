@@ -1986,4 +1986,42 @@ document.addEventListener('alpine:init', () => {
     },
   });
 
+  // x-data="dialogSize('<key>')" on a dialog panel: Default / Medium / Full snap it to a
+  // size, and its corner drags to any size in between (#337). The choice is remembered per
+  // browser; a drag lasts until the next snap. Same sizes as the Modbus Bridge.
+  const DIALOG_SIZES = {
+    default: { width: '36rem', height: '' },
+    medium: { width: '64rem', height: '80dvh' },
+    full: { width: 'calc(100vw - 2rem)', height: 'calc(100dvh - 2rem)' },
+  };
+  Alpine.data('dialogSize', (key) => {
+    // The element stays out of the reactive data: Alpine's proxy breaks style writes.
+    let panel = null;
+    return {
+      size: (() => {
+        try { return DIALOG_SIZES[localStorage.getItem(key)] ? localStorage.getItem(key) : 'default'; }
+        catch { return 'default'; }
+      })(),
+      init() { panel = this.$el; this.applySize(); },
+      setSize(s) {
+        this.size = s;
+        try { localStorage.setItem(key, s); } catch { /* private mode */ }
+        this.applySize();
+      },
+      applySize() {
+        Object.assign(panel.style, DIALOG_SIZES[this.size], {
+          // 90dvh as before: on a phone the bottom nav covers anything taller.
+          maxWidth: 'calc(100vw - 1rem)', maxHeight: '90dvh',
+          resize: 'both', overflow: 'hidden',
+        });
+      },
+      // A text box in the dialog grows with what's typed (it can still be dragged).
+      fitTextarea(el) {
+        if (!el.offsetParent) return;    // hidden (x-show): no height to measure yet
+        el.style.height = 'auto';
+        el.style.height = `${el.scrollHeight + 2}px`;
+      },
+    };
+  });
+
 });

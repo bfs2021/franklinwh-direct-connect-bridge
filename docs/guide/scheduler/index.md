@@ -55,6 +55,11 @@ spare, and stops at your minimum discharge SoC.
 
 ![Add schedule: trigger, battery action, priority, If busy, gateway, entry conditions, hold and exit conditions](../../images/scheduler/12-hold-and-conflicts.png)
 
+!!! tip "Make the form bigger"
+    **Default**, **Medium** and **Full** at the top right of the form size it, and its
+    bottom-right corner drags to any size in between. The browser remembers the size you
+    pick. A notification's message box can be dragged taller and grows as you type.
+
 1. On the **Scheduler** tab, press **Add schedule**.
 2. **Name:** `Evening discharge`.
 3. **Trigger type:** **Weekly at time**. Under **Days**, tick **Mon** to **Fri** (none

@@ -11,15 +11,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Changed
+- **The schedule form can be made bigger** (#337). **Default**, **Medium** and **Full**
+  size it, and its corner drags to any size in between; the browser remembers the size.
+  A notification's message is now a box that grows as you type and can hold several
+  lines. Same as the Modbus Bridge.
+
+- **Scheduler Explain remembers its level** (#336). Min, Medium or Full stays as you
+  last chose it in that browser.
+
 ### Fixed
 - **Scheduler Explain says when a Home Assistant action runs** (#335). An action set to
   run on exit was listed as if it ran when the schedule fired. It now reads "… when it
   ends", or "… when it starts and when it ends" for entry & exit, the same wording as the
   Modbus Bridge.
-
-### Changed
-- **Scheduler Explain remembers its level** (#336). Min, Medium or Full stays as you
-  last chose it in that browser.
 
 ## [0.5.17] — 2026-10-27
 
