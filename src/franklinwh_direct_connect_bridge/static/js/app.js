@@ -2010,7 +2010,8 @@ document.addEventListener('alpine:init', () => {
       },
       applySize() {
         Object.assign(panel.style, DIALOG_SIZES[this.size], {
-          maxWidth: 'calc(100vw - 1rem)', maxHeight: 'calc(100dvh - 2rem)',
+          // 90dvh as before: on a phone the bottom nav covers anything taller.
+          maxWidth: 'calc(100vw - 1rem)', maxHeight: '90dvh',
           resize: 'both', overflow: 'hidden',
         });
       },
