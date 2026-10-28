@@ -31,7 +31,8 @@ def test_restart_is_refused_while_a_force_is_active():
     calls = []
     client = TestClient(app_module.create_app())
     _register(calls)
-    battery_control._active.update({"command": "Force Discharge", "started": time.time()})
+    battery_control._active["h"] = {"command": "Force Discharge", "host": "h",
+                                    "started": time.time()}
     try:
         r = _restart(client)
         assert r.status_code == 409

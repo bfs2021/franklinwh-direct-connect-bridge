@@ -113,12 +113,11 @@ The bridge reads nothing back after the send: success is what `send_command` ret
   bridge is the only thing that ends a force (a claim from the code's comment, **unverified**
   here). <!-- @b ACT-15 ;; src: battery_control.py:1-8, battery_control.py:92-110, battery_control.py:532-536 ;; untested ;; write: yes ;; b: The bridge's own watchdog (5 s loop) releases the force; no duration is handed to the library ;; test: unit: arm with duration 10 s and a fake clock; assert _release_now after 10 s -->
 
-!!! warning "One force at a time, for the whole bridge"
-    The Modbus client (this bridge) keeps **one** active dispatch in memory, for all
-    gateways. A second force (another gateway, for example with gateway scope *all*)
-    replaces the first one's watchdog. The first gateway's time limit and target SoC are then
-    no longer enforced; only its window-end release is left. The SoC reader is shared the
-    same way. From a code read; not verified on hardware. Issue #194. <!-- @b ACT-39 ;; src: battery_control.py:20-26, battery_control.py:113-124, battery_control.py:487-491 ;; unclear ;; write: yes ;; b: battery_control holds a single _active dispatch and a global _soc_getter; a second force ends the first watchdog ;; test: unit: two execute() calls for two hosts; assert both watchdogs stay armed (fails today) -->
+- **One force per gateway.** The Modbus client (this bridge) supervises each gateway's force
+  on its own, with its own time limit, target SoC and SoC reader. A force on a second
+  gateway (for example with gateway scope *all*) never ends or changes the first one's, and
+  the watchdog releases only its own gateway (#194). A newer force on the **same** gateway
+  replaces the older one. <!-- @b ACT-39 ;; src: battery_control.py:20-60, battery_control.py:74-170 ;; tested: tests/test_multigw_force.py::test_a_second_gateways_force_keeps_the_first_ones_limits ;; write: yes ;; b: battery_control holds one force per host part, each with its own stop event, SoC reader and event sink (see also test_each_force_keeps_its_own_soc_reader, test_the_watchdog_releases_only_its_own_gateway) -->
 
 **One attempt per tick.** A force, mode, circuit or off-grid write is sent once per tick,
 with no retry or wait inside the tick, so one failing gateway never holds up the others

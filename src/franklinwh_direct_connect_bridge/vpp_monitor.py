@@ -93,7 +93,7 @@ def check(host: str, store, *, boot: bool = False, notify: bool = True,
         return {"vpp": None, "changed": False, "reason": "no local programme reading yet"}
 
     vpp = bool(snap.get("vpp"))
-    ours = battery_control.current().get("active") not in (None, "Not Active")
+    ours = battery_control.current(host).get("active") not in (None, "Not Active")
     # Actual battery power, which is what is HAPPENING — better than the commanded
     # WSet percentage this used to report, which was only what was asked for.
     prev = _last["vpp"]

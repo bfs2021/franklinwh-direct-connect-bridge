@@ -1048,14 +1048,11 @@ def create_app() -> FastAPI:
                             try:
                                 policy = getattr(get_settings(),
                                                  "dispatch_interrupt_policy", "release")
-                                def _rsoc():
-                                    try:
-                                        gw = state.gateways()[0] if state.gateways() else None
-                                        return (getattr(gw, "last_state", {}) or {}).get("soc") if gw else None
-                                    except Exception:  # noqa: BLE001
-                                        return None
-                                reconciled = battery_control.reconcile_interrupted(
-                                    st, h, policy, soc_getter=_rsoc,
+                                # Every host with an open dispatch row, not only this
+                                # loop's: a force on a second gateway is reconciled on
+                                # its own aGate, with that gateway's SoC (#192).
+                                reconciled = battery_control.reconcile_all(
+                                    st, policy,
                                     notify=lambda t, m: vpp_monitor._notify_devices(st, t, m))
                                 for r in reconciled:
                                     log.warning("dispatch reconcile [%s]: %s",
@@ -1253,13 +1250,7 @@ def create_app() -> FastAPI:
             # bridge is the only thing that can release it (hardware timer is cosmetic).
             try:
                 from . import battery_control
-                cur = battery_control.current()
-                if cur.get("active") not in (None, "Not Active"):
-                    host = os.environ.get("FWH_MODBUS_HOST") or (
-                        state.gateways()[0].active_host if state.gateways() else None)
-                    if host:
-                        log.warning("battery force: releasing %s on shutdown", cur["active"])
-                        battery_control.execute("Release", host=host)
+                battery_control.release_held("shutdown")
             except Exception as e:  # noqa: BLE001
                 log.error("battery shutdown release failed: %s", e)
             await supervisor.stop_all()
@@ -3276,11 +3267,12 @@ def create_app() -> FastAPI:
         if entry is None:
             raise HTTPException(status_code=404, detail=f"no schedule '{sid}'")
         from . import battery_control
-        mine = [d for d in st.active_dispatches() if d.get("schedule_id") == sid]
-        host = _modbus_host()
-        if mine and host:
-            out = battery_control.execute("Release", host=host)
+        # Released on the aGate the force was sent to, not the default gateway (#192).
+        mine = [d for d in st.active_dispatches()
+                if d.get("schedule_id") == sid and d.get("host")]
+        if mine:
             for d in mine:
+                out = battery_control.execute("Release", host=d["host"])
                 st.end_dispatch(d["id"], status="stopped")
             st.log_schedule_event(sid, entry["name"], "stopped",
                                   f"dispatch released by user: {out.get('result', '')}")
@@ -3311,12 +3303,10 @@ def create_app() -> FastAPI:
         if occ is None:
             return {"paused": False, "detail": "no run is open for this schedule"}
         from . import battery_control
-        host = _modbus_host()
         released = ""
-        mine = [d for d in st.active_dispatches() if d.get("schedule_id") == sid]
-        if mine and host:
-            released = battery_control.execute("Release", host=host).get("result", "")
-            for d in mine:
+        for d in st.active_dispatches():
+            if d.get("schedule_id") == sid and d.get("host"):       # its own aGate (#192)
+                released = battery_control.execute("Release", host=d["host"]).get("result", "")
                 st.end_dispatch(d["id"], status="paused")
         st.pause_occurrence(occ["id"], reason="paused by user")
         st.log_schedule_event(sid, entry["name"], "paused",
@@ -3568,9 +3558,12 @@ def create_app() -> FastAPI:
         entry = st.schedule(sid)
         if entry is None:
             raise HTTPException(status_code=404, detail=f"no schedule '{sid}'")
-        # A schedule carries its own gateway; the query param only overrides for a
-        # manual run. Falling back to the default when neither is set.
-        target_gw = gateway or entry.get("gateway_id") or None
+        # A schedule bound to a gateway runs there, whatever gateway the UI is showing
+        # (#193). The query names the gateway only for an unbound or scope-"all" one;
+        # with neither, the default gateway.
+        bound = (entry.get("gateway_id") or None
+                 if str(entry.get("gateway_scope") or "one").lower() != "all" else None)
+        target_gw = bound or gateway or None
         gw = (get_gateway(target_gw) or get_state()) if target_gw else get_state()
         snap = scheduler.snapshot_from_state(getattr(gw, "last_state", {}) or {})
         snap.update(scheduler.ha_snapshot(st))
@@ -3646,11 +3639,11 @@ def create_app() -> FastAPI:
         (Battery tab opened, or the user's Check), at most once per 30 s. A force
         re-checks capability itself, so a stale "available" cannot dispatch."""
         from . import battery_control
-        cur = battery_control.current()          # in-memory, no Modbus — cheap to poll
+        host = _modbus_host()
+        cur = battery_control.current(host)      # in-memory, no Modbus — cheap to poll
         _batt_cmd["active"] = cur.get("active", "Not Active")
         now = time.time()
         age = now - _avail_cache["ts"]
-        host = _modbus_host()
         if (_avail_cache["val"] is None or age > _AVAIL_MAX_AGE_S
                 or host != _avail_cache["host"]
                 or (refresh and age > _AVAIL_MIN_GAP_S)):

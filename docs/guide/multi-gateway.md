@@ -135,7 +135,22 @@ The rule is worth stating precisely, because the wrong guess is expensive:
 That last row is the subtle one. An "all"-scope rule claims the resource on *the gateway
 whose tick it is running on*, not the gateway it is nominally bound to. Without that,
 every gateway would contend for a single resource and all but one would be deferred
-against a battery they were never driving.
+against a battery they were never driving. Each gateway also fires an "all"-scope rule once
+per occurrence on its own (#270).
+
+### Battery forces on several gateways
+
+Each gateway's force is supervised on its own: its time limit, target SoC and SoC reading
+never affect another gateway's (#194). **Stop**, **Pause**, the window-end release, a
+graceful shutdown and the start-up reconcile all act on the gateway the force was sent to
+(#192). **Run now** on a schedule bound to a gateway runs there, whatever the top bar shows
+(#193).
+
+Not yet per gateway (part of the multi-gateway audit, #220):
+
+- The **Battery Control** widget on the Control tab and `/api/battery/command` act on the
+  default gateway's host (or `FWH_MODBUS_HOST`).
+- The VPP monitor reads only `FWH_MODBUS_HOST` or the first gateway.
 
 If you import a schedule that names a gateway this bridge does not have, validation
 raises a **warning** (not an error) and the rule falls back to the default gateway, so a

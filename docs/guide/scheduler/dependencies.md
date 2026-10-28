@@ -125,8 +125,6 @@ Start with two tools on the Scheduler tab:
 | History shows *error* | The action failed; the bridge retries while the window is open, waiting 30 s, then doubling up to 10 minutes | If the window closes first, the run is logged as *missed*. |
 | History shows *deferred* | Another schedule won the gateway on the same tick, a higher-priority schedule's force is running, or **If busy** = *defer* and another force is running | Change priorities, or **If busy**. |
 | History shows *waiting* — "battery busy with another dispatch" | **If busy** = *wait* | It retries every tick while the window is open. |
-| Run now acted on the wrong gateway | With several gateways, **Run now** uses the gateway selected in the top bar | Select the schedule's gateway, or **Site**, before Run now. |
-| Stop released the wrong gateway | **Stop** sends the release through the Modbus client (this bridge) to the default gateway's host, not the schedule's gateway (#192) | Release from **Control** on the right gateway. |
 
 ### An entry never fires
 

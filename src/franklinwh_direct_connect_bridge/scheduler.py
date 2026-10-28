@@ -2090,6 +2090,22 @@ def _run_action_body(action: dict, *, settings, client, store, snapshot: dict,
         return f"{kind} failed: {type(e).__name__}: {e}"
 
 
+def _last_fired(entry: dict, store, gateway_id: str | None, wkey: str | None) -> str | None:
+    """The occurrence this entry last settled, as ``due()`` reads it. A scope-"all" rule
+    is settled per gateway (#270): the schedule-wide ``last_fired_day`` is written by the
+    first gateway to fire, and would stop every other gateway's run of that occurrence."""
+    if not entry.get("_scope_all"):
+        return entry.get("last_fired_day")
+    try:
+        for o in store.occurrences_for(entry["id"]):
+            if (o.get("gateway_id") or "") == (gateway_id or "") \
+                    and o.get("occurrence_key") == wkey and o.get("status") in store.OCC_TERMINAL:
+                return wkey
+    except Exception:                                           # noqa: BLE001
+        return entry.get("last_fired_day")
+    return None
+
+
 def holds_dispatch(store, schedule_id: str, host: str | None) -> bool:
     """True when this schedule's force is the active dispatch on ``host`` (#189). A newer
     force on the same aGate supersedes the row, so a rule that was taken over holds
@@ -2304,7 +2320,7 @@ def tick(*, settings, client, store, state: dict, host: str | None = None,
         else:
             _window_key.pop(dkey, None)
 
-        ok, reason = due(entry, now, snapshot, entry.get("last_fired_day"))
+        ok, reason = due(entry, now, snapshot, _last_fired(entry, store, gateway_id, wkey))
         # Do not START a dispatch that the exit gate says should already be closed.
         if ok and exit_now:
             ok, reason = False, "exit condition already holds"
@@ -2413,7 +2429,10 @@ def tick(*, settings, client, store, state: dict, host: str | None = None,
                 continue
             pol = (w.get("conflict") or "override").lower()
             if pol == "defer":
-                store.mark_schedule_fired(w["id"], now.date().isoformat(), "deferred")
+                # Settled on this gateway's run, so a scope-"all" rule defers per gateway.
+                _settle_loser(w, store=store, gateway_id=gateway_id, now=now,
+                              reason="deferred — the battery is already under another "
+                                     "dispatch (conflict=defer)")
                 store.log_schedule_event(w["id"], w["name"], "deferred",
                     "deferred — the battery is already under another dispatch (conflict=defer)",
                     gateway_id=gateway_id or "")

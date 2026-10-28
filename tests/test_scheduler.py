@@ -356,7 +356,7 @@ def test_exit_condition_ends_window_early_and_releases(tmp_path, monkeypatch):
                         lambda cmd, **kw: (seen.append(cmd),
                                            {"ok": True, "result": "ok",
                                             "active": cmd if cmd not in ("Release", "Not Active") else "Not Active"})[1])
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Force Discharge"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Force Discharge"})
 
     st = MetricsStore(str(tmp_path / "m.db"))
     st.create_schedule(sid="x1", name="Peak w/ early stop", spec={
@@ -572,7 +572,7 @@ def test_priority_resolution_defers_lower_on_same_target(tmp_path, monkeypatch):
     from franklinwh_direct_connect_bridge.db import MetricsStore
     ran = []
     monkeypatch.setattr(bc, "execute", lambda cmd, **kw: (ran.append(cmd), {"ok": True, "result": "ok", "active": cmd})[1])
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Not Active"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Not Active"})
     st = MetricsStore(str(tmp_path / "m.db"))
     st.create_schedule(sid="lo", name="Low prio charge", spec={
         "fire_at": "14:00", "duration_min": 60, "enabled": True, "priority": 1,
@@ -597,7 +597,7 @@ def test_priority_single_entry_unaffected(tmp_path, monkeypatch):
     from franklinwh_direct_connect_bridge import battery_control as bc
     from franklinwh_direct_connect_bridge.db import MetricsStore
     monkeypatch.setattr(bc, "execute", lambda cmd, **kw: {"ok": True, "result": "ok", "active": cmd})
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Not Active"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Not Active"})
     st = MetricsStore(str(tmp_path / "m.db"))
     st.create_schedule(sid="one", name="Solo", spec={
         "fire_at": "14:00", "duration_min": 60, "enabled": True,
@@ -621,7 +621,7 @@ def test_conflict_defer_skips_when_battery_busy(tmp_path, monkeypatch):
     from franklinwh_direct_connect_bridge.db import MetricsStore
     ran = []
     monkeypatch.setattr(bc, "execute", lambda cmd, **kw: (ran.append(cmd), {"ok": True, "result": "ok", "active": cmd})[1])
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Not Active"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Not Active"})
     st = MetricsStore(str(tmp_path / "m.db"))
     # A dispatch already held by schedule "A".
     st.record_dispatch(schedule_id="A", name="A", gateway_id=None, host="h", direction="discharge",
@@ -641,7 +641,7 @@ def test_conflict_override_takes_control(tmp_path, monkeypatch):
     from franklinwh_direct_connect_bridge.db import MetricsStore
     ran = []
     monkeypatch.setattr(bc, "execute", lambda cmd, **kw: (ran.append(cmd), {"ok": True, "result": "ok", "active": cmd})[1])
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Not Active"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Not Active"})
     st = MetricsStore(str(tmp_path / "m.db"))
     st.record_dispatch(schedule_id="A", name="A", gateway_id=None, host="h", direction="discharge",
                        watts=-2000, power_mode="w", target_soc=0, window_start_ts=1, window_end_ts=9e18)
@@ -658,7 +658,7 @@ def test_conflict_wait_retries_not_fired(tmp_path, monkeypatch):
     from franklinwh_direct_connect_bridge import battery_control as bc
     from franklinwh_direct_connect_bridge.db import MetricsStore
     monkeypatch.setattr(bc, "execute", lambda cmd, **kw: {"ok": True, "result": "ok", "active": cmd})
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Not Active"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Not Active"})
     st = MetricsStore(str(tmp_path / "m.db"))
     st.record_dispatch(schedule_id="A", name="A", gateway_id=None, host="h", direction="discharge",
                        watts=-2000, power_mode="w", target_soc=0, window_start_ts=1, window_end_ts=9e18)
@@ -678,7 +678,7 @@ def test_exit_condition_nested_group_ends_window(tmp_path, monkeypatch):
     from franklinwh_direct_connect_bridge.db import MetricsStore
     seen = []
     monkeypatch.setattr(bc, "execute", lambda cmd, **kw: (seen.append(cmd), {"ok": True, "result": "ok", "active": cmd})[1])
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Force Discharge"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Force Discharge"})
     st = MetricsStore(str(tmp_path / "m.db"))
     st.create_schedule(sid="n1", name="nested exit", spec={
         "fire_at": "13:50", "duration_min": 60, "enabled": True,
@@ -740,7 +740,7 @@ def test_trigger_always_fires_on_rising_edge(tmp_path, monkeypatch):
     from franklinwh_direct_connect_bridge.db import MetricsStore
     seen = []
     monkeypatch.setattr(bc, "execute", lambda cmd, **kw: (seen.append(cmd), {"ok": True, "result": "ok", "active": cmd})[1])
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Force Discharge"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Force Discharge"})
     st = MetricsStore(str(tmp_path / "m.db"))
     st.create_schedule(sid="al", name="always high soc", spec={
         "trigger_type": "always", "enabled": True,
@@ -771,7 +771,7 @@ def test_trigger_always_fires_on_every_rising_edge(tmp_path, monkeypatch):
     from franklinwh_direct_connect_bridge.db import MetricsStore
     seen = []
     monkeypatch.setattr(bc, "execute", lambda cmd, **kw: (seen.append(cmd), {"ok": True, "result": "ok", "active": cmd})[1])
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Force Discharge"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Force Discharge"})
     st = MetricsStore(str(tmp_path / "m.db"))
     st.create_schedule(sid="al2", name="always high soc", spec={
         "trigger_type": "always", "enabled": True,

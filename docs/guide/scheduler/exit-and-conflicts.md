@@ -190,15 +190,11 @@ never switched to Force Standby. To hold the battery between windows, add a sche
 
 ## Bridge shutdown
 
-On a graceful shutdown the bridge stops the scheduler, then releases the force it is
-holding in memory, if any, and logs "battery force: releasing … on shutdown" in the
-application log. No History row is written, and exit HA actions do not run.
-<!-- @b EXT-20 ;; src: app.py:1190-1206 ;; unclear ;; write: yes ;; b: On shutdown the in-memory force is released to FWH_MODBUS_HOST or the first registered gateway's host, not the host the force was sent to ;; test: unit (API): two gateways, force on the second, shut down the app, assert the Release goes to the second host (fails today) -->
-
-!!! warning "On a multi-gateway site the shutdown release goes to the first gateway"
-    The shutdown release is sent to `FWH_MODBUS_HOST` or to the **first registered**
-    gateway's host, not to the gateway the force was sent to. A force on a second gateway is
-    not released. From a code read; not tested. Issue #192.
+On a graceful shutdown the bridge stops the scheduler, then releases every force it is
+holding in memory, each on the aGate it was sent to (#192), and logs "battery force:
+releasing … on … (shutdown)" in the application log. No History row is written, and exit HA
+actions do not run.
+<!-- @b EXT-20 ;; src: app.py:1253, battery_control.py:304-310 ;; tested: tests/test_multigw_force.py::test_shutdown_releases_every_held_gateway ;; write: yes ;; b: On shutdown every held force is released on its own host -->
 
 A crash or power loss releases nothing. What happens to an interrupted force at the next
 start depends on the interrupted-dispatch policy: see

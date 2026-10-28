@@ -17,45 +17,61 @@ log = logging.getLogger(__name__)
 MODBUS_PORT = 502
 UNIT_ID = 2  # FranklinWH default (per the library)
 
-# In-memory record of the dispatch WE started, so the bridge owns the watchdog +
-# a global Release, independent of any per-request Modbus connection.
-_active: dict = {}            # {command, watts, host, started, duration_s, target_soc, key}
+# In-memory record of the forces WE started, one per aGate (#194), keyed by host part, so
+# the bridge owns each one's watchdog and Release, independent of any per-request Modbus
+# connection. Each record carries its own stop event, SoC reader and event sink, so a
+# force on a second gateway never ends or rewires the first one's.
+_active: dict[str, dict] = {}  # host part -> {command, watts, host, started, duration_s,
+                               #   target_soc, key, stop, soc_getter, on_event}
 _lock = threading.Lock()
-_stop = threading.Event()     # woken on any dispatch change to end old watchdog loops
 _soc_getter = None            # callable() -> current SoC %, injected by the endpoint
 _on_event = None              # callable(status, detail) -> persist to the activity log
 
 
-def current() -> dict:
-    """The dispatch this bridge is holding (fast; no Modbus). Empty = Not Active."""
+def _view(rec: dict) -> dict:
+    rem = None
+    if rec.get("duration_s"):
+        rem = max(0, int(rec["duration_s"] - (time.time() - rec["started"])))
+    return {"active": rec["command"], "watts": rec.get("watts"),
+            "duration_s": rec.get("duration_s"), "target_soc": rec.get("target_soc"),
+            "remaining_s": rem, "host": rec.get("host")}
+
+
+def current(host: str | None = None) -> dict:
+    """The force this bridge is holding on ``host`` (fast; no Modbus). Empty = Not Active.
+    Without a host: the most recent force on any aGate."""
     with _lock:
-        if not _active:
-            return {"active": "Not Active"}
-        rem = None
-        if _active.get("duration_s"):
-            rem = max(0, int(_active["duration_s"] - (time.time() - _active["started"])))
-        return {"active": _active["command"], "watts": _active.get("watts"),
-                "duration_s": _active.get("duration_s"),
-                "target_soc": _active.get("target_soc"), "remaining_s": rem}
+        if host:
+            rec = _active.get(_host_part(host))
+        else:
+            rec = max(_active.values(), key=lambda r: r["started"], default=None)
+        return _view(rec) if rec else {"active": "Not Active"}
+
+
+def held_hosts() -> list[str]:
+    """Every host this bridge is holding a force on (fast; no Modbus)."""
+    with _lock:
+        return [r["host"] for r in _active.values()]
 
 
 def holds_force(*hosts) -> bool:
     """True when this bridge is holding a force on one of ``hosts`` (fast; no Modbus).
     The dashboard shows FORCE only for these; any other remote controller is VPP (#333)."""
     with _lock:
-        held = _host_part(_active.get("host")) if _active else ""
-    return bool(held) and held in {_host_part(h) for h in hosts if h}
+        held = set(_active)
+    return bool(held & {_host_part(h) for h in hosts if h})
 
 
-def _fire(status: str, detail: str) -> None:
-    if _on_event:
+def _fire(status: str, detail: str, rec: dict | None = None) -> None:
+    sink = (rec or {}).get("on_event") or _on_event
+    if sink:
         try:
-            _on_event(status, detail)
+            sink(status, detail)
         except Exception:                                       # noqa: BLE001
             pass
 
 
-def _release_now(host: str, reason: str) -> None:
+def _release_now(host: str, key: float, reason: str) -> None:
     try:
         c, _ = _connect(host)
         try:
@@ -65,24 +81,26 @@ def _release_now(host: str, reason: str) -> None:
     except Exception as e:                                       # noqa: BLE001
         log.error("battery force auto-release FAILED (%s): %s", reason, e)
     with _lock:
-        _active.clear()
-    log.warning("battery force: released (%s)", reason)
-    _fire("dispatch-end", f"released — {reason}")
+        rec = _active.get(_host_part(host))
+        if rec and rec["key"] == key:
+            del _active[_host_part(host)]
+    log.warning("battery force: released on %s (%s)", _host_part(host), reason)
+    _fire("dispatch-end", f"released — {reason}", rec)
 
 
 def _watchdog_loop(host: str, key: float, duration_s: int, target_soc: int, watts) -> None:
     """Enforce Duration AND Target SoC (charge stops at SoC>=target, discharge at
-    SoC<=target). SoC comes from the poller's cache via _soc_getter — no extra
-    Modbus read. Ends the moment a newer command supersedes this one.
+    SoC<=target). SoC comes from the poller's cache via the force's own SoC reader — no
+    extra Modbus read. Ends the moment a newer command on the same aGate supersedes it.
 
     Beats the ``dispatch-watchdog`` worker while a force is active and parks it as
-    PAUSED when it ends, so an idle watchdog is never reported as failed (#93)."""
+    PAUSED when the last one ends, so an idle watchdog is never reported as failed (#93)."""
     try:
         _beat(running=True)
         _watch(host, key, duration_s, target_soc, watts)
     finally:
         with _lock:
-            idle = _active.get("key") in (None, key)
+            idle = not _active
         if idle:
             _beat(running=False)
 
@@ -98,44 +116,63 @@ def _beat(*, running: bool) -> None:
 
 
 def _watch(host: str, key: float, duration_s: int, target_soc: int, watts) -> None:
-    while not _stop.wait(5.0):
+    hp = _host_part(host)
+    with _lock:
+        rec = _active.get(hp)
+        if not rec or rec["key"] != key:
+            return
+        stop, soc_getter = rec["stop"], rec.get("soc_getter")
+    while not stop.wait(5.0):
         _beat(running=True)
         with _lock:
-            if _active.get("key") != key:
+            rec = _active.get(hp)
+            if not rec or rec["key"] != key:
                 return
-            started = _active["started"]
+            started = rec["started"]
         if duration_s and (time.time() - started) >= duration_s:
-            _release_now(host, f"duration {duration_s}s reached"); return
-        if target_soc and _soc_getter:
+            _release_now(host, key, f"duration {duration_s}s reached"); return
+        if target_soc and soc_getter:
             try:
-                soc = _soc_getter()
+                soc = soc_getter()
             except Exception:                                   # noqa: BLE001
                 soc = None
             if soc is not None:
                 if watts > 0 and soc >= target_soc:
-                    _release_now(host, f"target reached (SoC {soc}% ≥ {target_soc}%)"); return
+                    _release_now(host, key, f"target reached (SoC {soc}% ≥ {target_soc}%)")
+                    return
                 if watts < 0 and soc <= target_soc:
-                    _release_now(host, f"target reached (SoC {soc}% ≤ {target_soc}%)"); return
+                    _release_now(host, key, f"target reached (SoC {soc}% ≤ {target_soc}%)")
+                    return
 
 
 def _arm_watchdog(host: str, command: str, watts, duration_s: int, target_soc: int) -> None:
+    """Hold a force on ``host``: replaces only that aGate's earlier force, if any."""
+    hp = _host_part(host)
     with _lock:
         key = time.monotonic()
-        _active.clear()
-        _active.update({"command": command, "watts": watts, "host": host,
-                        "started": time.time(), "duration_s": int(duration_s or 0),
-                        "target_soc": int(target_soc or 0), "key": key})
-    _stop.set(); _stop.clear()        # end any prior loop, then let the new one run
+        old = _active.get(hp)
+        _active[hp] = {"command": command, "watts": watts, "host": host,
+                       "started": time.time(), "duration_s": int(duration_s or 0),
+                       "target_soc": int(target_soc or 0), "key": key,
+                       "stop": threading.Event(), "soc_getter": _soc_getter,
+                       "on_event": _on_event}
+    if old:
+        old["stop"].set()             # end that aGate's prior loop; others keep running
     t = threading.Thread(target=_watchdog_loop,
                          args=(host, key, int(duration_s or 0), int(target_soc or 0), watts),
                          daemon=True)
     t.start()
 
 
-def _clear_active() -> None:
+def _clear_active(host: str | None = None) -> None:
+    """Forget the force on ``host``, or every force when no host is given."""
     with _lock:
-        _active.clear()
-    _stop.set(); _stop.clear()
+        recs = ([_active.pop(_host_part(host))] if host and _host_part(host) in _active
+                else [] if host else list(_active.values()))
+        if not host:
+            _active.clear()
+    for r in recs:
+        r["stop"].set()
 
 
 def _hhmm(ts) -> str:
@@ -212,7 +249,7 @@ def reconcile_interrupted(store, host: str, policy: str, *, soc_getter=None,
                 action = "released"
                 detail = f"'{name}' {when}; battery was still forced — RELEASED (policy={policy})."
             elif forced and not ended:
-                _arm_watchdog(host, current().get("active") or cmd, watts, remaining, tgt)
+                _arm_watchdog(host, current(host).get("active") or cmd, watts, remaining, tgt)
                 store.record_dispatch(
                     schedule_id=d.get("schedule_id"), name=name, gateway_id=d.get("gateway_id"),
                     host=host, direction=d.get("direction"), watts=watts,
@@ -262,6 +299,43 @@ def reconcile_interrupted(store, host: str, policy: str, *, soc_getter=None,
                 pass
         results.append({"name": name, "action": action, "detail": detail})
     return results
+
+
+def release_held(reason: str) -> None:
+    """Release every force this bridge holds, each on its own aGate (#192)."""
+    for host in held_hosts():
+        log.warning("battery force: releasing %s on %s (%s)",
+                    current(host).get("active"), host, reason)
+        execute("Release", host=host)
+
+
+def _gateway_soc(host: str):
+    """A SoC reader for the gateway on ``host``, from its poller's cache (no Modbus)."""
+    def _soc():
+        try:
+            from . import state
+            hp = _host_part(host)
+            for gw in state.gateways():
+                if hp in {_host_part(h) for h in (gw.active_host, gw.configured_host) if h}:
+                    return (getattr(gw, "last_state", {}) or {}).get("soc")
+        except Exception:                                       # noqa: BLE001
+            pass
+        return None
+    return _soc
+
+
+def reconcile_all(store, policy: str, *, notify=None) -> list[dict]:
+    """Boot reconcile on every aGate with an open dispatch row (#192), each with its own
+    gateway's SoC reader. Never raises."""
+    try:
+        hosts = sorted({d.get("host") for d in store.active_dispatches() if d.get("host")})
+    except Exception as e:                                       # noqa: BLE001
+        return [{"action": "error", "detail": str(e)}]
+    out: list[dict] = []
+    for h in hosts:
+        out += reconcile_interrupted(store, h, policy, soc_getter=_gateway_soc(h),
+                                     notify=notify)
+    return out
 
 
 def _lib():
@@ -596,7 +670,7 @@ def execute(command: str, *, host: str, power_w: int = 0, power_pct: int = 0,
     else:
         ok, why = available()
         if not ok:
-            held = current().get("active")
+            held = current(host).get("active")
             if held not in (None, "Not Active"):
                 why = (f"{why}. The {held} this bridge started is still active on the aGate: "
                        "switch the Modbus client on in Control → Modbus client, then Release.")
@@ -611,15 +685,17 @@ def execute(command: str, *, host: str, power_w: int = 0, power_pct: int = 0,
         if cmd in ("Release", "Not Active"):
             if dry_run:
                 return {"ok": True, "result": "[dry-run] release", "active": "Not Active"}
-            was = current().get("active")
+            was = current(host).get("active")
+            with _lock:
+                held = _active.get(_host_part(host))     # its own event sink, for the end
             c.reset_control_state()
             # Report what the aGate says, not what was sent (#174).
             try:
                 still = bool(c.read_control_status().get("wset_enabled"))
             except Exception as e:                               # noqa: BLE001
-                _clear_active()
+                _clear_active(host)
                 if was not in (None, "Not Active"):
-                    _fire("dispatch-end", "released — manual (Release), not confirmed")
+                    _fire("dispatch-end", "released — manual (Release), not confirmed", held)
                 return {"ok": True, "confirmed": False, "active": "Not Active",
                         "result": f"release sent; not confirmed (read-back failed: "
                                   f"{type(e).__name__})"}
@@ -629,9 +705,9 @@ def execute(command: str, *, host: str, power_w: int = 0, power_pct: int = 0,
                 return {"ok": False, "confirmed": True, "active": was or "Not Active",
                         "result": "release sent, but the aGate still reports a force "
                                   "enabled (WSetEna on)"}
-            _clear_active()
+            _clear_active(host)
             if was not in (None, "Not Active"):
-                _fire("dispatch-end", "released — manual (Release)")
+                _fire("dispatch-end", "released — manual (Release)", held)
             return {"ok": True, "confirmed": True, "result": "released",
                     "active": "Not Active"}
 

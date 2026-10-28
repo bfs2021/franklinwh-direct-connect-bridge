@@ -225,7 +225,8 @@ def test_release_says_when_it_could_not_confirm(monkeypatch):
 
 def test_release_with_client_off_names_the_active_force(monkeypatch):
     with bc._lock:
-        bc._active.update({"command": "Force Charge", "started": 0})
+        bc._active["192.0.2.10"] = {"command": "Force Charge", "host": "192.0.2.10",
+                                    "started": 0, "stop": __import__("threading").Event()}
     monkeypatch.setattr(bc, "_ENABLED", False)
     out = bc.execute("Release", host="192.0.2.10")
     assert out["ok"] is False and "Force Charge" in out["result"]
