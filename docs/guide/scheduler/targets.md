@@ -39,7 +39,7 @@ nothing says so. <!-- @b TGT-22 ;; src: scheduler.py:1984-1986 ;; untested ;; wr
 **Gateway scope "all" (API only).** With `"gateway_scope": "all"` the schedule is
 evaluated by every gateway on its own tick. The form has no control for it. Since 0.5.2
 (#157) saving from the form keeps it; before 0.5.2 the form turned it off. Any value other
-than exactly `all` means one gateway. <!-- @b TGT-02 ;; src: scheduler.py:1979-1988, app.py:640-644, scheduler_worker.py:156-163 ;; untested ;; write: yes ;; b: gateway_scope all makes every eligible gateway (mocks included) evaluate the schedule on its own tick ;; test: unit: scope all schedule, tick gw1 and gw2; assert one fire per gateway -->
+than exactly `all` means one gateway. <!-- @b TGT-02 ;; src: scheduler.py:2093-2107, scheduler.py:2323, app.py:640-644, scheduler_worker.py:156-163 ;; tested: tests/test_multigw_force.py::test_scope_all_fires_once_on_each_gateway_per_occurrence ;; write: yes ;; b: gateway_scope all makes every eligible gateway (mocks included) evaluate the schedule on its own tick, and each settles its own occurrence, so each fires once (#270) -->
 <!-- @b TGT-23 ;; src: app.py:3111-3127 ;; tested: tests/test_schedule_update_merge.py::test_a_form_save_keeps_api_only_fields ;; write: yes ;; b: A form save (which never sends gateway_scope) keeps gateway_scope all ;; test: — -->
 
 ## How a fan-out works
@@ -49,7 +49,7 @@ For gateway scope *all*, each gateway is handled on its own:
 | Per gateway | Detail |
 |---|---|
 | Conditions | that gateway's own snapshot (see [Conditions → Scope](conditions.md#scope-which-gateways-values)) |
-| Run | one run (occurrence) per gateway, with its own status and retries |
+| Run | one run (occurrence) per gateway, with its own status and retries. Each gateway fires once per occurrence; before #270 the first gateway to fire stopped the others |
 | Priority | one resource claim per gateway (`<gateway>/battery`), so gateways do not compete |
 | Window end | each gateway's tick sends its own release when the window closes |
 | History | one row per gateway, but the row does **not** name the gateway |
@@ -58,24 +58,16 @@ For gateway scope *all*, each gateway is handled on its own:
 <!-- @b TGT-05 ;; src: scheduler.py:1989, scheduler.py:2014-2033 ;; untested ;; write: yes ;; b: The window-end release runs per gateway:entry key, to that gateway's host ;; test: unit: all-scope force on two gateways; close the window; assert a Release to each host -->
 <!-- @b TGT-06 ;; src: db.py:1004-1023, scheduler.py:2458 ;; untested ;; write: no ;; b: History rows carry schedule id and name but no gateway ;; test: unit: all-scope fire on two gateways gives two identical fired rows; decide to add the gateway -->
 
-!!! warning "Two gateways cannot run a force at the same time safely"
-    The Modbus client (this bridge) supervises **one** force for the whole bridge. When a
-    second gateway starts a force, the first gateway's time limit and target SoC stop being
-    enforced; only its window-end release remains. See
-    [Actions → What is written](actions.md#what-is-written). From a code read; unverified on
-    hardware.
-
-!!! warning "Stop, Pause and shutdown release the default gateway"
-    **Stop** and the Pause API release through `FWH_MODBUS_HOST` or the **default gateway's**
-    host, not the host of the gateway the force runs on. On a site with several gateways,
-    **Stop** on a schedule bound to the second gateway releases the first one. A graceful
-    shutdown and the start-up check for an interrupted dispatch also look only at the first
-    gateway. From a code read. Issue #192. <!-- @b TGT-20 ;; src: app.py:3148-3174, app.py:3177-3204, app.py:3473-3480, app.py:1196-1204, app.py:973-977, app.py:1004-1023 ;; unclear ;; write: yes ;; b: Stop, Pause, shutdown release and boot reconcile use the default gateway host, not the dispatch's host ;; test: unit (API): dispatch row on host B, Stop calls execute("Release", host=B) (fails today) -->
+Each gateway's force is supervised on its own: a force on one gateway never ends or changes
+another gateway's time limit and target SoC (#194). **Stop** and **Pause** release on the
+gateway the force was sent to, a graceful shutdown releases every gateway this bridge holds
+a force on, and the start-up check for an interrupted dispatch covers every gateway (#192).
+<!-- @b TGT-20 ;; src: app.py:3261-3290, app.py:3291-3320, app.py:1253, app.py:1054-1057, battery_control.py:304-338 ;; tested: tests/test_multigw_force.py::test_stop_releases_the_gateway_the_force_was_sent_to ;; write: yes ;; b: Stop and Pause release on the dispatch row's host; shutdown releases every held host; boot reconcile covers every host with an open row (see also test_shutdown_releases_every_held_gateway, test_boot_reconcile_covers_every_gateway_with_its_own_soc) -->
 
 A gateway that leaves (disabled, or its poll goes stale) while its force runs is no longer
 evaluated, so its window-end release is not sent. The force keeps running until the
-watchdog's time limit or target SoC ends it (if that gateway still holds the watchdog), or
-until you release it. <!-- @b TGT-07 ;; src: scheduler_worker.py:156-160, scheduler.py:2014-2033, battery_control.py:92-110 ;; unclear ;; write: yes ;; b: A gateway skipped as stale gets no exit edge; only the in-memory watchdog can still end its force ;; test: unit: force running, then gateway stale past window end; assert a release is still sent (fails today) -->
+watchdog's time limit or target SoC ends it (each gateway's force keeps its own watchdog,
+#194), or until you release it. <!-- @b TGT-07 ;; src: scheduler_worker.py:156-160, scheduler.py:2014-2033, battery_control.py:118-145 ;; unclear ;; write: yes ;; b: A gateway skipped as stale gets no exit edge; only the in-memory watchdog can still end its force ;; test: unit: force running, then gateway stale past window end; assert a release is still sent (fails today) -->
 
 **Run now** runs once, on one gateway, even for scope *all* (see below).
 
@@ -109,12 +101,10 @@ schedules bound to that gateway. <!-- @b TGT-11 ;; src: scheduler.py:2088-2089 ;
   "gateway '…' not found — will use the default gateway", and creates it disabled. A Modbus
   Bridge entry with target `default` maps to **Default gateway**. <!-- @b TGT-14 ;; src: scheduler.py:852-854, scheduler.py:728-729, app.py:3294-3309 ;; tested: tests/test_scheduler.py::test_import_maps_modbus_automations_bundle ;; write: no ;; b: Import maps a default/unknown gateway to "" and creates the entry disabled ;; test: — -->
 
-!!! warning "Run now uses the gateway selected in the top bar"
-    With more than one gateway and one picked in the top bar, **⋮ → Run now** sends that
-    gateway's id, and the bridge uses it **instead of** the schedule's own gateway. The
-    action goes to the top-bar gateway. In site view, or with one gateway, it uses the
-    schedule's gateway, else the default. From a code read. Issue #193.
-    <!-- @b TGT-09 ;; src: static/js/scheduler_tab.js:616-631, static/js/app.js:880-885, app.py:3433-3436 ;; unclear ;; write: yes ;; b: The UI's Run now passes the top-bar gateway, which overrides the schedule's gateway_id ;; test: unit (API): POST /run?gateway=gw1 on a schedule bound to gw2 should act on gw2 or refuse -->
+**Run now** on a schedule bound to a gateway runs on that gateway, whatever gateway the top
+bar shows. For a schedule on **Default gateway** or with scope *all*, it runs on the gateway
+selected in the top bar, else the default (#193).
+<!-- @b TGT-09 ;; src: static/js/scheduler_tab.js:632-640, app.py:3553-3566 ;; tested: tests/test_multigw_force.py::test_run_now_uses_the_schedules_gateway_not_the_viewed_one ;; write: yes ;; b: Run now uses the schedule's bound gateway; the ?gateway= query is used only for an unbound or scope-all schedule -->
 
 ## On the timeline
 

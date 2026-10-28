@@ -28,7 +28,8 @@ def holding():
     def _hold(host):
         with bc._lock:
             bc._active.clear()
-            bc._active.update({"command": "Force Charge", "host": host, "started": time.time()})
+            bc._active[bc._host_part(host)] = {"command": "Force Charge", "host": host,
+                                               "started": time.time()}
     yield _hold
     with bc._lock:
         bc._active.clear()

@@ -18,7 +18,7 @@ schedule runs on.
 | First ticks | The engine's in-memory state is empty. A schedule that **already fired** in the current occurrence does **not** fire again (that is stored). One that has not fired is evaluated afresh; its hold starts from zero. |
 | Catch-up | **Not in this bridge.** Windows that opened and closed while the bridge was down are not run late, and leave no *missed* row. |
 
-<!-- @b RST-01 ;; src: app.py:1190-1206 ;; untested ;; write: yes ;; b: Graceful shutdown releases the in-memory active force via FWH_MODBUS_HOST or gateways()[0].active_host, ignoring the host the force was sent to ;; test: unit: lifespan exit with an active force on gateway 2; assert Release goes to gateway 2's host (fails today) -->
+<!-- @b RST-01 ;; src: app.py:1253, battery_control.py:304-310 ;; tested: tests/test_multigw_force.py::test_shutdown_releases_every_held_gateway ;; write: yes ;; b: Graceful shutdown releases every force this bridge holds, each on the host it was sent to (#192) -->
 <!-- @b RST-02 ;; src: app.py:1044-1063, battery_control.py:148-264, config.py:84-88 ;; tested: tests/test_dispatch_reconcile.py::test_notify_never_touches_battery ;; write: yes ;; b: At start-up active dispatch rows are reconciled by dispatch_interrupt_policy (none, notify, release default, resume); notify never touches the battery (default: tests/test_force_ownership.py::test_restart_policy_defaults_to_release_and_release_stale_is_gone) ;; test: -->
 <!-- @b RST-03 ;; src: scheduler.py:538-541, db.py:920-931 ;; tested: tests/test_scheduler.py::test_fires_once_per_day ;; write: yes ;; b: last_fired_day is stored, so after a restart an entry that already fired this occurrence does not fire again; one that has not fires on the first tick that passes ;; test: -->
 <!-- @b RST-05 ;; src: scheduler_worker.py:190-200, db.py:2080-2100 ;; tested: tests/test_occurrences.py::test_a_restart_while_paused_resolves_to_terminal ;; write: no ;; b: At worker start every paused run is resolved to stopped with a reason ;; test: -->
@@ -50,12 +50,10 @@ you keep `notify`.
     comes from the scheduler. Release from **Control**, or choose `release`.
 <!-- @b RST-07 ;; src: battery_control.py:20-27, scheduler.py:1995-2039, battery_control.py:207-212 ;; untested ;; write: yes ;; b: After a restart the duration and target-SoC timer is gone; with policy notify only a later window-end edge (if the bridge is up for it) releases ;; test: unit: restart mid-window (clear module state, record_dispatch active); tick to window end; assert Release; tick a window that ended during downtime; assert none -->
 
-!!! warning "Start-up and shutdown handle only the first gateway"
-    The start-up reconcile reads the active dispatches for **one** host: `FWH_MODBUS_HOST`,
-    or else the first gateway's. The shutdown release goes to the same host. On a site with
-    several gateways a force on another gateway is neither reconciled nor released. Issue
-    #192.
-<!-- @b RST-08 ;; src: app.py:975-976, app.py:1004-1018, app.py:1196-1204 ;; unclear ;; write: yes ;; b: Boot reconcile and shutdown release use FWH_MODBUS_HOST or the first gateway's host only ;; test: unit: two gateways with active dispatch rows; assert both reconciled (fails today) -->
+On a site with several gateways, the start-up reconcile runs for every aGate that has a
+force recorded as active, each with its own gateway's SoC, and a graceful shutdown releases
+every gateway this bridge holds a force on (#192).
+<!-- @b RST-08 ;; src: app.py:1054-1057, battery_control.py:304-338 ;; tested: tests/test_multigw_force.py::test_boot_reconcile_covers_every_gateway_with_its_own_soc ;; write: yes ;; b: Boot reconcile runs per host with an open dispatch row, with that gateway's SoC reader; shutdown releases every held host (see also test_shutdown_releases_every_held_gateway) -->
 
 **Not in this bridge:** releasing any force found on the aGate at start-up, whoever set it.
 Start-up acts only on forces this bridge recorded, through the policy above (#199).

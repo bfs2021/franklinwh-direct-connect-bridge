@@ -15,7 +15,7 @@ class _Store:
 @pytest.fixture(autouse=True)
 def _fresh(monkeypatch):
     vpp_monitor.reset()
-    monkeypatch.setattr(battery_control, "current", lambda: {"active": None})
+    monkeypatch.setattr(battery_control, "current", lambda host=None: {"active": None})
     yield
     vpp_monitor.reset()
 

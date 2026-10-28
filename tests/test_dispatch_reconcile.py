@@ -33,7 +33,7 @@ def modbus(monkeypatch):
         calls["execute"].append((cmd, kw)); return {"ok": True, "result": "ok"}
     monkeypatch.setattr(bc, "execute", _exec)
     monkeypatch.setattr(bc, "_arm_watchdog", lambda *a, **k: calls["arm"].append((a, k)))
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Force Discharge"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Force Discharge"})
     return calls
 
 
@@ -116,7 +116,7 @@ def test_widget_force_is_persisted_and_release_closes_it(tmp_path, monkeypatch):
     monkeypatch.setattr(bc, "execute",
                         lambda cmd, **kw: {"ok": True, "result": "ok",
                                            "active": cmd if cmd not in ("Release", "Not Active") else "Not Active"})
-    monkeypatch.setattr(bc, "current", lambda: {"active": "Not Active"})
+    monkeypatch.setattr(bc, "current", lambda host=None: {"active": "Not Active"})
 
     client = TestClient(app_module.create_app())
 

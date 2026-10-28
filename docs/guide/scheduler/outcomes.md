@@ -251,12 +251,10 @@ A Run now command differs from a scheduled run:
   weather and other sensors, and `%run.*%`, print `?`.
   <!-- @b OUT-43 ;; src: app.py:3436-3439 ;; untested ;; write: no ;; b: Run now builds its snapshot from the gateway state and HA entities only, so other placeholders render '?' ;; test: unit (API): notify with %tariff.buy_rate%; assert '?' -->
 
-!!! warning "Run now acts on the gateway selected in the top bar"
-    With more than one gateway and one picked in the top bar, the **Run now** menu item sends
-    that gateway with the request, and the bridge uses it instead of the schedule's own
-    gateway. With *Site* selected, or one gateway, the schedule's gateway is used. From a
-    code read; not tested in a browser. Issue #193.
-    <!-- @b OUT-28 ;; src: static/js/scheduler_tab.js:616-631, static/js/app.js:880-885, app.py:3435-3436 ;; unclear ;; write: yes ;; b: The UI appends the top-bar gateway to /run and the endpoint prefers it over the entry's gateway_id ;; test: unit (API): entry bound to gw2, POST /run?gateway=gw1, assert it runs on gw2 (fails today) -->
+- A schedule bound to a gateway runs on that gateway, whatever the top bar shows. An
+  unbound or scope-*all* schedule runs on the gateway selected in the top bar, else the
+  default (#193).
+  <!-- @b OUT-28 ;; src: static/js/scheduler_tab.js:632-640, app.py:3553-3566 ;; tested: tests/test_multigw_force.py::test_run_now_uses_the_schedules_gateway_not_the_viewed_one ;; write: yes ;; b: The UI appends the top-bar gateway to /run; the endpoint uses the entry's bound gateway first and the query only for an unbound or scope-all entry -->
 
 !!! warning "Run now acts for real"
     Run now does exactly what the schedule does: a mode change, a smart circuit, off-grid,
@@ -266,23 +264,17 @@ A Run now command differs from a scheduled run:
 
 1. Press **Stop** on the card. Confirm.
 2. If the `dispatches` table has an active force recorded for this schedule, the bridge
-   sends a Release, marks the rows *stopped* and logs *stopped* — "dispatch released by
-   user". The schedule stays enabled.
+   sends a Release to the aGate that force was sent to, marks the rows *stopped* and logs
+   *stopped* — "dispatch released by user". The schedule stays enabled.
 3. If not, it logs *stopped* — "no active dispatch to stop" and changes nothing.
 
-<!-- @b OUT-24 ;; src: app.py:3147-3167 ;; unclear ;; write: yes ;; b: Stop releases via the default gateway's Modbus host when the schedule has an active dispatches row, ends the rows stopped and logs stopped; no exit HA actions, no restore ;; test: unit (API): active row for the entry on gw2; POST /stop; assert the Release goes to gw2's host (fails today on multi-gateway) -->
+<!-- @b OUT-24 ;; src: app.py:3261-3290 ;; tested: tests/test_multigw_force.py::test_stop_releases_the_gateway_the_force_was_sent_to ;; write: yes ;; b: Stop releases on each active dispatches row's own host, ends the rows stopped and logs stopped; no exit HA actions, no restore -->
 <!-- @b OUT-25 ;; src: app.py:3165-3167 ;; untested ;; write: no ;; b: Stop with no active row logs stopped 'no active dispatch to stop' and does not block the rest of the window ;; test: unit (API): gated entry, POST /stop, then conditions pass, assert it fires -->
 
 Stop does not run the exit HA actions, does not restore the mode, and does not stop the
 schedule firing again: it fires at its next occurrence. A schedule that had **not** fired
 yet in this window (nothing to stop) can still fire later in the same window. To stop a
 schedule from firing at all, disable it: **Turn off** on the card.
-
-!!! warning "On a multi-gateway site Stop releases the default gateway"
-    Stop sends the Release to `FWH_MODBUS_HOST` or the default gateway's host, not to the
-    host recorded for the schedule's force. For a schedule bound to another gateway, Stop
-    releases the wrong gateway and leaves its own force running. Pause has the same problem.
-    From a code read; not tested. Issue #192.
 
 ### Pause and Resume (Direct Connect only)
 

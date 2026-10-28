@@ -52,6 +52,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   ready later no longer takes over a running force of higher priority under
   *If busy = override*; it is deferred and History names the schedule that holds it.
 
+- **A force on one gateway no longer drops another gateway's limits** (#194). The bridge
+  supervised one force for the whole site, so a second gateway's force ended the first
+  one's time limit and target SoC. Each gateway's force now has its own.
+
+- **Stop, Pause, shutdown and the start-up check act on the right gateway** (#192). They
+  released the default gateway's aGate. Stop and Pause now release on the gateway the force
+  was sent to, a shutdown releases every gateway holding a force, and the start-up check
+  covers every gateway.
+
+- **Run now uses the schedule's gateway** (#193). It used the gateway selected in the top
+  bar. A schedule bound to a gateway now runs there; the top bar's gateway is used only for
+  an unbound or scope "all" schedule.
+
+- **A scope "all" schedule fires on every gateway** (#270). The first gateway to fire marked
+  the occurrence done for all of them, so it ran on only one gateway. Each gateway now fires
+  it once per occurrence.
+
 - **A failing write no longer holds up every schedule** (#197). Scheduled writes made up
   to 5 attempts with waits inside one scheduler tick, so every gateway's schedules waited.
   Now each tick makes one attempt, and the existing backoff (30 s up to 10 min) retries.
