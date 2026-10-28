@@ -13,13 +13,13 @@ schedule runs on.
 |---|---|
 | Graceful shutdown | The scheduler worker is told to stop. If the bridge holds a force it started (in memory), it sends a **Release**, to `FWH_MODBUS_HOST` or else the **first** gateway's host. Exit HA actions do not run and History gets no *exit* row. |
 | Crash or power loss | Nothing is released. The force stays on the aGate. |
-| Start-up: interrupted dispatches | A force a schedule (or the Battery Control widget) started is recorded until it is released. At start-up, if the Modbus client (this bridge) is on, rows still marked active are handled by **the interrupted-dispatch policy** (default **notify**: alert, do not touch the battery). |
+| Start-up: interrupted dispatches | A force a schedule (or the Battery Control widget) started is recorded until it is released. At start-up, if the Modbus client (this bridge) is on, rows still marked active are handled by **the interrupted-dispatch policy** (default **release**: release it if its window has ended, re-arm the auto-release if not). |
 | Start-up: paused runs | A run that was paused when the bridge stopped is closed as *stopped*. |
 | First ticks | The engine's in-memory state is empty. A schedule that **already fired** in the current occurrence does **not** fire again (that is stored). One that has not fired is evaluated afresh; its hold starts from zero. |
 | Catch-up | **Not in this bridge.** Windows that opened and closed while the bridge was down are not run late, and leave no *missed* row. |
 
 <!-- @b RST-01 ;; src: app.py:1190-1206 ;; untested ;; write: yes ;; b: Graceful shutdown releases the in-memory active force via FWH_MODBUS_HOST or gateways()[0].active_host, ignoring the host the force was sent to ;; test: unit: lifespan exit with an active force on gateway 2; assert Release goes to gateway 2's host (fails today) -->
-<!-- @b RST-02 ;; src: app.py:1004-1023, battery_control.py:154-270 ;; tested: tests/test_dispatch_reconcile.py::test_notify_never_touches_battery ;; write: yes ;; b: At start-up active dispatch rows are reconciled by dispatch_interrupt_policy (none, notify default, release, resume); notify never touches the battery ;; test: -->
+<!-- @b RST-02 ;; src: app.py:1044-1063, battery_control.py:148-264, config.py:84-88 ;; tested: tests/test_dispatch_reconcile.py::test_notify_never_touches_battery ;; write: yes ;; b: At start-up active dispatch rows are reconciled by dispatch_interrupt_policy (none, notify, release default, resume); notify never touches the battery (default: tests/test_force_ownership.py::test_restart_policy_defaults_to_release_and_release_stale_is_gone) ;; test: -->
 <!-- @b RST-03 ;; src: scheduler.py:538-541, db.py:920-931 ;; tested: tests/test_scheduler.py::test_fires_once_per_day ;; write: yes ;; b: last_fired_day is stored, so after a restart an entry that already fired this occurrence does not fire again; one that has not fires on the first tick that passes ;; test: -->
 <!-- @b RST-05 ;; src: scheduler_worker.py:190-200, db.py:2080-2100 ;; tested: tests/test_occurrences.py::test_a_restart_while_paused_resolves_to_terminal ;; write: no ;; b: At worker start every paused run is resolved to stopped with a reason ;; test: -->
 
@@ -29,14 +29,19 @@ start-up does with a force a restart cut short:
 | Policy | Window ended | Window still open |
 |---|---|---|
 | `none` | recorded, nothing else | recorded, nothing else |
-| `notify` (default) | alert your notification devices; the battery is not touched | the same |
-| `release` | if the battery is still forced: **Release** | if still forced: re-arm the bridge's timer to release at the window end |
+| `notify` | alert your notification devices; the battery is not touched | the same |
+| `release` (default) | if the battery is still forced: **Release** | if still forced: re-arm the bridge's timer to release at the window end |
 | `resume` | as `release` | as `release`; and if no longer forced: **force again** for the rest of the window |
 
 See also [After a bridge restart mid-dispatch](../control.md#after-a-bridge-restart-mid-dispatch).
 <!-- @b RST-06 ;; src: battery_control.py:154-270 ;; tested: tests/test_dispatch_reconcile.py::test_resume_reforces_when_battery_dropped_inside_window ;; write: yes ;; b: resume re-forces for the remaining window when the battery is no longer forced; release only releases or re-arms ;; test: -->
 
-!!! warning "With the default policy a force can outlive a restart"
+Only a force this bridge recorded is acted on. A force on the aGate with no record here
+(another Modbus client's) is never released at start-up; it is only alerted as an orphan.
+A saved policy is kept: if you chose `notify` before `release` became the default (#199),
+you keep `notify`.
+
+!!! warning "With notify a force can outlive a restart"
     The aGate does not end a force by itself; the bridge's own timer does, and that timer is
     in memory. With **notify**, a force that was running when the bridge restarted keeps
     running until something releases it. The schedule's window end still sends a Release if
@@ -52,9 +57,9 @@ See also [After a bridge restart mid-dispatch](../control.md#after-a-bridge-rest
     #192.
 <!-- @b RST-08 ;; src: app.py:975-976, app.py:1004-1018, app.py:1196-1204 ;; unclear ;; write: yes ;; b: Boot reconcile and shutdown release use FWH_MODBUS_HOST or the first gateway's host only ;; test: unit: two gateways with active dispatch rows; assert both reconciled (fails today) -->
 
-**Not in this bridge:** releasing a stale force on gateway start-up. `release_stale()` exists
-in the code but nothing calls it.
-<!-- @b RST-04 ;; src: battery_control.py:133-144, app.py:1180-1182 ;; unclear ;; write: yes ;; b: release_stale is defined but never called; start-up relies on the reconcile policy; pollers, the reconcile thread and the scheduler worker start independently ;; test: unit: decide whether start-up should release a stale force; assert it -->
+**Not in this bridge:** releasing any force found on the aGate at start-up, whoever set it.
+Start-up acts only on forces this bridge recorded, through the policy above (#199).
+<!-- @b RST-04 ;; src: battery_control.py:148-264, app.py:1044-1063 ;; tested: tests/test_force_ownership.py::test_restart_policy_defaults_to_release_and_release_stale_is_gone ;; write: yes ;; b: There is no release_stale; start-up releases only through reconcile_interrupted on recorded active rows; pollers, the reconcile thread and the scheduler worker start independently -->
 
 So a restart during an open window usually means **no second write** for a schedule that had
 already fired, and a fresh attempt for one that had not.

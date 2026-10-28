@@ -118,7 +118,7 @@ HA actions; and the last result with its occurrence.
 | **⋮ → Test against live** | Evaluates the schedule against live values, without acting. |
 | **⋮ → Run now** | Runs the actions now, ignoring the window and the entry conditions. Asks first. |
 | **⋮ → Duplicate** | Opens a copy in the form, named "Copy of …", with **Enabled** unticked. It is saved as a new schedule. |
-| **⋮ → Delete** | Removes the schedule, after asking. |
+| **⋮ → Delete** | Removes the schedule, after asking. A force it is running is released first. |
 
 The list shows **all** schedules by default.
 <!-- @b IDX-01 ;; src: static/js/scheduler_tab.js:20, static/js/scheduler_tab.js:500-507 ;; untested ;; write: no ;; b: The list shows all schedules by default; All/Enabled/Disabled filter it and a note counts the hidden ones ;; test: browser: load the tab with one disabled schedule; assert it is shown -->

@@ -2234,14 +2234,21 @@ class MetricsStore:
     def record_dispatch(self, *, schedule_id, name, gateway_id, host, direction,
                         watts, power_mode, target_soc, window_start_ts, window_end_ts,
                         now=None) -> int:
-        """Mark a dispatch active. Any earlier 'active' row for the same gateway/host is
-        closed first — a gateway holds at most one force dispatch at a time."""
+        """Mark a dispatch active. Any earlier 'active' row for the same aGate is closed
+        first — an aGate holds at most one force at a time. Matched on the host, because
+        a Battery Control force carries no gateway id and still replaces a schedule's
+        (#189); on the gateway only when there is no host."""
         ts = float(now if now is not None else time.time())
         with self._lock:
-            self._conn.execute(
-                "UPDATE dispatches SET status='superseded', ended_ts=? "
-                "WHERE status='active' AND ifnull(gateway_id,'')=ifnull(?,'') "
-                "AND ifnull(host,'')=ifnull(?,'')", (ts, gateway_id, host))
+            if host:
+                self._conn.execute(
+                    "UPDATE dispatches SET status='superseded', ended_ts=? "
+                    "WHERE status='active' AND host=?", (ts, host))
+            else:
+                self._conn.execute(
+                    "UPDATE dispatches SET status='superseded', ended_ts=? "
+                    "WHERE status='active' AND ifnull(gateway_id,'')=ifnull(?,'') "
+                    "AND ifnull(host,'')=''", (ts, gateway_id))
             cur = self._conn.execute(
                 "INSERT INTO dispatches(schedule_id, name, gateway_id, host, direction, "
                 "watts, power_mode, target_soc, window_start_ts, window_end_ts, "

@@ -82,9 +82,10 @@ class Settings(BaseSettings):
     pv_azimuth: float = 0.0
 
     #: How to handle a scheduled battery dispatch left in-flight by a bridge
-    #: restart (none | notify | release | resume). 'notify' never touches the
-    #: battery — it only alerts (honours the two-masters rule).
-    dispatch_interrupt_policy: str = "notify"
+    #: restart (none | notify | release | resume). 'release' (the default, #199) releases
+    #: only a force this bridge recorded and never closed; 'notify' never touches the
+    #: battery — it only alerts.
+    dispatch_interrupt_policy: str = "release"
 
     # Hybrid capability providers — fill the local hard walls (battery dispatch, cloud-only
     # writes) by delegating to an installed sibling bridge's REST API, else a library.

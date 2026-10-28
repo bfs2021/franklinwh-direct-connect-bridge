@@ -24,8 +24,10 @@ closes, for any reason, the bridge runs the **exit steps** once:
    each only if its guard holds;
 2. if **restore on exit** is set, it puts the operating mode back (see
    [Release policy](#release-policy));
-3. if the schedule's battery action is **Force charge / discharge / standby**, it sends a
-   **Release** to the gateway;
+3. if the schedule's battery action is **Force charge / discharge / standby** and this
+   schedule **holds the force** on that gateway, it sends a **Release** and closes the
+   dispatch record. Otherwise it sends nothing and the exit row says "no release: this
+   schedule did not hold the force";
 4. it logs an *exit* row in the History view: "exit condition met" or "window closed",
    followed by what each step returned.
 
@@ -40,10 +42,10 @@ own watchdog releases it. The ways a force ends:
 | **Target SoC** reached | *dispatch-end* — "released — target reached (SoC …)" | at the next occurrence |
 | **Stop** on the card | *stopped* — "dispatch released by user" | at the next occurrence |
 | Schedule **disabled** | *exit* — "window closed: force release: …", on the next tick | when enabled, at the next occurrence |
-| Schedule **deleted** | nothing: the force is **not** released (see the warning below) | never |
+| Schedule **deleted** | *deleted* — "removed; force released: …" | never |
 | **Bridge shuts down** | application log only | see [Bridge shutdown](#bridge-shutdown) |
 
-<!-- @b EXT-01 ;; src: scheduler.py:1995-2038 ;; tested: tests/test_scheduler.py::test_trigger_always_fires_on_rising_edge ;; write: yes ;; b: When a force entry's window closes the exit edge sends a Release to the gateway and logs exit 'window closed' (the test asserts the Release on an always entry's closing edge) ;; test: unit: a daily force entry, tick inside then after fire_at+duration, assert Release and an exit row 'window closed' -->
+<!-- @b EXT-01 ;; src: scheduler.py:2286-2294, scheduler.py:2093-2101 ;; tested: tests/test_force_ownership.py::test_window_end_still_releases_its_own_force ;; write: yes ;; b: When a force entry's window closes and it holds the active dispatch row on that host, the exit edge sends a Release, closes the row and logs exit 'window closed' -->
 
 "Fires again at the next occurrence" means this: a schedule that ran successfully is
 marked as fired for the occurrence (the day for daily-family triggers, the window for a
@@ -56,38 +58,35 @@ exit steps run and a force is released. Turning it back on inside the same windo
 fire it again: the occurrence is already marked fired.
 <!-- @b EXT-04 ;; src: scheduler.py:1997-2014, scheduler.py:2030-2033 ;; untested ;; write: yes ;; b: Disabling an entry makes time_inside false, so the next tick runs the exit edge and releases a force; re-enabling in the same occurrence does not re-fire ;; test: unit: fire a force, set enabled false, tick, assert Release and an exit row; re-enable, tick, assert nothing is sent -->
 
-!!! warning "Deleting a running schedule does not release its force"
-    A deleted schedule is no longer loaded, so its window never closes from the engine's
-    point of view and no Release is sent. The force keeps running until the watchdog's
-    duration or target SoC ends it, or you release it from **Control** or the top bar. If the
-    schedule had no duration, nothing ends it. Disable the schedule first, wait a tick, then
-    delete it. Measured with a mock on 2026-10-17 (probe, no gateway). Issue #195.
-    <!-- @b EXT-21 ;; src: scheduler.py:1973-2038, app.py:3134-3145 ;; unclear ;; write: yes ;; b: DELETE removes the row; the next tick does not load it, so no exit edge runs and a running force is not released ;; test: unit (API): fire a force, DELETE the schedule, tick, assert a Release is sent (fails today) -->
+**Deleting a running schedule releases its force** first, on the aGate it was sent to, then
+removes the schedule (#195). The History row reads "removed; force released: …". If the
+Release fails the schedule is still deleted, and the force stays recorded so a restart's
+reconcile still sees it; release it from the top bar.
+<!-- @b EXT-21 ;; src: app.py:3244-3268 ;; tested: tests/test_force_ownership.py::test_deleting_a_running_schedule_releases_its_force ;; write: yes ;; b: DELETE releases the schedule's active dispatch on the row's host, closes the row as stopped only if the release succeeded, then removes the schedule (see also test_deleting_an_idle_schedule_sends_nothing) -->
 
-!!! danger "A window end releases any force on the gateway, even one this schedule did not start"
-    The exit steps run whenever the window closes, whether or not the schedule fired in it.
-    For a force schedule that means:
+**A window end releases only this schedule's own force** (#189). A schedule holds the force
+from the moment its force is sent until it is released or a newer force on the same aGate
+replaces it. So no Release is sent at the window end when:
 
-    - a force schedule that was **gated for its whole window** still sends a Release when the
-      window closes;
-    - the Release is not tied to this schedule's own command. It clears whatever force is on
-      the gateway: one from the **Battery Control** widget, from another schedule that took
-      over (*If busy = override*), or from another Modbus client of the
-      Modbus TCP Server (aGate :502), such as the Modbus Bridge;
-    - an *Always* force schedule sends this Release every time its conditions stop holding,
-      also after it has stopped firing (see [Triggers → Always](triggers.md#always-evaluate));
-    - exit-tagged Home Assistant actions also run although the schedule never fired.
+- the schedule was **gated for its whole window**, or its force was refused;
+- another schedule took over (*If busy = override*), or **Run now** or the **Battery
+  Control** widget forced the same aGate since.
 
-    Measured with a mock on 2026-10-17: a force schedule gated from 14:00 to 14:30 sent a
-    Release at 14:30. Issue #189.
-    <!-- @b EXT-05 ;; src: scheduler.py:1995-2038, scheduler.py:1544-1546, battery_control.py:510-517 ;; unclear ;; write: yes ;; b: The exit edge depends only on the window having been open last tick, not on the entry having fired or owning the force, so a gated or superseded force entry still sends Release and exit HA actions run ;; test: unit: a gated force entry over a whole window, assert no Release at its end (fails today); a second entry's force active, assert the first entry's window end does not release it -->
+The bridge cannot see a force sent by another Modbus client of the Modbus TCP Server
+(aGate :502), such as the Modbus Bridge. If one replaced this schedule's force, the window
+end still sends a Release.
+
+Exit-tagged Home Assistant actions still run at every window close, fired or not; that is by
+design (see [Actions](actions.md#home-assistant-actions)).
+<!-- @b EXT-05 ;; src: scheduler.py:2286-2294, scheduler.py:2093-2101, db.py:2234-2252 ;; tested: tests/test_force_ownership.py::test_window_end_does_not_release_a_force_it_never_started ;; write: yes ;; b: The exit edge releases only when the entry's dispatch row is the active one on that host; a gated entry, or one superseded by another schedule or Battery Control, logs 'no release' (see also test_window_end_does_not_release_a_force_another_rule_took_over, test_window_end_does_not_release_a_battery_control_force_on_its_gateway) -->
 
 !!! warning "Exit conditions that flap repeat the exit steps"
     If exit conditions turn true, then false, then true again inside one window, every
-    closing edge runs the exit steps again: another Release and the exit HA actions again.
-    The schedule does not fire again in between, because the occurrence is already marked
-    fired. From a code read; not tested.
-    <!-- @b EXT-24 ;; src: scheduler.py:2006-2014, scheduler.py:2039-2043 ;; unclear ;; write: yes ;; b: effective_inside goes true again when exit conditions stop holding, so each later true edge re-runs the exit steps including a force Release ;; test: unit: force fired, exit true, exit false, exit true; assert one Release only (fails today) -->
+    closing edge runs the exit steps again: the exit HA actions run again. The force is
+    released only on the first edge; after that the schedule no longer holds it, so later
+    edges log "no release". The schedule does not fire again in between, because the
+    occurrence is already marked fired. From a code read; not tested.
+    <!-- @b EXT-24 ;; src: scheduler.py:2259-2302 ;; unclear ;; write: yes ;; b: effective_inside goes true again when exit conditions stop holding, so each later true edge re-runs the exit steps; the Release is sent only while the entry holds the dispatch row ;; test: unit: force fired, exit true, exit false, exit true; assert one Release only -->
 
 !!! warning "Duration (min) also limits the force (#160)"
     The force's watchdog time limit is the schedule's **Duration (min)**, in every trigger

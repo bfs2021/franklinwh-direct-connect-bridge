@@ -138,20 +138,6 @@ def _clear_active() -> None:
     _stop.set(); _stop.clear()
 
 
-def release_stale(host: str) -> dict:
-    """On startup: if a force is still enabled on the aGate (e.g. after a crash),
-    release it so a dispatch is never left pinned. Best-effort, never raises."""
-    try:
-        st = status(host)
-    except Exception as e:                                       # noqa: BLE001
-        return {"released": False, "reason": str(e)}
-    if st.get("available") and st.get("active") not in (None, "Not Active"):
-        log.warning("battery force: stale %s on boot — releasing", st["active"])
-        out = execute("Release", host=host)
-        return {"released": bool(out.get("ok")), "was": st["active"]}
-    return {"released": False}
-
-
 def _hhmm(ts) -> str:
     try:
         return time.strftime("%H:%M", time.localtime(float(ts)))

@@ -1047,7 +1047,7 @@ def create_app() -> FastAPI:
                             # so our own dispatch is not also flagged as an orphan.
                             try:
                                 policy = getattr(get_settings(),
-                                                 "dispatch_interrupt_policy", "notify")
+                                                 "dispatch_interrupt_policy", "release")
                                 def _rsoc():
                                     try:
                                         gw = state.gateways()[0] if state.gateways() else None
@@ -3246,13 +3246,25 @@ def create_app() -> FastAPI:
         _guard_writes()
         st = _ha_store()
         prior = st.schedule(sid)
-        if not st.delete_schedule(sid):
+        if prior is None:
             raise HTTPException(status_code=404, detail=f"no schedule '{sid}'")
+        # A running force goes with its schedule (#195): released on the aGate it was
+        # sent to. Its row stays open if the release fails, so a restart still sees it.
+        from . import battery_control
+        out: dict = {}
+        for d in st.active_dispatches():
+            if d.get("schedule_id") == sid and d.get("host"):
+                out = battery_control.execute("Release", host=d["host"])
+                if out.get("ok"):
+                    st.end_dispatch(d["id"], status="stopped")
+        st.delete_schedule(sid)
+        detail = "removed" + (f"; force released: {out.get('result', '')}" if out else "")
         try:
-            st.log_schedule_event(sid, (prior or {}).get("name") or sid, "deleted", "removed")
+            st.log_schedule_event(sid, prior.get("name") or sid, "deleted", detail)
         except Exception:  # noqa: BLE001
             pass
-        return {"deleted": sid}
+        return {"deleted": sid, "released": bool(out.get("ok")),
+                "result": out.get("result", "")}
 
     @app.post("/api/schedules/{sid}/stop")
     def api_schedule_stop(sid: str):

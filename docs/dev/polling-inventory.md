@@ -74,7 +74,8 @@ Kind: **poll** (periodic data read), **probe** (reachability check that reads no
 | M8 | query | Boot reconcile of a dispatch a restart interrupted. | startup, only if the database holds an active dispatch | once | first gateway | `status()` ≈6, plus a release or re-force depending on policy | 0 | Yes. NB the reconcile targets the first gateway (#192). | `app.py:1000-1022`; `battery_control.py:154-270` |
 | M9 | probe | `/api/summary` on a **cold cache**. When no poller runs (MQTT and metrics both off) or before the first poll, every browser poll runs a full `client.summary()`, which includes M1. | page visible: `poll()` every 10 s | per browser poll | per gateway | M1 + the whole of D1 | 0 at defaults; **360** connect probes/h per open browser with MQTT and metrics off | No. On demand it should not probe the Modbus TCP Server (aGate :502) at all. | `app.py:1295-1300`; `app.py:963-968` |
 
-`release_stale()` would also open a connection at startup, but nothing calls it (#199).
+At startup only the dispatch reconcile opens a connection, and only when a recorded force is
+still active (`release_stale()` was removed, #199).
 The VPP monitor no longer touches the Modbus TCP Server (aGate :502): it reads the poller's
 cached 1707 programme id (`vpp_monitor.py:58-79`).
 
