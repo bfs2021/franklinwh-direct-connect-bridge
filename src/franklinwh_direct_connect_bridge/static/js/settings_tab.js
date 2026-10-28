@@ -904,7 +904,7 @@ function settingsTab() {
         ? loc.derived_pv_kwp : null;
       this.loadNemSpot();
       this.form.dispatch_interrupt_policy =
-        (this.cfg.scheduler && this.cfg.scheduler.dispatch_interrupt_policy) || 'notify';
+        (this.cfg.scheduler && this.cfg.scheduler.dispatch_interrupt_policy) || 'release';
       this.form.ha_token = '';   // write-only: never populated from the API; blank = keep
     },
 

@@ -149,18 +149,21 @@ Two further honest notes:
 ![A scheduled force runs for its window and auto-releases at the end](../images/control/07-stopping-a-force.png)
 
 The **Release** button appears in the top bar on every tab while a dispatch is running.
-A scheduled force also auto-releases at the end of its window, and the window's closing
-edge fires a release as a safety net even if the action itself already ended.
+A scheduled force also auto-releases at the end of its window. The window's closing edge
+sends a release only if that schedule still holds the force: not if it never fired, or if
+another schedule or Battery Control has replaced its force since.
 
 ### After a bridge restart mid-dispatch
 
 ![Settings → Automation → Battery dispatch: the interrupted-dispatch policy](../images/control/08-after-restart-mid-dispatch.png)
 
-Controlled by `dispatch_interrupt_policy`, which defaults to **`notify`**: on boot, and
-only when the Modbus path is actually available, the bridge reconciles scheduled
-dispatches the database still marks active. `notify` alerts you **without touching the
-battery** — it honours the rule that two processes must not fight over the same register.
-The other settings are `none`, `release` and `resume`.
+Controlled by `dispatch_interrupt_policy`, which defaults to **`release`**: on boot, and
+only when the Modbus path is actually available, the bridge reconciles dispatches the
+database still marks active. `release` releases a force whose window has ended, and re-arms
+the auto-release for one whose window is still open. It acts only on a force this bridge
+recorded and never released, so another Modbus client's force is left alone. `notify`
+alerts you **without touching the battery**. The other settings are `none` and `resume`.
+A policy you saved before `release` became the default is kept.
 
 The reconcile is why a persisted dispatch row exists at all: both a widget force and a
 scheduled one are written to the database when they start, with their direction, power,

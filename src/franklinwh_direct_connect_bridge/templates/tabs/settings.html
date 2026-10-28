@@ -2015,11 +2015,12 @@
     </label>
     <p class="text-[11px]" style="color:var(--text-faint)">
       On startup the bridge checks for a scheduled dispatch it left in-flight and applies this
-      policy. <strong>Notify</strong> (the default) is safest — it only alerts your notification
-      devices and never commands the battery on boot. <strong>Release</strong> and
-      <strong>Resume</strong> let the bridge act autonomously: Release clears a force whose
-      window has passed; Resume re-forces for whatever time is left in the window. Interruptions
-      are always logged (Schedule → activity log, battery-dispatch filter).
+      policy. <strong>Release</strong> (the default) clears a force this bridge started and never
+      released once its window has passed, and re-arms the auto-release if the window is still
+      open. A force with no record here (another Modbus client's) is never touched.
+      <strong>Notify</strong> only alerts your notification devices and never commands the
+      battery on boot. <strong>Resume</strong> re-forces for whatever time is left in the
+      window. Interruptions are always logged (Schedule → activity log, battery-dispatch filter).
     </p>
   </div>
 

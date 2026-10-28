@@ -86,12 +86,10 @@ rating is calibrated or confirmed by a measured peak. This bridge has no such ch
 trusts the 702 rating (or 5000 W). There is no overshoot guard either (see
 [Outcomes and audit](outcomes.md#overshoot-guard)).
 
-!!! warning "A refused force is logged as *fired*"
-    When the Modbus client (this bridge) is off, unreachable or SunSpec does not answer, the
-    reason comes back as text such as *"force charge: This bridge's Modbus client is off …"*.
-    The scheduler decides success by looking for the words *failed*, *error* or *not
-    confirmed*. This text has none of them, so the run is recorded **fired** and is not
-    retried. Check the History detail, not just the status. Issue #191. <!-- @b ACT-13 ;; src: scheduler.py:1632-1646, scheduler.py:1598, battery_control.py:496-500 ;; unclear ;; write: yes ;; b: A force refused for capability reasons is classified OK, logged fired and marked done for the occurrence ;; test: unit: run_action_outcome with available() false must not return Verdict.OK -->
+**A refused force is a failed run.** When the Modbus client (this bridge) is off,
+unreachable or SunSpec does not answer, the run is logged *error* with the reason, such as
+*"force charge failed: This bridge's Modbus client is off …"*, and retried while the window
+is open (#191). <!-- @b ACT-13 ;; src: scheduler.py:1826-1830, battery_control.py:603-617 ;; tested: tests/test_force_ownership.py::test_a_refused_force_is_a_failed_run_not_fired ;; write: yes ;; b: A force refused for capability reasons returns 'force <dir> failed: <reason>', so the run is failed and retried, not fired -->
 
 ### What is written
 
@@ -122,15 +120,14 @@ The bridge reads nothing back after the send: success is what `send_command` ret
     no longer enforced; only its window-end release is left. The SoC reader is shared the
     same way. From a code read; not verified on hardware. Issue #194. <!-- @b ACT-39 ;; src: battery_control.py:20-26, battery_control.py:113-124, battery_control.py:487-491 ;; unclear ;; write: yes ;; b: battery_control holds a single _active dispatch and a global _soc_getter; a second force ends the first watchdog ;; test: unit: two execute() calls for two hosts; assert both watchdogs stay armed (fails today) -->
 
-**Retries inside one send.** A force that reports *failed* is retried by the shared
-resilience layer up to 5 times in the same tick, with waits of about 5, 10, 20 and 40 s,
-bounded by the window end. The tick waits for it, so every gateway's schedules wait too.
-Mode, circuit and off-grid writes get 2 attempts. <!-- @b ACT-40 ;; src: scheduler.py:1648-1679, resilience.py:97-109, resilience.py:160-211, scheduler_worker.py:206 ;; untested ;; write: yes ;; b: A failing device write is retried inside run_action_outcome (force: DISPATCH, 5 attempts; others: WRITE, 2) and blocks the tick ;; test: unit: run_action_outcome with a failing run_action and patched sleep; assert 5 attempts for force and 2 for set_mode -->
-Then the run is *failed* and the scheduler retries it on later ticks (see
+**One attempt per tick.** A force, mode, circuit or off-grid write is sent once per tick,
+with no retry or wait inside the tick, so one failing gateway never holds up the others
+(#197). <!-- @b ACT-40 ;; src: scheduler.py:1879-1884, resilience.py:107-110 ;; tested: tests/test_force_ownership.py::test_a_failing_scheduled_write_never_sleeps_inside_the_tick ;; write: yes ;; b: run_action_outcome uses resilience.SCHEDULED (one attempt) for device writes; nothing sleeps inside the tick -->
+If it fails, the run is *failed* and the scheduler retries it on later ticks (see
 [Outcomes and audit](outcomes.md#retries)).
 
-!!! note "The window end is the retry deadline"
-    The deadline is the window's close. For an *Always* entry and a zero-duration window
+!!! note "The window end is the deadline"
+    The deadline bounds the one attempt a tick makes. It is the window's close. For an *Always* entry and a zero-duration window
     there is no close, so the fallback (fire time + duration on today's date) is now or in
     the past and the deadline becomes **1 second**: one attempt only. <!-- @b ACT-42 ;; src: scheduler.py:2411-2413, scheduler.py:273-279, scheduler.py:1652-1654 ;; unclear ;; write: yes ;; b: With no window end the deadline falls back to fire_at+duration today, which is often past, so resilience gets 1 s ;; test: unit: always entry with a failing force; assert number of attempts -->
 
@@ -193,12 +190,10 @@ The mode picker lists the gateway's own mode names, stored by work mode (1 → `
 Emergency Backup. <!-- @b ACT-22 ;; src: static/js/scheduler_tab.js:451-462, scheduler.py:1785-1787, client.py:371-380 ;; tested: tests/test_scheduler.py::test_operating_mode_is_a_picker_not_a_text_box ;; write: yes ;; b: Mode is a picker of tou/self/backup from the gateway's work modes; set_mode sends it over Direct Connect ;; test: — -->
 A `set_mode` with no `mode` (API) fails when it runs and is retried. <!-- @b ACT-23 ;; src: scheduler.py:1785-1787, scheduler.py:1854-1855 ;; untested ;; write: yes ;; b: A set_mode without mode raises KeyError, returned as "set_mode failed" and retried ;; test: unit: run_action_outcome set_mode with no mode is FAILED -->
 
-!!! warning "A mode or off-grid write that the aGate rejects is logged *fired*"
-    `set_mode` returns ok only when the aGate answers result 0. But a rejection is written as
-    *"mode -> tou: {'ok': False, 'result': 3}"*, which has none of the words the scheduler
-    looks for (*failed*, *error*, *not confirmed*). So it is recorded **fired** and not
-    retried. Off-grid behaves the same. A smart-circuit write is checked properly: *NOT
-    confirmed* counts as a failure. Issue #191. <!-- @b ACT-24 ;; src: scheduler.py:1785-1799, scheduler.py:1632-1646 ;; unclear ;; write: yes ;; b: set_mode and offgrid results with ok False are classified OK because the text lacks the failure words ;; test: unit: client.set_mode returning ok False must give Verdict.FAILED -->
+**A mode or off-grid write that the aGate rejects is a failed run.** `set_mode` returns ok
+only when the aGate answers result 0. A rejection is logged *error* as *"mode -> tou:
+failed: {'ok': False, 'result': 3}"* and retried while the window is open (#191). Off-grid
+behaves the same. A smart-circuit write counts *NOT confirmed* as a failure. <!-- @b ACT-24 ;; src: scheduler.py:2020-2034 ;; tested: tests/test_force_ownership.py::test_a_rejected_mode_write_is_a_failed_run ;; write: yes ;; b: set_mode and offgrid results with ok False return text containing 'failed', so the run is failed and retried -->
 
 **Set reserve SoC never writes.** It is always skipped with *"reserve_soc skipped: no local
 write path exists … needs a cloud provider"*, even when cloud credentials are set up and
@@ -286,11 +281,13 @@ like a notify HA action that runs at fire time and claims nothing. <!-- @b HAA-1
     therefore arrive several times for a discharge that never started. Issue #203.
     <!-- @b HAA-07 ;; src: scheduler.py:2408-2417, scheduler.py:2459-2466 ;; unclear ;; write: no ;; b: Fire-phase HA actions run after a failed battery action and on every retry ;; test: unit: failing force plus notify, two retries; assert one notify (fails today) -->
 
-!!! warning "On-exit actions can run when the schedule never fired"
-    Exit-time actions run at the closing edge of the window, not at the end of a run. A
-    schedule whose entry conditions failed for the whole window still sends its *On exit*
-    message. Exit conditions that turn true, false and true again run the exit actions each
-    time. Issue #189. <!-- @b HAA-06 ;; src: scheduler.py:2011-2038 ;; unclear ;; write: no ;; b: Exit-phase HA actions run at every closing edge of the effective window, fired or not ;; test: unit: gated window with an exit notify; assert no send (fails today) -->
+!!! note "On-exit actions run when the window closes, fired or not"
+    This is by design: exit-time actions run at the closing edge of the window, not at the
+    end of a run. A schedule whose entry conditions failed for the whole window still sends
+    its *On exit* message. Exit conditions that turn true, false and true again run the exit
+    actions each time. (Only the force **Release** at window close depends on whether this
+    schedule holds the force; see [Exit and conflicts](exit-and-conflicts.md#how-a-run-ends).)
+    <!-- @b HAA-06 ;; src: scheduler.py:2259-2302 ;; unclear ;; write: no ;; b: Exit-phase HA actions run at every closing edge of the effective window, fired or not (by design) ;; test: unit: gated window with an exit notify; assert it is sent -->
 
 ### Guards
 

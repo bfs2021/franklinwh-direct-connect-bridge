@@ -1765,7 +1765,11 @@ def _force_dispatch(action: dict, *, host: str | None, window_min: int,
         return "force skipped: no gateway host to reach over Modbus"
     if release:
         out = battery_control.execute("Release", host=host, dry_run=dry_run)
-        return f"force release: {out.get('result', '')}"
+        if out.get("ok") and not dry_run and schedule_id and hasattr(store, "active_dispatches"):
+            for d in store.active_dispatches(host=host):
+                if d.get("schedule_id") == schedule_id:
+                    store.end_dispatch(d["id"], status="ended")
+        return f"force release{'' if out.get('ok') else ' failed'}: {out.get('result', '')}"
     direction = (action.get("direction") or "").lower()
     slug = _FORCE_SLUG.get(direction)
     if not slug:
@@ -1821,7 +1825,9 @@ def _force_dispatch(action: dict, *, host: str | None, window_min: int,
                 window_end_ts=window_end_ts)
         except Exception:                                       # noqa: BLE001
             pass
-    return f"force {direction}: {out.get('result', '')}"
+    # A refusal (client off, path not ready) or a write the aGate rejected is a failed
+    # run, retried while the window is open, never "fired" (#191).
+    return f"force {direction}{'' if out.get('ok') else ' failed'}: {out.get('result', '')}"
 
 
 #: Which action kinds actually command the device. These go through
@@ -1874,7 +1880,7 @@ def run_action_outcome(action: dict, *, settings, client, store, snapshot: dict,
     if kind in DEVICE_WRITES and not dry_run:
         # The window is the deadline: retrying past the end of the window would
         # dispatch into conditions the rule no longer describes.
-        policy = resilience.DISPATCH if kind == "force" else resilience.WRITE
+        policy = resilience.SCHEDULED
         deadline = None
         # Only a window end still ahead bounds the retries. Always and zero-duration
         # schedules pass an end that is already past, which made it 1 second (#209);
@@ -2013,7 +2019,7 @@ def _run_action_body(action: dict, *, settings, client, store, snapshot: dict,
 
         if kind == "set_mode":
             out = client.set_mode(settings, action["mode"], host=host)
-            return f"mode -> {action['mode']}: {'ok' if out.get('ok', True) else out}"
+            return f"mode -> {action['mode']}: {'ok' if out.get('ok', True) else f'failed: {out}'}"
 
         if kind == "smart_circuit":
             on = on_value(action["on"])          # never bool("false") (#188)
@@ -2025,7 +2031,7 @@ def _run_action_body(action: dict, *, settings, client, store, snapshot: dict,
         if kind == "offgrid":
             on = on_value(action["on"])          # never bool("false") (#188)
             out = client.set_offgrid(settings, on, int(action.get("soc", 5)), host=host)
-            return f"offgrid {on}: {'ok' if out.get('ok') else out}"
+            return f"offgrid {on}: {'ok' if out.get('ok') else f'failed: {out}'}"
 
         if kind == "notify":
             from . import ha_instances
@@ -2082,6 +2088,17 @@ def _run_action_body(action: dict, *, settings, client, store, snapshot: dict,
         return f"unknown action '{kind}'"
     except Exception as e:                                       # noqa: BLE001
         return f"{kind} failed: {type(e).__name__}: {e}"
+
+
+def holds_dispatch(store, schedule_id: str, host: str | None) -> bool:
+    """True when this schedule's force is the active dispatch on ``host`` (#189). A newer
+    force on the same aGate supersedes the row, so a rule that was taken over holds
+    nothing. Never raises."""
+    try:
+        return any(d.get("schedule_id") == schedule_id
+                   for d in store.active_dispatches(host=host))
+    except Exception:                                           # noqa: BLE001
+        return False
 
 
 def _is_default_gateway(store, gateway_id: str) -> bool:
@@ -2266,10 +2283,15 @@ def tick(*, settings, client, store, state: dict, host: str | None = None,
                                           wkey=_window_key.get(dkey) or wkey)
                 if restored:
                     exit_res.append(restored)
+            # Release only the force this rule holds (#189): never one it did not start
+            # (gated all window, or a refusal) or one another rule or client took over.
             if ((entry.get("action") or {}).get("kind")) == "force":
-                exit_res.append(_force_dispatch(
-                    entry["action"], host=host, window_min=0, gateway_id=gateway_id,
-                    store=store, release=True))
+                if holds_dispatch(store, entry["id"], host):
+                    exit_res.append(_force_dispatch(
+                        entry["action"], host=host, window_min=0, gateway_id=gateway_id,
+                        store=store, release=True, schedule_id=entry["id"]))
+                else:
+                    exit_res.append("no release: this schedule did not hold the force")
             why = ("exit condition met" if (time_inside and exit_now)
                    else "window closed")
             if exit_res or exit_now:
@@ -2375,6 +2397,20 @@ def tick(*, settings, client, store, state: dict, host: str | None = None,
     for w in winners:
         others = active_owners - {w["id"]}
         if (w.get("action") or {}).get("kind") == "force" and others:
+            # Priority holds across ticks (#196): a running force is not taken over by a
+            # rule of lower priority, whatever its If busy setting.
+            holder = next((h for h in (store.schedule(o) for o in sorted(others))
+                           if h and int(h.get("priority") or 0) > int(w.get("priority") or 0)),
+                          None)
+            if holder is not None:
+                detail = (f"deferred — '{holder['name']}' (priority "
+                          f"{int(holder.get('priority') or 0)}) is running a force on this "
+                          f"battery; this rule is priority {int(w.get('priority') or 0)}")
+                _settle_loser(w, store=store, gateway_id=gateway_id, now=now, reason=detail)
+                store.log_schedule_event(w["id"], w["name"], "deferred", detail,
+                                         gateway_id=gateway_id or "")
+                mon[w["id"]] = ("skipped", detail)
+                continue
             pol = (w.get("conflict") or "override").lower()
             if pol == "defer":
                 store.mark_schedule_fired(w["id"], now.date().isoformat(), "deferred")

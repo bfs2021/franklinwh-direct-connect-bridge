@@ -16,9 +16,9 @@ the ones in the **Add schedule** dialog. There are no screenshots of these recip
     - For a force, use **Daily at time**, **Weekly at time**, **Every N minutes** or **Custom
       cron**, with a **Duration (min)**. A force in a **Recurring windows** schedule stops
       after the hidden duration, not at the window's end (#160).
-    - Do not give two force schedules windows that overlap on one gateway. When a force
-      schedule's window ends, the bridge sends Release to that gateway, even if the schedule
-      never fired and even if another schedule's force is running (#189). See
+    - Avoid force schedules whose windows overlap on one gateway. A force that replaces
+      another is not undone: when it ends, the earlier schedule's force does not come back.
+      A window end releases only that schedule's own force. See
       [Exit and release](exit-and-conflicts.md).
 
 ## 1. Evening top-up
@@ -154,12 +154,12 @@ How it behaves:
 - The one-minute hold ignores short load spikes.
 - **Tariff: in peak-demand window** has **no value** when the tariff defines no demand
   window, so the gate fails and the schedule does nothing (on the Modbus Bridge it reads 0).
-- Priority only decides between schedules that become ready **on the same tick**. If recipe 2
-  is already discharging, **If busy** decides: `override` takes the battery, `defer` skips
-  this half hour, `wait` retries each tick.
-- **Do not combine this with recipe 2 on one gateway.** Each half-hour window end sends
-  Release, which also ends recipe 2's discharge; and recipe 2's 21:00 window end releases this
-  one (#189).
+- If recipe 2 is already discharging, priority is compared first: this one (20) is higher, so
+  **If busy** decides: `override` takes the battery, `defer` skips this half hour, `wait`
+  retries each tick.
+- **Do not combine this with recipe 2 on one gateway.** Once this one takes over, recipe 2's
+  discharge is replaced, not paused: this half hour's window end releases this force, and
+  recipe 2's discharge does not come back (its own window end then sends nothing).
 - `grid.power_w` is positive when importing. Once the battery discharges, import drops, but
   the run continues: the gate is not checked again until the next half hour.
 
@@ -254,8 +254,8 @@ value. Between 23:59 and 00:00 the window is closed.
 2. Pick your notification device. The action's **when** is **Entry & exit**, so you get one
    message at 16:00 and one at 21:00.
 
-The exit message is sent when the window closes whether or not the entry message went out
-(#189).
+The exit message is sent when the window closes whether or not the entry message went out;
+that is by design.
 
 ### Overnight off-peak charge
 

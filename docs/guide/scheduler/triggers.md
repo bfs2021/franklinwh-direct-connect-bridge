@@ -223,7 +223,7 @@ conditions hold. The schedule fires on the rising edge only, not on every tick.
 <!-- @b TRG-27 ;; src: scheduler.py:1999-2002, scheduler.py:2049-2051 ;; tested: tests/test_scheduler.py::test_trigger_always_fires_on_rising_edge ;; write: yes ;; b: An always entry's window is open while its entry conditions hold; it fires on the rising edge and not again while they keep holding ;; test: -->
 
 When the conditions stop holding, the window closes: exit HA actions run and, for a force
-action, a Release is sent.
+action this schedule still holds, a Release is sent.
 <!-- @b TRG-30 ;; src: scheduler.py:2014-2033 ;; tested: tests/test_scheduler.py::test_trigger_always_fires_on_rising_edge ;; write: yes ;; b: When an always entry's conditions stop, the closing edge sends a force Release and runs exit HA actions ;; test: -->
 
 !!! danger "Always fires once, ever, and then only releases"
@@ -232,9 +232,8 @@ action, a Release is sent.
     sends nothing**. Probe, 2026-10-17, against this release's code: SoC 95 → 50 → 95 → 95 →
     50 → 95 gave Force Discharge, Release, nothing, nothing, Release, nothing.
 
-    - The **falling** edges still send **Release**, which ends whatever force is running on
-      that gateway, even one this schedule did not start (see
-      [Exit and release](exit-and-conflicts.md#how-a-run-ends)).
+    - A **falling** edge sends **Release** only while this schedule holds the force on that
+      gateway (see [Exit and release](exit-and-conflicts.md#how-a-run-ends)).
     - The mark is kept in the database. A restart, an edit, or turning it off and on does
       not clear it; nothing prunes old runs (the prune function exists but is never called).
       Deleting the schedule and creating it again does.

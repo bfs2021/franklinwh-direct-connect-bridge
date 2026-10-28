@@ -139,7 +139,7 @@ A trigger fires on a **change** between one poll and the next, not on every poll
 is no other rate limit.
 
 Also sent to every enabled device: after a restart that interrupted a **scheduled
-dispatch**, if `dispatch_interrupt_policy` is `notify` (the default), a message titled
+dispatch**, if `dispatch_interrupt_policy` is `notify` (the default is `release`), a message titled
 "FranklinWH — scheduled dispatch …" (`reconcile_interrupted()` in `battery_control.py`).
 See [Control → After a bridge restart mid-dispatch](control.md#after-a-bridge-restart-mid-dispatch).
 

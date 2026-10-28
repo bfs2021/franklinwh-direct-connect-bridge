@@ -166,10 +166,11 @@ Things to know:
 |---|---|---|
 | Its duration runs out | The bridge's watchdog releases it. It checks every 5 seconds. A duration of 0 means no time limit. | `_watch()` in `battery_control.py` |
 | It reaches the target SoC | Charging stops at SoC ≥ target, discharging at SoC ≤ target, from the gateway's last poll. | `_watch()` |
-| A schedule's window closes, or its exit conditions become true | On the first tick after, the schedule releases the force as a safety net, even if the watchdog already did. | `tick()` in `scheduler.py` |
+| A schedule's window closes, or its exit conditions become true | On the first tick after, the schedule releases the force if it still holds it. It sends nothing if it never fired, or if another schedule or Battery Control replaced its force. | `tick()` and `holds_dispatch()` in `scheduler.py` |
 | A newer force | The new command replaces the old one. | `battery_control` |
+| Its schedule is deleted | The schedule's force is released, then the schedule is removed. | `api_schedule_delete()` in `app.py` |
 | The bridge shuts down cleanly | It releases a force it holds. | `lifespan` in `app.py` |
-| The bridge restarts mid-force | `dispatch_interrupt_policy` decides. The default, `notify`, sends you a notification and does **not** touch the battery. | `reconcile_interrupted()` in `battery_control.py`; see [Control](control.md#after-a-bridge-restart-mid-dispatch) |
+| The bridge restarts mid-force | `dispatch_interrupt_policy` decides. The default, `release`, releases the force if its window has ended and re-arms the auto-release if not. `notify` only sends you a notification. | `reconcile_interrupted()` in `battery_control.py`; see [Control](control.md#after-a-bridge-restart-mid-dispatch) |
 
 The aGate's own revert timer is not relied on. The code calls it "cosmetic" on this
 firmware, so the bridge's watchdog is what ends a force. **If the bridge stops

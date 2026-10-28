@@ -28,7 +28,34 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 - **Scheduler Explain remembers its level** (#336). Min, Medium or Full stays as you
   last chose it in that browser.
 
+- **After a restart, a force the bridge left running is released by default** (#199). The
+  default `dispatch_interrupt_policy` is now `release` (was `notify`): at start-up a force
+  this bridge recorded and never released is released if its window has ended, or its
+  auto-release is re-armed if not. A force with no record here is left alone. A policy you
+  saved is kept. The unused `release_stale()`, which would have released any force, is gone.
+
 ### Fixed
+- **A schedule's window end releases only its own force** (#189). It used to send Release
+  whether or not it had fired, which also ended a force from another schedule or from
+  Battery Control. History now says "no release: this schedule did not hold the force".
+  On-exit HA actions still run at every window close, as before.
+
+- **A refused force or a rejected mode write is a failure, not *fired*** (#191). A force
+  refused because the Modbus client (this bridge) is off or can't reach the aGate, and a
+  mode or off-grid write the aGate rejects, are now logged *error* and retried while the
+  window is open.
+
+- **Deleting a running schedule releases its force** (#195). Before, the force kept
+  running until its duration or target SoC ended it.
+
+- **Priority now counts against a running force** (#196). A force schedule that becomes
+  ready later no longer takes over a running force of higher priority under
+  *If busy = override*; it is deferred and History names the schedule that holds it.
+
+- **A failing write no longer holds up every schedule** (#197). Scheduled writes made up
+  to 5 attempts with waits inside one scheduler tick, so every gateway's schedules waited.
+  Now each tick makes one attempt, and the existing backoff (30 s up to 10 min) retries.
+
 - **FORCE is back, for this bridge's own forces** (#333). 0.5.17 showed every force as
   VPP. The top bar, the gateway switcher and Run status now show **FORCE** while this
   bridge holds a force, and **VPP** when another remote controller has the aGate

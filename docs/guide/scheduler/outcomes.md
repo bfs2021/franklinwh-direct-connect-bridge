@@ -110,37 +110,26 @@ while the window is open:
   *error* — "… — attempt N; retrying in 60s while the window is open".
   <!-- @b OUT-04 ;; src: scheduler.py:2353-2372, scheduler.py:2151-2153 ;; tested: tests/test_occurrences.py::test_backoff_grows_and_is_capped ;; write: yes ;; b: A failed run is retried after 30 s doubling to a 600 s cap while its window is open -->
   <!-- @b OUT-42 ;; src: scheduler.py:2459-2466 ;; tested: tests/test_fire_entry_outcomes.py::test_a_failure_is_logged_with_the_retry_interval ;; write: yes ;; b: A failed attempt is not marked fired, the run is finished failed, and an error row names the attempt and the retry delay (see also test_a_failed_action_does_NOT_mark_fired) -->
-- **Within one tick.** A device write (force, mode, smart circuit, off-grid) is also
-  retried inside the call: up to 5 attempts for a force (waits of about 5, 10, 20 and 40 s)
-  and 2 for the others, cut off at the window's end.
-  <!-- @b OUT-33 ;; src: scheduler.py:1648-1679, resilience.py:97-109, resilience.py:160-211 ;; unclear ;; write: yes ;; b: A failing device write is retried inside resilience.call (DISPATCH 5 attempts, WRITE 2) with sleeps, inside the scheduler's tick thread ;; test: unit: run_action fails every time for a force with a 10-minute window; assert attempts and total time; assert other gateways still tick -->
+- **Within one tick.** A device write (force, mode, smart circuit, off-grid) is tried
+  **once** per tick. There is no retry or wait inside the tick, so one failing gateway
+  never holds up the others; the between-ticks backoff above does the retrying (#197).
+  <!-- @b OUT-33 ;; src: scheduler.py:1879-1884, resilience.py:107-110 ;; tested: tests/test_force_ownership.py::test_a_failing_scheduled_write_never_sleeps_inside_the_tick ;; write: yes ;; b: A scheduled device write is one attempt per tick (resilience.SCHEDULED, attempts=1); no sleep runs inside the tick -->
 - A success after failures logs *fired* and closes the run as ok. There is no
   "recovered after N attempts" wording.
   <!-- @b OUT-05 ;; src: scheduler.py:2453-2458 ;; tested: tests/test_fire_entry_outcomes.py::test_success_marks_fired_and_closes_the_run ;; write: yes ;; b: A successful attempt marks the occurrence fired, closes the run ok and logs fired -->
 - A run that is retrying and then loses a same-tick priority contest is closed as
   *skipped*. <!-- @b OUT-06 ;; src: scheduler.py:2296-2314 ;; untested ;; write: yes ;; b: A loser's open run (pending or failed) is finished skipped with the winner named ;; test: unit: a failed run, next tick a higher-priority entry ready together; assert the run becomes skipped -->
 
-!!! warning "A long in-tick retry holds up every gateway"
-    The in-call retries run inside the scheduler's tick. A force that keeps failing can hold
-    the tick for over a minute, and no gateway is evaluated meanwhile. Whether this caused
-    the missed heartbeat in
-    [#183](https://github.com/david2069/franklinwh-direct-connect-bridge/issues/183) is
-    **unverified**.
+**A refused or rejected write is a failure**, not *fired* (#191). These are logged
+*error* and retried while the window is open:
 
-!!! danger "Some failures are recorded as *fired*"
-    The scheduler decides success by reading the action's result text. A result counts as a
-    failure only if it contains "failed", "error" or "not confirmed". So:
+- a **force** refused because the Modbus client (this bridge) is off, the
+  Modbus TCP Server (aGate :502) does not answer, or SunSpec does not respond
+  ("force charge failed: This bridge's Modbus client is off …");
+- a **Set operating mode** or **Go off-grid** that the aGate rejects
+  ("mode -> tou: failed: {'ok': False, 'result': 3}").
 
-    - a **force** refused because the Modbus client (this bridge) is off, the
-      Modbus TCP Server (aGate :502) does not answer, or SunSpec does not respond, is logged
-      *fired* and the occurrence is used up ("force charge: This bridge's Modbus client is
-      off …");
-    - a **Set operating mode** or **Go off-grid** that the aGate answers with a non-zero
-      result is logged *fired* ("mode -> tou: {'ok': False, 'result': 3}").
-
-    Measured with mocks on 2026-10-17. Read the detail of a *fired* row, not just its status.
-    Issue #191.
-    <!-- @b OUT-34 ;; src: scheduler.py:1632-1646, scheduler.py:1598, scheduler.py:1785-1799, battery_control.py:496-508 ;; unclear ;; write: yes ;; b: _classify reads OK unless the text contains failed/error/not confirmed, so a force refused for capability and a mode/offgrid with a non-zero result are logged fired ;; test: unit: run_action_outcome for a force with the Modbus client off, and set_mode returning ok False; assert FAILED (fails today) -->
+<!-- @b OUT-34 ;; src: scheduler.py:1826-1830, scheduler.py:2020-2034 ;; tested: tests/test_force_ownership.py::test_a_refused_force_is_a_failed_run_not_fired ;; write: yes ;; b: A force refused for capability and a mode/offgrid write with ok False return text containing 'failed', so the run is failed and retried, not fired (see also test_a_rejected_mode_write_is_a_failed_run) -->
 
 **An unknown outcome is not retried**: if the scheduler is told the outcome is *unknown*
 (the write may have landed), it logs *unknown*, closes the run and does not send again.
@@ -218,7 +207,7 @@ every attempt, whatever the outcome (see [Actions](actions.md#home-assistant-act
 
 **Direct Connect only.** After a restart that interrupted a scheduled force, the boot
 reconcile notifies your enabled notification devices ("FranklinWH — scheduled dispatch
-…") under the default policy *notify*. See [Restarts and the clock](restarts-and-clock.md).
+…") when the policy is *notify*. See [Restarts and the clock](restarts-and-clock.md).
 
 ## Run now and Stop
 

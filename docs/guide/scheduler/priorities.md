@@ -51,15 +51,19 @@ entry conditions true, hold passed, not fired yet this occurrence):
 <!-- @b PRI-04 ;; src: scheduler.py:2283-2293 ;; untested ;; write: yes ;; b: Ties are broken by created_at ascending (then id), not by name ;; test: unit: two equal-priority force entries ready on one tick, the older created_at wins; rename one, same winner -->
 <!-- @b PRI-06 ;; src: scheduler.py:2104-2118, scheduler.py:2296-2314 ;; tested: tests/test_scheduler.py::test_priority_resolution_defers_lower_on_same_target ;; write: yes ;; b: A loser is logged deferred naming the winner, its occurrence is settled skipped and it is marked fired 'deferred', so it does not fire again in that occurrence -->
 
-!!! warning "Priority only decides between schedules that become ready on the same tick"
-    A schedule that becomes ready **later**, while another schedule's force is already
-    running, is not compared by priority at all. Only its **If busy** setting decides (see
-    below). With the default *override*, a later schedule takes the battery even if its
-    priority is lower; with *defer* it gives way even if its priority is higher. Measured
-    with a mock on 2026-10-17: a priority-9 force ready at 14:06 replaced a running priority-1
-    force (override). And a **Set operating mode** schedule is never checked against a running
-    force: the mode is written while the force runs.
-    <!-- @b PRI-03 ;; src: scheduler.py:2078-2140 ;; untested ;; write: yes ;; b: There is no incumbent and no cross-tick priority: a later-ready entry is judged only by If busy against active force rows, and non-force entries are not judged at all ;; test: unit: a running priority-1 force, a priority-9 force ready a tick later with defer, assert it defers; with override assert it sends -->
+**Priority also counts against a running force** (#196). A force schedule that becomes
+ready **later**, while another schedule's force is running on the same battery, does not
+take it over if the running schedule has a **higher** priority. It is deferred for the
+occurrence and logs *deferred* — "deferred — '<name>' (priority N) is running a force on
+this battery; this rule is priority M". With equal or higher priority, its **If busy**
+setting decides (see below): with *override* it takes the battery, with *defer* it gives
+way even if its priority is higher.
+
+!!! warning "Some things priority does not cover"
+    A force from the **Battery Control** widget has no priority: *override* still replaces
+    it. And a **Set operating mode** schedule is never checked against a running force: the
+    mode is written while the force runs.
+    <!-- @b PRI-03 ;; src: scheduler.py:2396-2430 ;; tested: tests/test_force_ownership.py::test_a_lower_priority_force_does_not_override_a_running_one ;; write: yes ;; b: A later-ready force entry is deferred when a running force's schedule has a higher priority; with equal or higher priority If busy decides; widget forces and non-force entries are not judged by priority (see also test_a_higher_priority_force_still_overrides) -->
 
 !!! tip "Give one-shot schedules a short window"
     A **Set operating mode** schedule claims the battery only on the tick it fires, so it
@@ -76,9 +80,10 @@ entry conditions true, hold passed, not fired yet this occurrence):
 
 At 17:00 both open. If the demand gate passes, *Peak-demand shave* fires (20 > 10) and
 *Evening discharge* is deferred **until tomorrow**. If the demand gate fails, *Evening
-discharge* fires; when *Peak-demand shave* becomes ready a few ticks later its **If busy**
-decides, not its priority: with *override* it takes the battery. When its 30 minutes end,
-its window close sends a Release, which also ends the evening discharge (see
+discharge* fires; when *Peak-demand shave* becomes ready a few ticks later its priority
+(20 > 10) lets its **If busy** decide: with *override* it takes the battery. When its 30
+minutes end, its window close releases its own force. The evening discharge is not resumed:
+it was replaced, so its own window end later sends nothing (see
 [Exit and release](exit-and-conflicts.md#how-a-run-ends)). Avoid overlapping force
 schedules on one gateway.
 
@@ -96,7 +101,7 @@ gateway's host (the `dispatches` table), and ignores the schedule's own:
 
 | If busy | API `conflict` | What happens |
 |---|---|---|
-| **override** (default) | `override` | Sends its own force, which replaces the running one. |
+| **override** (default) | `override` | Sends its own force, which replaces the running one, unless the running one's schedule has a higher priority. |
 | **defer** | `defer` | Does not send. Logs *deferred* — "the battery is already under another dispatch (conflict=defer)" and marks the day as done: it does not try again later that day. |
 | **wait** | `wait` | Does not send. Logs *waiting* — "battery busy with another dispatch (conflict=wait); will retry", and tries again on the next tick while the window is open. |
 

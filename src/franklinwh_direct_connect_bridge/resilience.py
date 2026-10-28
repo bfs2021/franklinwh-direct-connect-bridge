@@ -104,9 +104,10 @@ class RetryPolicy:
 #: be retried once its outcome is ambiguous.
 READ = RetryPolicy(attempts=3, base_delay_s=1.0, deadline_s=45.0)
 WRITE = RetryPolicy(attempts=2, base_delay_s=2.0, deadline_s=30.0, retry_unknown=False)
-#: Scheduler actions get the window to themselves — the caller passes the window
-#: end as the deadline, so retrying stops when the window does.
-DISPATCH = RetryPolicy(attempts=5, base_delay_s=5.0, max_delay_s=60.0, deadline_s=300.0)
+#: Scheduled device writes: one attempt per tick, never a sleep. A failed run is retried
+#: on a later tick by the run's own backoff (scheduler.retry_delay_s), bounded by its
+#: window; sleeping here stalled every other gateway's schedules (#197).
+SCHEDULED = RetryPolicy(attempts=1, deadline_s=300.0)
 
 
 @dataclass
