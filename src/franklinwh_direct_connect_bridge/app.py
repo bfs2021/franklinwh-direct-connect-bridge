@@ -907,6 +907,14 @@ def _site_tz_hours(store) -> float | None:
     return None if off is None else off / 60.0
 
 
+def _log_adopted(moved: dict, gw_id: str) -> None:
+    """Log what adopt_default_data gave the default gateway (#379); silent when nothing."""
+    if moved.get("schedules") or moved.get("keys") or moved.get("billing_periods"):
+        log.info("bound to gateway '%s' (it ran on the default before): %d schedule(s), "
+                 "%d billing period(s), saved data %s", gw_id, moved["schedules"],
+                 moved["billing_periods"], ", ".join(moved["keys"]) or "none")
+
+
 def _modbus_client_enabled(store) -> bool:
     """The Modbus client switch, deciding it once for an install that never set it (#88).
 
@@ -994,6 +1002,7 @@ def create_app() -> FastAPI:
                 if default_id and flagged != [default_id]:
                     log.info("default gateway: marked '%s' (it was the default by roster order)",
                              default_id)
+                _log_adopted(store.adopt_default_data(default_id), default_id)   # #379
                 db_rows = store.gateways()
             except Exception:  # noqa: BLE001 — roster must never block startup
                 db_rows = []
@@ -1876,6 +1885,8 @@ def create_app() -> FastAPI:
             is_mock=req.is_mock, mock_seed=seed, mock_units=req.mock_units,
             publish_ha=publish_ha, description=req.description)
         state.set_default(st.ensure_one_default())
+        if current is None:     # the first gateway: it takes what ran on "no gateway" (#379)
+            _log_adopted(st.adopt_default_data(gid), gid)
         await _reconcile_gateway(row)
         return _gw_merged(row)
 
@@ -3238,9 +3249,8 @@ def create_app() -> FastAPI:
         return {"values": vals, "spec": constants.spec()}
 
     def _sched_gateway(gateway_id: str | None) -> GatewayState | None:
-        """The gateway a schedule runs on: its own, else the default (as the tick decides)."""
-        return (state.get_gateway(gateway_id) if gateway_id else None) \
-            or state.default_gateway()
+        """The gateway a schedule runs on: its own (#379). None if it isn't running."""
+        return state.get_gateway(gateway_id) if gateway_id else None
 
     def _site_now(gateway_id: str | None) -> _dt.datetime:
         """Now on that gateway's site clock — the clock the tick fires on (#161). Read from
@@ -3314,6 +3324,14 @@ def create_app() -> FastAPI:
     def _valid_spec(spec: dict) -> None:
         """Refuse a schedule that cannot run as written (#198) — never quietly fix it."""
         errors = scheduler.validate_spec(spec)
+        # Every schedule names its gateway (#379). There is no "default gateway" to
+        # leave it on: the form starts on the active gateway.
+        gid = spec.get("gateway_id") or ""
+        st = _gw_store()
+        if not gid:
+            errors = [*errors, "choose the gateway it runs on"]
+        elif state.get_gateway(gid) is None and (st is None or st.gateway(gid) is None):
+            errors = [*errors, f"unknown gateway '{gid}'"]   # running, or in the roster
         if errors:
             raise HTTPException(status_code=422,
                                 detail="schedule not saved: " + "; ".join(errors))
@@ -3513,10 +3531,13 @@ def create_app() -> FastAPI:
 
     @app.post("/api/schedules/import")
     def api_schedules_import(req: ScheduleImportReq,
-                             dry_run: bool = Query(True)):
+                             dry_run: bool = Query(True),
+                             gateway: str = Depends(_gateway_q)):
         """Validate a bundle; with ``dry_run=false`` create the valid entries
-        DISABLED for review. An unknown gateway falls back to the default, and a
-        missing notify device is flagged rather than blocking the import."""
+        DISABLED for review. An entry whose gateway is missing or not on this bridge is
+        bound to ``gateway`` (the UI's active gateway, #379), and a missing notify device
+        is flagged rather than blocking the import."""
+        target = _gw_or_404(gateway).id
         _known = {scheduler.EXPORT_TYPE, scheduler.IMPORT_TYPE_AUTOMATIONS}
         if req.type and req.type not in _known:
             raise HTTPException(
@@ -3550,8 +3571,8 @@ def create_app() -> FastAPI:
                 spec["action"] = scheduler.normalize_action(spec.get("action"))
             except ValueError:                  # one is refused by the engine at run time
                 pass
-            if spec.get("gateway_id") and spec["gateway_id"] not in gw_ids:
-                spec["gateway_id"] = ""     # unknown gateway → default
+            if spec.get("gateway_id") not in gw_ids:
+                spec["gateway_id"] = target     # none, or not on this bridge (#379)
             name = spec.pop("name", "imported")
             spec.pop("enabled", None)
             row = st.create_schedule(sid=uuid.uuid4().hex[:12], name=name,

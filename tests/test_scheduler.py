@@ -272,7 +272,7 @@ def test_import_validation_catches_bad_and_warns_on_missing_refs():
     assert bad["ok"] is False
     assert any("HH:MM" in e for e in bad["errors"])
     assert any("discards" in e for e in bad["errors"])        # unavailable action named
-    assert any("default gateway" in w for w in bad["warnings"])
+    assert any("import into" in w for w in bad["warnings"])     # bound there (#379)
     assert any("device" in w for w in bad["warnings"])
 
 
@@ -823,13 +823,16 @@ def test_import_only_rejects_truly_unknown_types(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "_settings", None)
     monkeypatch.setattr(db, "get_store", lambda s: store)
     c = TestClient(app_module.create_app())
-    bad = c.post("/api/schedules/import?dry_run=true",
+    from franklinwh_direct_connect_bridge import state
+    monkeypatch.setitem(state._gateways, "g1", state.GatewayState(
+        id="g1", label="first", configured_host="192.0.2.10", active_host="192.0.2.10"))
+    bad = c.post("/api/schedules/import?dry_run=true&gateway=g1",
                  json={"type": "some-other-app", "version": 1, "entries": []})
     assert bad.status_code == 400
     detail = bad.json()["detail"]
     assert sch.EXPORT_TYPE in detail and sch.IMPORT_TYPE_AUTOMATIONS in detail
     # A native bundle dry-run reports count + importable (what the dialog reads).
-    good = c.post("/api/schedules/import?dry_run=true",
+    good = c.post("/api/schedules/import?dry_run=true&gateway=g1",
                   json={"type": sch.EXPORT_TYPE, "version": sch.EXPORT_VERSION,
                         "entries": [{"name": "x", "fire_at": "06:00", "action": {"kind": ""}}]})
     assert good.json()["count"] == 1 and "importable" in good.json()
@@ -847,6 +850,9 @@ def test_import_maps_modbus_automations_bundle(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "_settings", None)
     monkeypatch.setattr(db, "get_store", lambda s: store)
     c = TestClient(app_module.create_app())
+    from franklinwh_direct_connect_bridge import state
+    monkeypatch.setitem(state._gateways, "g1", state.GatewayState(
+        id="g1", label="first", configured_host="192.0.2.10", active_host="192.0.2.10"))
     bundle = {"type": "franklinwh-automations", "version": 1, "entries": [{
         "name": "Charge at 6am if low", "action": "force_charge", "params": {"power_pct": 100},
         "target_type": "gateway", "target_id": "default", "enabled": False,
@@ -869,20 +875,21 @@ def test_import_maps_modbus_automations_bundle(tmp_path, monkeypatch):
     assert mapped["conditions"][1] == {"match": "any", "conditions": [
         {"sensor": "grid.connected", "op": "==", "value": 1}]}
     assert mapped["ha_actions"][0]["entity_id"] == "switch.pv"
-    assert mapped["gateway_id"] == ""      # "default" → our default gateway
+    assert mapped["gateway_id"] == ""      # "default" → bound to the gateway imported into (#379)
 
     # The mapped HA action has no ha_kind, so this engine would run it as a notify with no
     # device and skip it. Since #202 the import says so instead of saving it.
-    rep = c.post("/api/schedules/import?dry_run=true", json=bundle).json()["entries"][0]
+    rep = c.post("/api/schedules/import?dry_run=true&gateway=g1", json=bundle).json()["entries"][0]
     assert rep["ok"] is False and any("HA action 1" in e for e in rep["errors"])
 
     # end-to-end without it: dry-run importable, then create disabled
     bundle["entries"][0]["ha_actions"] = []
-    dry = c.post("/api/schedules/import?dry_run=true", json=bundle).json()
+    dry = c.post("/api/schedules/import?dry_run=true&gateway=g1", json=bundle).json()
     assert dry["count"] == 1 and dry["importable"] == 1 and dry["mapped_from"] == "franklinwh-automations"
-    done = c.post("/api/schedules/import?dry_run=false", json=bundle).json()
+    done = c.post("/api/schedules/import?dry_run=false&gateway=g1", json=bundle).json()
     assert len(done["created"]) == 1
     row = store.schedule(done["created"][0])
+    assert row["gateway_id"] == "g1"
     assert row["enabled"] == 0 and (row.get("action") or {}).get("direction") == "charge"
 
 

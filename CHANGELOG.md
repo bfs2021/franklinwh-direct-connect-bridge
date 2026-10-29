@@ -12,6 +12,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 ## [Unreleased]
 
 ### Breaking
+- **Every schedule names its gateway** (#379). The schedule form starts on the active
+  gateway, always shows the gateway, and has no "Default gateway" choice. Saving a schedule
+  with no gateway, or an unknown one, is refused (422). `/api/schedules/import` needs
+  `?gateway=`; entries with no gateway, or one this bridge doesn't have, are bound to it.
+  On update, schedules saved with no gateway, and billing and System Setup data saved under
+  "default", are given to the default gateway at start-up (or to the first gateway you add),
+  so nothing stops running. A schedule with no gateway no longer runs on the default.
 - **Every API call that acts on an aGate must name its gateway** (#379). `?gateway=`
   takes the gateway's ID or its locked aGate serial. Leaving it out used to mean the default
   gateway, and the metrics routes then mixed every gateway's rows. Now it is refused with
