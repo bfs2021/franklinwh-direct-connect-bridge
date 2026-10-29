@@ -106,6 +106,9 @@ def test_start_up_binds_to_the_default_gateway(st, monkeypatch):
     async def _noop(*a, **k):
         return None
     monkeypatch.setattr(supervisor, "start_poller", _noop)
+    from franklinwh_direct_connect_bridge import battery_control
+    # start-up sets the Modbus client switch from this store; keep it from leaking
+    monkeypatch.setattr(battery_control, "_ENABLED", battery_control._ENABLED)
     with TestClient(app_module.create_app()):
         pass
     assert st.schedule("s-old")["gateway_id"] == "gA"
