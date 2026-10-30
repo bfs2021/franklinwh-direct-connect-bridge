@@ -27,6 +27,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   client connects to its own host (the host override in Control still applies to the
   default gateway). A scheduler pass for no gateway runs no schedule. Settings → Connection
   shows the active gateway's host, and none in All gateways.
+
+## [0.5.18] — 2026-10-30
+
+### Breaking
 - **Every API call that acts on an aGate must name its gateway** (#379). `?gateway=`
   takes the gateway's ID or its locked aGate serial. Leaving it out used to mean the default
   gateway, and the metrics routes then mixed every gateway's rows. Now it is refused with
