@@ -19,6 +19,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   On update, schedules saved with no gateway, and billing and System Setup data saved under
   "default", are given to the default gateway at start-up (or to the first gateway you add),
   so nothing stops running. A schedule with no gateway no longer runs on the default.
+
+## [0.5.18] — 2026-10-30
+
+### Breaking
 - **Every API call that acts on an aGate must name its gateway** (#379). `?gateway=`
   takes the gateway's ID or its locked aGate serial. Leaving it out used to mean the default
   gateway, and the metrics routes then mixed every gateway's rows. Now it is refused with
