@@ -18,6 +18,22 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   default used to sign in to the Bridge and dispatch anyway, echoing the requested id. It
   now answers 409 before any provider I/O and names the stored default gateway; Battery
   Control on the other gateway's own page acts on the gateway on screen (#375).
+### Breaking
+- **Every schedule names its gateway** (#379). The schedule form starts on the active
+  gateway, always shows the gateway, and has no "Default gateway" choice. Saving a schedule
+  with no gateway, or an unknown one, is refused (422). `/api/schedules/import` needs
+  `?gateway=`; entries with no gateway, or one this bridge doesn't have, are bound to it.
+  On update, schedules saved with no gateway, and billing and System Setup data saved under
+  "default", are given to the default gateway at start-up (or to the first gateway you add),
+  so nothing stops running. A schedule with no gateway no longer runs on the default.
+- **No call falls back to the default gateway's address** (#379). An internal aGate call
+  with no host is refused instead of going to the configured `fwh_host` or the default
+  gateway. The poller and Home Assistant controls use the gateway's re-discovered address,
+  else its configured one. Nothing registers a gateway on first use any more; the roster
+  is what start-up registered. `FWH_MODBUS_HOST` is no longer read: each gateway's Modbus
+  client connects to its own host (the host override in Control still applies to the
+  default gateway). A scheduler pass for no gateway runs no schedule. Settings → Connection
+  shows the active gateway's host, and none in All gateways.
 
 ## [0.5.18] — 2026-10-30
 
