@@ -11,6 +11,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Added
+- **Home Assistant gets Grid Status, Active Reserve SOC, Firmware Version and four relay
+  sensors** (#386). Grid Status says whether the aGate is connected, off grid on request,
+  or off grid without a request. Active Reserve SOC is the reserve of the mode in use.
+  The relays are Main Relay 1 and 2, Grid Relay 2 and Black Start Relay. All of them come
+  from reads the bridge already makes every poll; no new reads of the aGate.
+
+### Security
+- **Home Assistant controls stop working when the Controls group is off** (#399). Turning
+  off Controls (writable) in the MQTT settings removed the Operating Mode select and the
+  Smart Circuit switches from Home Assistant, but the bridge still obeyed commands sent to
+  their MQTT topics. Now it stops listening for them, and refuses (and logs) any that
+  arrive anyway. Turning the group back on restores them.
+
 ### Docs
 - **Up to two releases a day** (TEST_POLICY). Each still passes its own gates, including the
   HAOS acceptance run; a release that changes how Home Assistant identifies things is still
