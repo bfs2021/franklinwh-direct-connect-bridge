@@ -12,6 +12,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 ## [Unreleased]
 
 ### Added
+- **Home Assistant gets Grid Voltage and Grid Frequency** (#386). The bridge already read
+  both every poll; now they're published, with the Modbus Bridge's entity IDs. No new reads
+  of the aGate.
 - **Reserve SoC in Home Assistant** (C2). Two numbers: TOU and Self-Consumption
   Reserve SOC (Emergency Backup's reserve is fixed at 100 %). They write through the FranklinWH
   cloud, because the aGate discards a local reserve write. They appear only when cloud
