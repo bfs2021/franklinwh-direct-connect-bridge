@@ -11,6 +11,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
 
 ## [Unreleased]
 
+### Testing
+- **Every PR now installs the bridge the two standalone ways INSTALL.md offers.** Docker
+  Compose and pip into a fresh venv, each with and without a broker, then a mock gateway is
+  added and checked (`install-smoke.yml`, #409). Until now only the Home Assistant add-on
+  was tested; the first run found that a pip install does not start (#410).
+
 ## [0.5.21] — 2026-10-31
 
 ### Added
