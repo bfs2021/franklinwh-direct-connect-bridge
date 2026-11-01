@@ -18,6 +18,104 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   default used to sign in to the Bridge and dispatch anyway, echoing the requested id. It
   now answers 409 before any provider I/O and names the stored default gateway; Battery
   Control on the other gateway's own page acts on the gateway on screen (#375).
+
+## [0.5.24] — 2026-11-02
+
+### Fixed
+- System view and the top bar's gateway picker show the same gateway. The overlay opens on
+  the picker's gateway and follows it, and a gateway picked in the overlay becomes the
+  picker's. Before, the overlay could show one gateway while the picker said another.
+- System view is in the phone's More sheet, by name. On a phone it was only the top bar's
+  unlabelled icon, always last. It is now in Top bar preferences, first by default, so it
+  can be moved or hidden like the other buttons (saved preferences get it at the end).
+- When the top bar wraps to two rows, the sidebar's logo row grows with it; a strip of
+  sidebar no longer shows between the logo and System view.
+- `franklinwh-system-view` 0.2.3 (was 0.2.0): adds the gateway hooks above; 0.2.1 draws
+  objects a bridge marks unavailable, which this bridge doesn't send.
+- On a phone, tapping an object in System view left its hover box over the details
+  panel's ✕, so the details couldn't be closed ("Can't dismiss this view", iPhone).
+  Fixed in `franklinwh-system-view` 0.2.3.
+
+## [0.5.23] — 2026-11-01
+
+### Added
+- **System view: Customise diagram, place name and weather** (#428). A **Customise diagram**
+  button lets you name the site, each gateway and each smart circuit. You can also set the
+  service legs, the battery model, where solar connects, whether a generator is fitted, a
+  picture for each smart circuit (heating/cooling, hot water, EV, pool, other) and whether
+  weather shows. The answers are saved in the bridge (`system_view.json`), so every browser
+  shows the same diagram. Where the aGate has a reading, it's shown beside your answer; a
+  mismatch is flagged, never overridden. Nothing is sent to the aGate. Above the diagram
+  are the site's name (by default the place from your location setting) and the weather
+  now, from the solar page's Open-Meteo forecast. The forecast refreshes in the background,
+  so opening the view never waits for it.
+
+### Fixed
+- **System view:** "100%" fits inside the battery ring, and the hover text no longer covers
+  the label under the picture (`franklinwh-system-view` 0.2.0).
+
+## [0.5.22] — 2026-11-01
+
+### Added
+- **System view** (#428, phase 1): a picture of your whole system: grid, aGate, batteries,
+  solar, home, smart circuits and generator, with live flows. Open it from **System view**
+  in the sidebar or the top bar. Tick **Start on System view** to make it the page this
+  browser opens on; **Standard dashboard** returns to today's dashboard. It fits desktop,
+  tablet and phone (zoom − / Fit / +, pinch, drag). Hover a picture for a sentence, click
+  for details. Grey means offline, amber a warning, red critical (for example a grid outage).
+  Only what your aGate reports is drawn: no solar, no solar picture. It reads the bridge's
+  cached data only and never sends anything to the aGate.
+
+### Fixed
+- **A pip install starts again.** The history store was fixed at `/data/metrics.db`, so the
+  INSTALL.md "Without Docker" install stopped at start-up on any host without a writable
+  `/data` (macOS, or Linux as a normal user). It now lives under the bridge's data folder:
+  `./data` for a pip install, `/data` in the add-on and Docker as before. `METRICS_DB` still
+  overrides it (#410).
+
+### Testing
+- **Every PR now installs the bridge the two standalone ways INSTALL.md offers.** Docker
+  Compose and pip into a fresh venv, each with and without a broker, then a mock gateway is
+  added and checked (`install-smoke.yml`, #409). Until now only the Home Assistant add-on
+  was tested; the first run found that a pip install does not start (#410).
+
+## [0.5.21] — 2026-10-31
+
+### Added
+- **Home Assistant gets Grid Voltage and Grid Frequency** (#386). The bridge already read
+  both every poll; now they're published, with the Modbus Bridge's entity IDs. No new reads
+  of the aGate.
+- **Reserve SoC in Home Assistant** (C2). Two numbers: TOU and Self-Consumption
+  Reserve SOC (Emergency Backup's reserve is fixed at 100 %). They write through the FranklinWH
+  cloud, because the aGate discards a local reserve write. They appear only when cloud
+  credentials are set for this gateway's aGate. Each shows the reserve the aGate reports
+  every poll.
+
+## [0.5.20] — 2026-10-31
+
+Second release today, after 0.5.19 (two a day are now allowed).
+
+### Added
+- **Home Assistant gets Grid Status, Active Reserve SOC, Firmware Version and four relay
+  sensors** (#386). Grid Status says whether the aGate is connected, off grid on request,
+  or off grid without a request. Active Reserve SOC is the reserve of the mode in use.
+  The relays are Main Relay 1 and 2, Grid Relay 2 and Black Start Relay. All of them come
+  from reads the bridge already makes every poll; no new reads of the aGate.
+
+### Security
+- **Home Assistant controls stop working when the Controls group is off** (#399). Turning
+  off Controls (writable) in the MQTT settings removed the Operating Mode select and the
+  Smart Circuit switches from Home Assistant, but the bridge still obeyed commands sent to
+  their MQTT topics. Now it stops listening for them, and refuses (and logs) any that
+  arrive anyway. Turning the group back on restores them.
+
+### Docs
+- **Up to two releases a day** (TEST_POLICY). Each still passes its own gates, including the
+  HAOS acceptance run; a release that changes how Home Assistant identifies things is still
+  released alone.
+
+## [0.5.19] — 2026-10-31
+
 ### Breaking
 - **Every schedule names its gateway** (#379). The schedule form starts on the active
   gateway, always shows the gateway, and has no "Default gateway" choice. Saving a schedule
@@ -34,6 +132,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); this pro
   client connects to its own host (the host override in Control still applies to the
   default gateway). A scheduler pass for no gateway runs no schedule. Settings → Connection
   shows the active gateway's host, and none in All gateways.
+
+### Docs
+- **The README no longer credits the library with the force watchdog.** The bridge gives
+  `franklinwh-modbus` no duration; its own watchdog is the only safety. The README also
+  named the wrong add-on slug (it is `franklinwh_local_bridge`), the editable install
+  pointed at `../franklinwh-local` (now `../franklinwh-direct-connect-api`), and
+  `docs/API_COMPARISON.md` counted 29 `/api/cmd/*` routes (there are 36). A test now
+  checks the slug, the route count and the install path.
 
 ## [0.5.18] — 2026-10-30
 

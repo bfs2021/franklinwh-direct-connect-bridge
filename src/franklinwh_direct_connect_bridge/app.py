@@ -1288,6 +1288,9 @@ def create_app() -> FastAPI:
         ),
         lifespan=lifespan)
 
+    # The System view overlay's page files (#428), from the shared package.
+    import franklinwh_system_view as _sv
+    app.mount("/system-view", StaticFiles(directory=str(_sv.static_dir())), name="system-view")
     app.mount("/static",
               StaticFiles(directory=str(Path(__file__).parent / "static")),
               name="static")
@@ -2413,6 +2416,27 @@ def create_app() -> FastAPI:
                     totals[k] += v
         return {"count": len(gws), "ok_count": ok_count, "totals": totals,
                 "gateways": [_roster_entry(gw) for gw in gws]}
+
+    @app.get("/api/system")
+    def api_system():
+        """The System view (#428): every gateway from the poller caches, laid out for the
+        shared franklinwh-system-view overlay. No device I/O."""
+        import franklinwh_system_view as _sv
+        from . import system_view as _svp
+        return _sv.build(_svp.payload(get_settings()))
+
+    @app.put("/api/system/customise")
+    async def api_system_customise(request: Request):
+        """Save the System view's Customise diagram answers (#428). Bridge settings only:
+        nothing is sent to an aGate. Replaces the saved answers; empty means Automatic."""
+        import franklinwh_system_view as _sv
+        from . import system_view as _svp
+        try:
+            values = _sv.customise.clean(await request.json(), _svp.raw_payload(get_settings()))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        _svp.save(values)
+        return {"ok": True, "saved": values}
 
     def _read(fn, gateway: str | None = None):
         host = _gw_host(gateway)
@@ -4899,16 +4923,9 @@ def create_app() -> FastAPI:
         }
 
     def _cloud_target_refusal(gw: GatewayState) -> str | None:
-        """Why the cloud can't act for ``gw``, or None (#351, #379): the call goes to this
-        gateway's own locked serial, and only when the cloud account is for that aGate."""
-        if gw.is_mock:
-            return "A mock gateway has no FranklinWH cloud account."
-        if not (gw.serial and getattr(gw, "serial_locked", False)):
-            return "This gateway's serial hasn't been read yet. Try again once it's connected."
-        want = (get_settings().fwh_cloud_gateway or "").upper()
-        if want and want != gw.serial.upper():
-            return "The cloud credentials are for a different gateway."
-        return None
+        return providers.cloud_target_refusal(
+            get_settings(), serial=gw.serial,
+            serial_locked=bool(getattr(gw, "serial_locked", False)), is_mock=bool(gw.is_mock))
 
     @app.post("/api/cloud/reserve")
     def api_cloud_reserve(req: ReserveReq, gateway: str = Depends(_gateway_q)):
@@ -5546,7 +5563,7 @@ def create_app() -> FastAPI:
             g = e.get("group", "core")
             if g not in enabled:
                 continue
-            rows.append({"slug": e["key"], "name": e["name"], "ha_type": "sensor", "writable": False,
+            rows.append({"slug": e["key"], "name": e["name"], "ha_type": e.get("ha_type", "sensor"), "writable": False,
                          "group": g, "diagnostic": g == "diagnostic", "unit": e.get("unit"),
                          "value": st.get(e["key"]), "stat_key": e["key"], "state_topic": state_topic,
                          "command_topic": None, "options": []})
